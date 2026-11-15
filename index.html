@@ -6,6 +6,7 @@
 <meta name="description" content="职引者 ZHIYIN — AI 职业生涯韧性与反内卷管家。用数据替代焦虑，用路径替代内耗。">
 <title>职引者 ZHIYIN — AI 职业生涯韧性与反内卷管家</title>
 <link rel="icon" href="data:,">
+<script src="demo-config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
@@ -1264,6 +1265,10 @@ h2.display .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
       <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:20px"><strong>本地研究检索索引</strong>把这条 C 级链路再往下延伸一步：已核对的文本经 PII 脱敏、分块、字符 n-gram 稀疏向量化后存入本机索引，可按技能词检索原文片段。服务端<strong>只收文本，没有图片上传端点</strong>，位图自始不离开浏览器内存。向量<strong>不等同于匿名化</strong>（存在反演风险），因此片段用 AES-256-GCM 加密落盘，默认 30 天留存、可按文档删除或整库清空，并全程写入审计哈希链；未配置持久密钥时服务重启即自动清空。每条检索结果都带数据分级与禁止结论，C / D 级片段不得据此推断国内就业形势、同比、薪资或蓝海岗位。研究用途不解锁国内市场洞察，也不改变上述任何采集红线。</p>
       <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:44px">定向学习与面试评分的底表仍为内置演示数据集；公开数据源不可用时洞察页自动降级为演示集。当前 RAG 是纯标准库的本地稀疏检索原型（字符 n-gram + 技能本体 TF-IDF），不是 Qdrant / BGE / LangGraph 生产管线；正式版本仍需补齐授权数据管道、混合检索与编排；简历 PII 的字段级加密、脱敏、一键删除与审计哈希链已在本地落地，因此简历上传与解析入口保持关闭，含 PII 的内容一律不外发至云端模型。语言模型层仅接入 DeepSeek：凭据由本地 BFF 在服务端持有，页面不接触任何密钥；模型只承担叙述、提问与建议，数值与流程仍走确定性管道，输出经 JSON Schema 校验，服务不可用时自动降级为规则引擎。</p>
 
+      <div class="panel-title"><h3>本地偏好</h3><span class="meta">LOCAL UI STATE</span></div>
+      <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:20px">为避免刷新后丢失进度，浏览器仅在本机保存<strong>非敏感界面状态</strong>：学习阶段勾选、当前视图、当前 JD 标签、面试语气模式。<strong>不保存</strong> JD 原文、简历要点、OCR 文本、面试回答、面试报告与任何个人信息——这些内容仍只在内存中使用，刷新即清空，与上文 C 级链路的承诺一致。研究索引的留存由服务端单独控制，与此处的界面偏好无关。</p>
+      <button class="btn btn-ghost" type="button" id="clearUIPrefs" style="margin-bottom:44px">清除本地偏好 ↗</button>
+
       <div class="metrics" style="margin-bottom:0">
         <div class="metric"><b>04</b><span>闭环模块</span></div>
         <div class="metric"><b>05</b><span>架构分层</span></div>
@@ -1291,8 +1296,11 @@ h2.display .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
    内置演示数据集（结构化 JD 样例 / O*NET 技能分类口径）
    —— 全部数值确定性渲染，不经过语言模型
    ============================================================ */
-const STAMP = '2026-11-14 09:00';
-const SOURCE_LINE = '数据来源：内置演示数据集 · 结构化招聘 JD 样例 / O*NET 技能分类口径 · 更新于 ' + STAMP + ' · 非实时抓取';
+/* 演示集展示口径外置到 demo-config.js；文件缺失时回落内置样例，离线预览不报错 */
+const DEMO_CFG=(window.ZHIYIN_DEMO&&typeof window.ZHIYIN_DEMO==='object')?window.ZHIYIN_DEMO:{};
+const STAMP=(typeof DEMO_CFG.stamp==='string'&&DEMO_CFG.stamp.length<=40)?DEMO_CFG.stamp:'2026-11-14 09:00';
+const DEMO_SCOPE=(typeof DEMO_CFG.scope==='string'&&DEMO_CFG.scope.length<=80)?DEMO_CFG.scope:'内置演示数据集';
+const SOURCE_LINE = '数据来源：'+DEMO_SCOPE+' · 结构化招聘 JD 样例 / O*NET 技能分类口径 · 更新于 ' + STAMP + ' · 非实时抓取';
 
 const PROFILES = {
   cs:{
@@ -1932,7 +1940,7 @@ const ARCH = {
     ['采集 / 语音','仅路径 C：公开数据 API + 授权 API + 用户自带 JD（爬虫路径封禁；语音 WebSocket / ASR / TTS 属后续阶段）'],
     ['部署','Phase 1 单机 / 容器；Phase 2 服务水平扩展，语音网关独立部署'],
     ['模型接入（当前实现）','DeepSeek / deepseek-chat · 仅一个 provider · 凭据仅存服务端进程内存 · 前端零密钥 · 离线自动降级'],
-    ['应用服务层（当前实现）','FastAPI BFF（server.py）+ Pydantic v2 / JSON Schema 输出校验 · /api/health · /api/llm · /api/schema · /api/market · /api/sources · /api/capture/policy · /api/research/policy · /api/insight/modes · /api/jd/* · /api/rag/* · 仅绑定 127.0.0.1 · 静态文件白名单 · 无图片上传端点（extra=forbid 拒绝 image 字段）'],
+    ['应用服务层（当前实现）','FastAPI BFF（server.py）+ Pydantic v2 / JSON Schema 输出校验 · /api/health · /api/llm · /api/schema · /api/market · /api/sources · /api/capture/policy · /api/research/policy · /api/insight/modes · /api/jd/* · /api/rag/* · 仅绑定 127.0.0.1 · 静态白名单仅 index.html 与 demo-config.js · 无图片上传端点（extra=forbid 拒绝 image 字段）'],
     ['数据采集（当前实现）','公开 API 路径：Jobicy 主 + RemoteOK 兜底（无需登录态）· 15 分钟缓存 / 5 秒限频 · 只保留聚合统计，不落盘原始 JD · 来源与抓取时间戳 · 失败回退内置演示集'],
     ['合规闸门（当前实现）','sources.py：10 个数据源注册表 · fail-closed 准入 · robots / Crawl-delay 检查与留痕 · A/B/C/D 分级 · 法务 17 问与 BD 8 项要点经 /api/sources 暴露 · 截图判定经 /api/capture/policy 暴露 · 研究用途判定经 /api/research/policy 暴露'],
     ['双模式与 C 级入口（当前实现）','/api/insight/modes：技能词频参考（D 级可用）与国内市场洞察（A 级待授权，不输出任何数值）；/api/jd/analyze：用户自带 JD 确定性抽取、PII 脱敏、原文零落盘、可撤回删除；截图入口：Tesseract.js 浏览器本地 OCR，图片仅内存且用完即释放'],
@@ -2057,6 +2065,7 @@ function switchView(id,skipAnim){
     currentView=id;visited.add(id);
     $('#views').scrollTop=0;
     updateChrome(id);
+    uiSave({view:id});
     try{if(location.hash.slice(1)!==id)history.replaceState(null,'','#'+id);}catch(e){}
     window.dispatchEvent(new CustomEvent('zy:viewchange',{detail:{id}}));
   };
@@ -2280,7 +2289,7 @@ function renderSourceBadge(p){
       `<span class="sb-scope">数值确定性统计，不含模型生成 · 来源：<a href="${esc(s.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${esc(s.url)}</a>（按公开 API 条款保留署名与 followed 回链）</span>`;
   }else{
     el.classList.remove('live');
-    el.innerHTML=`<b>内置演示数据集</b><span>非实时抓取 · ${esc(STAMP)} · 公开数据源不可用或未启动本地服务</span>`+
+    el.innerHTML=`<b>${esc(DEMO_SCOPE)}</b><span>非实时抓取 · ${esc(STAMP)} · 公开数据源不可用或未启动本地服务</span>`+
       `<span class="sb-scope">演示集所有数值为结构化样例，仅用于展示交互闭环。</span>`;
   }
 }
@@ -2541,7 +2550,7 @@ function installUserJD(r){
     meta:'用户自带 JD · C 级 · '+r.skills.length+' 项技能 · 仅对这份 JD 成立',
     calibrate:a.calibrate,coverage:a.coverage,dims:a.dims,gaps:a.gaps,plan:buildUserPlan(r)
   };
-  renderJdTabs();renderAlign('user');learnDone=new Set();renderLearn();
+  renderJdTabs();renderAlign('user');learnDone=new Set();renderLearn();uiSave({jdKey:'user',learnDone:[]});
 }
 function handleUserJD(r,offline){
   userJdResult=r;userJdSession=(r.session&&r.session.id)||null;
@@ -2587,7 +2596,7 @@ async function withdrawUserJD(){
         body:JSON.stringify({id:userJdSession})});
     }catch(e){/* 离线预览没有会话，本地结果同样会清除 */}
   }
-  delete JDS.user;renderJdTabs();renderAlign('agent');learnDone=new Set();renderLearn();
+  delete JDS.user;renderJdTabs();renderAlign('agent');learnDone=new Set();renderLearn();uiSave({jdKey:'agent',learnDone:[]});
   userJdSession=null;userJdResult=null;
   $('#jdResult').classList.remove('show');$('#jdResult').innerHTML='';
   $('#jdInput').value='';$('#jdResume').value='';$('#jdConsent').checked=false;
@@ -2634,6 +2643,36 @@ function renderAlign(key){
       <h4>${label}</h4>
       ${d.gaps[k].map(([n,m,j])=>`<div class="gap-line"><b>${esc(n)}</b><span style="display:flex;align-items:center;gap:10px"><span class="muted" style="font-size:10px;font-weight:700">${m} → ${j}</span><span class="bar"><i style="width:${m}%"></i></span></span></div>`).join('')}
     </div>`).join('');
+}
+
+/* ============================================================
+   本地 UI 偏好（只存非敏感状态）
+   明确不存：JD 原文 / 简历要点 / OCR 文本 / 面试回答 / 报告 / 任何 PII。
+   这些内容仍只在内存中使用，刷新即清空（与 C 级链路承诺一致）。
+   ============================================================ */
+const UI_KEY='zhiyin.ui.v1';
+function uiLoad(){try{const v=JSON.parse(localStorage.getItem(UI_KEY)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}}
+function uiSave(patch){try{const cur=uiLoad();Object.assign(cur,patch);localStorage.setItem(UI_KEY,JSON.stringify(cur));}catch(e){/* file:// 或隐私模式下 localStorage 不可用，功能静默降级 */}}
+function uiClear(){try{localStorage.removeItem(UI_KEY);}catch(e){}}
+function restoreUI(){
+  const s=uiLoad();
+  if(Array.isArray(s.learnDone))learnDone=new Set(s.learnDone.filter(k=>typeof k==='string'&&/^[a-z]+#[0-3]$/.test(k)));
+  if(s.jdKey&&s.jdKey!=='agent'&&JDS[s.jdKey])renderAlign(s.jdKey);
+  renderLearn();
+  if(s.ivMode==='pressure'){
+    ivMode='pressure';
+    $$('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode==='pressure'));
+    startInterview();
+  }
+  if(!location.hash&&s.view&&VIEW_IDS.includes(s.view)&&s.view!=='home')switchView(s.view,true);
+}
+function clearUIPrefs(){
+  uiClear();
+  learnDone=new Set();renderAlign('agent');renderLearn();
+  ivMode='standard';
+  $$('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode==='standard'));
+  startInterview();
+  toast('已清除本地偏好：学习进度 / JD 标签 / 面试模式 / 视图');
 }
 
 /* ============================================================
@@ -2841,19 +2880,20 @@ function init(){
     const imode=e.target.closest('[data-imode]');
     if(imode){setInsightMode(imode.dataset.imode);return;}
     const tab=e.target.closest('[data-jd]');
-    if(tab){renderAlign(tab.dataset.jd);learnDone=new Set();renderLearn();return;}
+    if(tab){renderAlign(tab.dataset.jd);learnDone=new Set();renderLearn();uiSave({jdKey:tab.dataset.jd,learnDone:[]});return;}
     const check=e.target.closest('[data-check]');
     if(check){
       const i=Number(check.dataset.check),k=jdKey+'#'+i;
       learnDone.has(k)?learnDone.delete(k):learnDone.add(k);
-      renderLearn();return;
+      renderLearn();uiSave({learnDone:[...learnDone]});return;
     }
     const mode=e.target.closest('[data-mode]');
     if(mode){
       ivMode=mode.dataset.mode;
       $$('#modeSeg button').forEach(b=>b.classList.toggle('on',b===mode));
-      startInterview();return;
+      startInterview();uiSave({ivMode});return;
     }
+    if(e.target.closest('#clearUIPrefs')){clearUIPrefs();return;}
     const chip=e.target.closest('[data-profile]');
     if(chip){$('#queryInput').value=PROFILES[chip.dataset.profile].name;runInsight();return;}
     const act=e.target.closest('[data-action]');
@@ -2922,6 +2962,7 @@ function init(){
     const h=location.hash.slice(1);
     if(VIEW_IDS.includes(h))switchView(h,true);
   });
+  restoreUI();
 }
 init();
 </script>

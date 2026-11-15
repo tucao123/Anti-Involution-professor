@@ -4,6 +4,9 @@
 key.env
 !.env.example
 
+# 本机凭据路径指针（只含路径、不含密钥，环境相关，不入库）
+.zhiyin_key_path
+
 # Python
 __pycache__/
 *.pyc

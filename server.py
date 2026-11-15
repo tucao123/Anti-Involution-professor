@@ -7,7 +7,7 @@
 1. 只使用 DeepSeek 一个模型提供方；配置文件里其他 provider 的行一律跳过，不解析、不载入内存。
 2. API Key 只存在于本进程内存中：不写入项目文件、不返回给浏览器、不打印到日志、不回显到错误响应。
 3. 前端只与 http://127.0.0.1:<port>/api/* 通信，永远接触不到凭据。
-4. 静态文件只放行 index.html；server.py / .env / .workbuddy 等一律不通过 HTTP 暴露。
+4. 静态文件只放行 index.html 与 demo-config.js；server.py / .env / .workbuddy 等一律不通过 HTTP 暴露。
 5. 所有模型输出先经 Pydantic（JSON Schema）校验，校验不通过即降级，绝不把未校验内容渲染给用户。
 6. 用户自带 JD（C 级）原文不落盘、不外发云端模型；PII 先脱敏再抽取，须显式用途授权，可随时撤回删除。
 7. 行业洞察分双模式；国内市场模式只有存在「已批准的 A 级境内数据源」才开放，未授权时界面显示待授权而非拿 D 级海外样本冒充。
@@ -16,10 +16,13 @@
 9. 受控研究采集的执行体不存在。「非商用」不是合规豁免：须法务书面结论 + 站点书面许可 +
    书面批准记录 + 注册表状态变更四者齐备；规避技术措施的手段永久禁止。
 
-启动：python server.py            （默认端口 8848）
+启动：python server.py                    （默认端口 8848）
       python server.py --port 9000
-配置：环境变量 ZHIYIN_ENV_FILE 指向 key.env，或放置项目根目录 .env。
+      python server.py --env-file <路径>  （显式指定凭据文件，优先级最高）
+配置：--env-file > ZHIYIN_ENV_FILE > 项目根目录 .env > .zhiyin_key_path 指向的外部文件。
       仅识别 deepseek:<key> / DEEPSEEK_API_KEY=<key>，可选 DEEPSEEK_BASE_URL、DEEPSEEK_MODEL。
+      .zhiyin_key_path 只存一行路径、不含密钥、已被 .gitignore 排除；删除它或设
+      ZHIYIN_DISABLE_LEGACY_KEY=1 即可停用该兼容回退。源码中不含任何个人目录路径。
 依赖：python -m pip install -r requirements.txt
 """
 from __future__ import annotations
@@ -177,18 +180,33 @@ class RagQueryRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # 配置读取：只读 deepseek 相关行
 # ---------------------------------------------------------------------------
-def _candidate_paths():
+KEY_PATH_POINTER = ROOT / ".zhiyin_key_path"
+
+
+def _candidate_paths(extra: Path | None = None):
+    """按优先级生成 (来源类别, 路径)；来源类别可用于可观测，绝不返回路径本身。"""
+    if extra:
+        yield "explicit", Path(extra).expanduser()
     custom = os.environ.get("ZHIYIN_ENV_FILE")
     if custom:
-        yield Path(custom).expanduser()
-    yield ROOT / ".env"
-    yield Path.home() / "Desktop" / "青年大学习" / "key.env"
+        yield "env-file", Path(custom).expanduser()
+    yield "project-dotenv", ROOT / ".env"
+    # 可选的本机兼容回退：指针文件只含一行外部路径，不含任何凭据，也不入库。
+    # 换机器 / 换用户时该文件不存在，服务自然回落到 .env 或离线模式。
+    if os.environ.get("ZHIYIN_DISABLE_LEGACY_KEY") != "1" and KEY_PATH_POINTER.is_file():
+        try:
+            target = KEY_PATH_POINTER.read_text(encoding="utf-8").strip()
+        except OSError:
+            target = ""
+        if target and not target.startswith("#"):
+            yield "external-key-path", Path(target).expanduser()
 
 
-def load_config():
+def load_config(extra: Path | None = None):
     """只读 deepseek 相关行；其余 provider 的凭据完全跳过。"""
-    cfg = {"key": None, "base": DEFAULT_BASE, "model": DEFAULT_MODEL, "found": False}
-    for path in _candidate_paths():
+    cfg = {"key": None, "base": DEFAULT_BASE, "model": DEFAULT_MODEL,
+           "found": False, "source": "none"}
+    for source, path in _candidate_paths(extra):
         if not path or not path.is_file():
             continue
         try:
@@ -214,6 +232,7 @@ def load_config():
                 cfg["model"] = m.group(1).strip().strip('"').strip("'")
         if cfg["key"]:
             cfg["found"] = True
+            cfg["source"] = source
             break
     return cfg
 
@@ -366,6 +385,7 @@ def health():
         "model": CFG["model"],
         "configured": bool(CFG["key"]),
         "mode": "live" if CFG["key"] else "offline",
+        "credential_source": CFG["source"],
         "framework": "fastapi",
         "schema_validation": True,
         "source_gate": "fail-closed",
@@ -596,10 +616,24 @@ def index():
     return FileResponse(ROOT / "index.html", media_type="text/html; charset=utf-8")
 
 
+@app.get("/demo-config.js", include_in_schema=False)
+def demo_config():
+    """演示集展示口径配置；只放行这一个白名单脚本，其余源码 / 配置仍不可经 HTTP 读取。"""
+    return FileResponse(ROOT / "demo-config.js", media_type="application/javascript; charset=utf-8")
+
+
 def main():
+    global CFG
     ap = argparse.ArgumentParser(description="职引者 ZHIYIN · FastAPI BFF")
     ap.add_argument("--port", type=int, default=8848)
+    ap.add_argument("--env-file", default=None,
+                    help="显式指定凭据文件（优先级最高；文件不存在时会警告并回退）")
     args = ap.parse_args()
+    if args.env_file:
+        target = Path(args.env_file).expanduser()
+        if not target.is_file():
+            print("凭据警告   : --env-file 指向的文件不存在，将按默认顺序回退")
+        CFG = load_config(target)
     print("职引者 ZHIYIN · FastAPI BFF 已启动  ->  http://127.0.0.1:%d" % args.port)
     print("模型提供方 : deepseek / %s" % CFG["model"])
     print("输出校验   : Pydantic JSON Schema（4 个任务）· 校验失败自动降级")
@@ -610,8 +644,11 @@ def main():
           % rag_store.DEFAULT_RETENTION)
     print("研究模式   : /api/research/policy · %s · 执行体禁用（非商用不构成豁免）"
           % research_capture.status()["verdict"])
-    print("凭据状态   : %s（密钥仅在本进程内存，不会下发或打印）"
-          % ("已配置" if CFG["key"] else "未配置，前端将使用离线演示模式"))
+    print("凭据状态   : %s · 来源 %s（密钥仅在本进程内存，不会下发或打印）"
+          % ("已配置" if CFG["key"] else "未配置，前端将使用离线演示模式", CFG["source"]))
+    if CFG["source"] == "external-key-path":
+        print("凭据提示   : 正在使用 .zhiyin_key_path 指向的外部文件；"
+              "建议迁移到项目 .env，或设 ZHIYIN_DISABLE_LEGACY_KEY=1 停用该回退")
     print("按 Ctrl+C 停止")
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False, log_level="warning")
 

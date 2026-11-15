@@ -14,7 +14,7 @@ python server.py
 ```
 
 打开 <http://127.0.0.1:8848/>。指定端口：`python server.py --port 8849`。
-服务只绑定 `127.0.0.1`，静态资源只放行 `index.html`；TLS、反向代理与公网部署属后续阶段。
+服务只绑定 `127.0.0.1`，静态资源只放行 `index.html` 与 `demo-config.js`；TLS、反向代理与公网部署属后续阶段。
 
 `start.bat` 会检查 Python 与四个运行依赖（缺失时自动安装），并提示 `.env` 配置状态。**它不会复制、生成或打印任何密钥。**
 
@@ -67,7 +67,8 @@ HTTP / E2E 用例需要服务已在运行，默认 `http://127.0.0.1:8848`，可
 
 ```
 index.html            单文件前端（7 视图 + 离线降级），零构建
-server.py             FastAPI BFF / 20 个 API 端点 / JSON Schema 输出校验
+demo-config.js        演示集展示口径（时间戳 / 来源标签），外置可改
+server.py             FastAPI BFF / JSON Schema 输出校验 / 静态白名单
 sources.py            10 源注册表 · fail-closed 闸门 · 分级 · 截图判定
 market.py             公开远程岗 D 级适配（确定性统计 + 快照）
 user_jd.py            C 级用户自带 JD：技能抽取 / PII 脱敏 / 原文零落盘
@@ -83,7 +84,7 @@ tests/                自包含回归套件（单元 / HTTP / 静态 / 浏览器
 ## 已知边界
 
 - 前端只在 `localStorage` 保存非敏感 UI 状态（学习进度、视图、JD 标签、面试模式）；**不保存** JD 原文、简历、OCR 文本、面试回答或报告。
-- 演示数据集与时间戳为内置样例（`window.ZHIYIN_DEMO` 可覆盖），不是实时行情。
+- 演示集的时间戳与来源标签外置在 `demo-config.js`（`window.ZHIYIN_DEMO`），改口径不必动 `index.html`；数据集本体仍是内置样例，不是实时行情。
 - 前端按需从 CDN 加载 Tesseract.js / Google Fonts / Three.js；离线时字体退化、OCR 降级为「直接粘贴文字」。可预置 `window.Tesseract` 或自托管。
 - 所有外部结论未回之前，本仓库中所有 `blocked` / `pending_*` 状态都是刻意保留的，不是待修的 bug。
 
