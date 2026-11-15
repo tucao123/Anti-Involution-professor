@@ -1,0 +1,28 @@
+# 凭据文件：绝不入库
+.env
+*.env
+key.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+
+# 本地校验 / 预览临时产物
+.pv_*
+.chk_*
+.probe*
+
+# 运行时产生的聚合快照与隐私数据（不含原始 JD / 不含密钥）
+.market_snapshots.jsonl
+.privacy/
+.rag/
+
+# 测试产物与缓存
+tests/out/
+tests/.cache/
+*.log
+.pytest_cache/
+
+# 工作区助手数据与工作日志（保留在本地，不入库）
+.workbuddy/
