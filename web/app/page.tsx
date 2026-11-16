@@ -198,7 +198,8 @@ export default async function Page() {
         <h1>职引者 · 组件控制台</h1>
         <p className="sub">
           这一页只做状态观测，包含 Phase 3 的 A1–A4 与 2026-11-16 决策落地（回执闸门 / B1 文件解析 /
-          管理员采集设置 / 项目性质与使用限制条款 / B2 真实执行体与严格限速 / B2 生产执行体 / Q18 出境写入防护 / BGE 恢复）。完整的 8 个视图（含管理员）仍在既有单页应用中，本控制台通过反向代理复用同一个 FastAPI BFF。
+          管理员采集设置 / 项目性质与使用限制条款 / B2 真实执行体与严格限速 / B2 生产执行体 / Q18 出境写入防护 / BGE 恢复）。
+          面向用户的主入口是 <b>JTBD v2.0 决策工作台</b>（方向 → 核对 → 行动 → 演练 → 看板）；既有 8 视图单页保留为 legacy，仅供历史回放与 E2E 契约，二者共用同一个 FastAPI BFF。
         </p>
         <p className="meta">
           凭据来源：{config?.file_source || '未知'} · 密钥仅在服务端进程内存 · 页面不接触任何密钥
@@ -206,7 +207,9 @@ export default async function Page() {
       </header>
 
       <div className="actions">
-        <Link className="btn btn-primary" href="/legacy/index.html">打开完整应用 →</Link>
+        <Link className="btn btn-primary" href="/workbench.html">打开决策工作台 →</Link>
+        <Link className="btn btn-ghost" href="/login.html">登录（微信扫码 / 管理员密码）</Link>
+        <Link className="btn btn-ghost" href="/legacy/index.html">旧版视图</Link>
         <Link className="btn btn-ghost" href="/health">查看健康详情</Link>
         <a className="btn btn-ghost" href="/metrics">Prometheus 指标</a>
       </div>
@@ -226,6 +229,7 @@ export default async function Page() {
       <div className="notice">
         <strong>数据边界（不因架构升级而放宽）</strong>
         <ul>
+          <li><b>JTBD 决策工作台</b>（<code>/workbench.html</code>）：C 级 JD / 经历文本只在本次请求内存里推导，零落盘、零外发、不进 RAG / 向量库；硬条件单独阻断、无百分比总分、「没提供」一律标未知，结论限定在你提供的 JD 内。看板与材料库只存浏览器 localStorage，由用户自己保存 / 删除。</li>
           <li>C 级用户自带 JD / 简历 / 本地 OCR 文本：原文零落盘、PII 前置脱敏、可撤回删除，默认不出本机。</li>
           <li>云向量库只收 D 级公开岗位样本；Q18 写入依据项目所有者回执开启（<code>legal_review=pending</code>），叠加配置 + 回执双闸门与 <code>outbound_guard.py</code> 出站硬校验：端点官方域 / 集合名 / 分级 D / 已批准来源 / 字段白名单 / 逐字段 PII / 体积批量上限，凭据与原文不回显。</li>
           <li>D 级样本为全球远程岗，<b>不代表中国境内招聘市场</b>；国内市场洞察仍为 pending_license、零数值。</li>

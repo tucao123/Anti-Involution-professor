@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="职引者 ZHIYIN · 登录。个人微信扫码，管理员密码登录。">
+<title>登录 · 职引者 ZHIYIN</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fafafa; --ink:#111111; --gray:#666666; --line:#e5e5e5;
+  --void:#0a0a0a; --acid:#E4FF00; --acid-ink:#161a00;
+  --font:'Inter','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  --ease:cubic-bezier(.85,0,.15,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;
+  display:flex;align-items:center;justify-content:center;padding:40px 20px;-webkit-font-smoothing:antialiased}
+button,input{font-family:inherit}
+button{cursor:pointer}
+::selection{background:var(--acid);color:var(--acid-ink)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+.wrap{width:100%;max-width:960px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:38px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:26px;height:26px;position:relative;flex-shrink:0}
+.brand-mark::before,.brand-mark::after{content:'';position:absolute;background:var(--acid)}
+.brand-mark::before{width:26px;height:6px;top:10px;transform:rotate(-45deg)}
+.brand-mark::after{width:11px;height:11px;top:7px;left:7px;transform:rotate(45deg);background:var(--void);border:2px solid var(--acid)}
+.brand-name{font-weight:900;font-size:16px;letter-spacing:-.04em;line-height:1}
+.brand-name em{display:block;font-style:normal;font-size:8px;font-weight:800;letter-spacing:.24em;color:#7a7a74;margin-top:5px}
+.back{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--gray);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:3px}
+.back:hover{color:var(--ink);border-color:var(--ink)}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--ink);background:#fff}
+.panel{padding:clamp(26px,3.4vw,48px)}
+.panel+.panel{border-left:1px solid var(--ink)}
+.eyebrow{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:var(--gray);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.eyebrow::before{content:'';width:22px;height:1px;background:var(--acid)}
+.tag{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.14em;padding:5px 9px;border:1px solid var(--ink);margin-bottom:14px}
+.tag.dark{background:var(--void);color:var(--acid);border-color:var(--void)}
+h1{font-size:clamp(30px,3.4vw,46px);font-weight:900;line-height:1.05;letter-spacing:-.05em;margin-bottom:12px}
+h1 .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
+.lede{font-size:13px;line-height:1.75;color:var(--gray);margin-bottom:26px}
+
+/* 二维码区 */
+.qr-box{position:relative;background:var(--void);aspect-ratio:1/1;max-width:230px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.qr-box::before{content:'';position:absolute;inset:0;opacity:.14;pointer-events:none;
+  background-image:linear-gradient(#444 1px,transparent 1px),linear-gradient(90deg,#444 1px,transparent 1px);background-size:20px 20px}
+.qr{width:170px;height:170px;image-rendering:pixelated;position:relative;z-index:2;background:#fff;padding:8px}
+.qr canvas{display:block;width:100%;height:100%}
+.qr-overlay{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;background:rgba(10,10,10,.82);color:var(--acid);font-size:11px;font-weight:900;letter-spacing:.16em;text-align:center;padding:20px;display:none}
+.qr-box.scanning .qr-overlay{display:flex}
+.corner{position:absolute;width:18px;height:18px;border:2px solid var(--acid);z-index:4}
+.corner.tl{top:10px;left:10px;border-right:0;border-bottom:0}
+.corner.tr{top:10px;right:10px;border-left:0;border-bottom:0}
+.corner.bl{bottom:10px;left:10px;border-right:0;border-top:0}
+.corner.br{bottom:10px;right:10px;border-left:0;border-top:0}
+
+.btn{border:none;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:15px 22px;width:100%;transition:transform .25s var(--ease),background .25s,color .25s}
+.btn:hover{transform:translateY(-2px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.geo{clip-path:polygon(0 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%)}
+.btn-acid{background:var(--acid);color:var(--acid-ink)}
+.btn-acid:hover{background:var(--ink);color:var(--acid)}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:var(--acid);color:var(--acid-ink)}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+.btn-ghost:hover{background:var(--ink);color:#fff}
+
+.field{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.field label{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gray)}
+.field input{border:1px solid var(--line);padding:14px 15px;font-size:14px;background:#fff;color:var(--ink);transition:border-color .2s}
+.field input:focus{outline:none;border-color:var(--ink)}
+.notice{font-size:11px;line-height:1.65;padding:11px 13px;margin-top:14px;border-left:3px solid var(--acid);background:#f6f7ee;color:#555}
+.notice.warn{border-left-color:#e0a800;background:#fff9e8}
+.msg{font-size:12px;font-weight:700;min-height:18px;margin-top:10px;color:#b00}
+.msg.ok{color:#0a7a00}
+.hint{font-size:10px;color:#999;margin-top:12px;line-height:1.6}
+.divider{display:flex;align-items:center;gap:12px;margin:4px 0 20px;color:#bbb;font-size:9px;font-weight:900;letter-spacing:.2em}
+.divider::before,.divider::after{content:'';height:1px;background:var(--line);flex:1}
+
+@media(max-width:720px){
+  .grid{grid-template-columns:1fr}
+  .panel+.panel{border-left:0;border-top:1px solid var(--ink)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">职引者 ZHIYIN<em>SIGN IN</em></div>
+    </div>
+    <a class="back" href="/workbench.html">← 返回工作台</a>
+  </div>
+
+  <div class="grid">
+    <!-- 个人：微信扫码 -->
+    <section class="panel">
+      <div class="eyebrow">个人入口 / Personal</div>
+      <span class="tag" id="wxModeTag">扫码方式检测中</span>
+      <h1>微信扫码<br><span class="acid">登录。</span></h1>
+      <p class="lede" id="wxLede">用微信扫一扫，进入你的决策工作台。个人数据只在本机处理，默认不保存、不外发。</p>
+
+      <div class="qr-box" id="qrBox">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <div class="qr"><canvas id="qrCanvas" width="154" height="154"></canvas></div>
+        <div class="qr-overlay" id="qrOverlay">已生成<br>等待扫码确认</div>
+      </div>
+
+      <button class="btn btn-acid geo" id="wxBtn">生成登录二维码</button>
+      <div class="msg" id="wxMsg"></div>
+      <div class="notice" id="wxNotice" style="display:none"></div>
+    </section>
+
+    <!-- 管理员：密码 -->
+    <section class="panel">
+      <div class="eyebrow">管理入口 / Administrator</div>
+      <span class="tag dark">仅密码登录</span>
+      <h2 style="font-size:clamp(26px,3vw,38px);font-weight:900;letter-spacing:-.04em;margin-bottom:12px">管理者<br>登录。</h2>
+      <p class="lede">管理后台仅支持密码登录，不可用扫码。登录后可读采集设置、出境防护、回执台账等管理面板。</p>
+
+      <form id="adminForm" autocomplete="off">
+        <div class="field">
+          <label>管理员密码</label>
+          <input type="password" id="adminPw" placeholder="请输入管理员密码" required>
+        </div>
+        <button class="btn btn-ink geo" type="submit" id="adminBtn">进入管理后台</button>
+        <div class="msg" id="adminMsg"></div>
+      </form>
+      <div class="notice warn" id="adminNotice" style="display:none"></div>
+      <div class="divider">数据边界</div>
+      <div class="hint">管理凭据只在服务端内存校验，前端不存储密码。所有管理写操作在服务端按角色鉴权；本项目仅限研究与学习，不得用于任何商业行为。</div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const api=async(path,body)=>{
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  let d={};try{d=await r.json()}catch(e){}
+  return {ok:r.ok,status:r.status,data:d};
+};
+
+let authState=null;
+(async()=>{
+  try{
+    const r=await fetch('/api/auth/status');authState=await r.json();
+    const real=authState.wechat?.real_oauth_ready;
+    $('#wxModeTag').textContent=real?'真实微信扫码':'演示扫码 · 非真实微信';
+    $('#wxModeTag').className='tag'+(real?' dark':'');
+    if(!real){
+      $('#wxNotice').style.display='block';
+      $('#wxNotice').innerHTML='<b>演示模式：</b>'+(authState.wechat?.reason||'未配置微信开放平台凭据')+
+        '。点击生成后可用模拟二维码走通登录流程，登录身份会明确标注为演示。';
+    }
+    if(authState.admin?.demo_credential){
+      $('#adminNotice').style.display='block';
+      $('#adminNotice').innerHTML='<b>本机演示凭据：</b>未配置 ADMIN_PASSWORD_HASH，当前仅本机可用演示密码。'+
+        '正式部署须在 .env 配置 pbkdf2 密码哈希（见 README / 技术文档）。';
+    }
+  }catch(e){$('#wxModeTag').textContent='服务未连接'}
+})();
+
+// 生成一个自包含的伪二维码点阵（确定性，仅视觉占位，不编码任何真实票据）
+function drawQr(seed){
+  const c=$('#qrCanvas'),ctx=c.getContext('2d'),N=21,cell=c.width/N;
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+  let h=2166136261;for(const ch of seed){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}
+  const rnd=()=>{h^=h<<13;h^=h>>>17;h^=h<<5;return (h>>>0)/4294967296};
+  ctx.fillStyle='#0a0a0a';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const finder=(x<7&&y<7)||(x>=N-7&&y<7)||(x<7&&y>=N-7);
+    if(finder)continue;
+    if(rnd()>0.52)ctx.fillRect(x*cell,y*cell,Math.ceil(cell),Math.ceil(cell));
+  }
+  // 三个定位角
+  const corner=(ox,oy)=>{ctx.fillRect(ox*cell,oy*cell,7*cell,7*cell);ctx.fillStyle='#fff';ctx.fillRect((ox+1)*cell,(oy+1)*cell,5*cell,5*cell);ctx.fillStyle='#0a0a0a';ctx.fillRect((ox+2)*cell,(oy+2)*cell,3*cell,3*cell)};
+  corner(0,0);corner(N-7,0);corner(0,N-7);
+}
+
+$('#wxBtn').addEventListener('click',async()=>{
+  const b=$('#wxBtn'),m=$('#wxMsg');m.className='msg';m.textContent='';b.disabled=true;b.textContent='生成中…';
+  const r=await api('/api/auth/wechat/authorize',{});
+  if(!r.ok){m.textContent='生成失败：'+(r.data.message||r.data.error||r.status);b.disabled=false;b.textContent='重新生成二维码';return}
+  const d=r.data;
+  if(d.mode==='real'){
+    // 真实模式：跳转到微信开放平台扫码页
+    location.href=d.authorize_url;return;
+  }
+  // 演示模式：画伪二维码 + 显示「确认扫码」
+  drawQr('zhiyin-demo-'+d.state);
+  $('#qrBox').classList.remove('scanning');
+  b.textContent='模拟扫码并确认（演示）';
+  b.onclick=async()=>{
+    b.disabled=true;b.textContent='确认中…';
+    const c=await api('/api/auth/wechat/demo/confirm',{state:d.state});
+    if(!c.ok){m.textContent='确认失败：'+(c.data.message||c.data.error);b.disabled=false;b.textContent='重新确认';return}
+    m.className='msg ok';m.textContent='演示登录成功，正在进入工作台…';
+    location.href='/workbench.html';
+  };
+  b.disabled=false;
+});
+
+$('#adminForm').addEventListener('submit',async(e)=>{
+  e.preventDefault();
+  const b=$('#adminBtn'),m=$('#adminMsg'),pw=$('#adminPw').value;
+  m.className='msg';m.textContent='';b.disabled=true;b.textContent='验证中…';
+  const r=await api('/api/auth/admin/login',{password:pw});
+  if(!r.ok){
+    m.textContent='登录失败：'+(r.data.message||r.data.error||r.status);
+    b.disabled=false;b.textContent='进入管理后台';return;
+  }
+  m.className='msg ok';m.textContent='登录成功，正在进入管理后台…';
+  location.href='/workbench.html#admin';
+});
+</script>
+</body>
+</html>

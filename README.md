@@ -1,6 +1,14 @@
 # 职引者 ZHIYIN
 
-AI 职业生涯韧性与反内卷管家：洞察 → 对齐 → 学习 → 实战 四模块闭环。
+给「急着面试却不知道投哪儿」的应届生，一份**能照着做决定的证据清单**。
+主入口是 **JTBD v2.0 决策工作台**：找方向 → 做核对 → 定行动 → 过追问 → 记看板。
+
+> **2026-11-16 前端重设计**：JTBD 决策工作台位于 `http://127.0.0.1:8848/workbench.html`
+> （HOMETRY 极简等距视觉，左侧步骤轨道 + 右侧工作区 + 底部操作条），按 `JTBD需求文档.md` v2.0
+> 实现三态对照（有证据 / 待核实 / 明确缺口 / 未知）、硬条件单独阻断、无百分比总分、
+> 按差距类型分流、针对单个缺口的追问演练与投递看板。
+> 根路径 `/` 与 `/index.html`、`/legacy/index.html` 保留既有 8 视图单页，仅供历史回放与 E2E 契约；
+> 二者共用同一 BFF，不是两套并行产品。详细设计见 `技术文档.md` 的 JTBD 章节。
 
 > **当前状态（Phase 2）**：可运行的产品原型 + 本地 FastAPI BFF + 合规闸门 + 全套可选组件的适配器层。
 > Qdrant / BGE / LangGraph / PostgreSQL / Redis / Neo4j / Celery / Next.js / Prometheus SLO 均已接入，
@@ -16,7 +24,8 @@ python -m pip install -r requirements.txt
 python server.py
 ```
 
-打开 <http://127.0.0.1:8848/>。指定端口：`python server.py --port 8849`；
+打开 **<http://127.0.0.1:8848/workbench.html>** 进入 JTBD 决策工作台；
+旧版 8 视图单页在 <http://127.0.0.1:8848/>。指定端口：`python server.py --port 8849`；
 容器内用 `python server.py --host 0.0.0.0 --port 8848`（宿主机仍只映射 127.0.0.1）。
 核心依赖只有 4 个：`fastapi / uvicorn / pydantic / cryptography`。
 
@@ -132,6 +141,39 @@ docker compose --profile monitoring up -d          # 追加 Prometheus / Grafana
 
 ⚠ 容器只能读取显式写进 `.env` / 环境变量的凭据，**不要挂载个人桌面上的 key.env**。
 SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
+
+## JTBD v2.0 决策工作台（2026-11-16，主入口）
+
+按 `JTBD需求文档.md` v2.0 重做的前端主流程，视觉沿用 HOMETRY 极简等距风（酸性绿 `#E4FF00`、
+几何切角、切屏遮罩），但排版改为**左侧步骤轨道 + 右侧工作区 + 底部操作条**，与旧版顶部导航布局不同。
+
+| 步骤 | 前端 | 后端 API | 关键约束 |
+|---|---|---|---|
+| 01 找方向 | 粘 5–10 份 JD 比较 | `POST /api/jtbd/compare` | 只在样本内比较，输出共同要求 / 各自特有 / 补证据成本最低的 2–3 个方向 |
+| 02 做核对 | 要求—证据三态对照 | `POST /api/jtbd/evidence` | 有证据 / 待核实 / 明确缺口 / 未知四态；学历届别地点等硬条件单独阻断；**无百分比总分**；每条可反驳 |
+| 03 定行动 | 按差距类型分流 | `POST /api/jtbd/actions`、`/diagnose` | 缺表达 / 缺证据 / 缺能力 / 缺硬条件四类动作不同；「先投」与「放弃」都是合法结论；简历诊断两栏「JD 要你没写」/「你写了 JD 不看」 |
+| 04 过追问 | 针对一个缺口三层追问 | `POST /api/jtbd/drill`、`/review` | 反馈引用用户原话，三维（表达 / 判断 / 证据）不打分；压力模式可选 |
+| 05 记看板 | 投递记录 + 材料库 | 纯前端 `localStorage` | 只存本机，由用户自己保存 / 删除；不上传服务端 |
+
+只读 `GET /api/jtbd/status` 列出全部端点与边界。全部推导在 `jtbd.py`，C 级文本只在本次请求内存里处理：
+不落盘、不外发、不进 RAG / 向量库；「没提供」一律标未知、不编造经历、不输出市场级结论。
+`tests/zy_jtbd_test.py`（38 项）已接入全套回归。
+
+## 登录与分角色（2026-11-16，研究学习原型）
+
+入口 `http://127.0.0.1:8848/login.html`；工作台右上角有「个人按钮」，点开可见个人中心 / 管理后台 / 登录 / 退出。
+
+- **个人：微信扫码**。`auth.py` 按微信开放平台标准 OAuth2（`qrconnect` → `code` → `access_token` → `userinfo`）实现。
+  配齐 `WECHAT_APPID` / `WECHAT_APPSECRET` / `WECHAT_REDIRECT_URI`（https 公网回调）即走真实扫码；
+  **未配置时自动降级为本地演示扫码**，页面与登录态都明确标注「演示 / 非真实微信」。openid 只留截断哈希，不落盘、不进画像。
+  > 本地 `127.0.0.1` 无法真实扫码：微信要求已备案的公网回调域名与开放平台应用。这是平台约束，不是实现缺陷。
+- **管理员：仅密码登录**，不提供扫码。密码用 `ADMIN_PASSWORD_HASH`（pbkdf2_sha256）校验，前端不存明文。
+  生成：`python -c "import auth;print(auth.make_admin_hash('你的强密码'))"`。未配置时用本机演示密码（仅 `127.0.0.1/::1` 可用，管理页明确标注）。
+- **会话与鉴权**：HMAC 签名令牌存 httpOnly cookie（JS 读不到）；state 防 CSRF、一次性；登出即进程内撤销。
+  `AUTH_MODE`：`off` 不校验 / `optional`（默认，本地回归）带令牌才校验角色 / `required`（正式部署）所有受保护写端点强制校验。
+  管理员是个人能力的超集。写端点角色映射集中在 `server.py` 的 `_ROLE_FOR_WRITE`，不散落到各端点。
+- 真实凭证 / 密钥只在本进程内存，不写文件、不回显浏览器；`AUTH_SECRET` 不配则每次启动随机（重启即掉登录）。
+- `tests/zy_auth_test.py`（36 项，含 TestClient 分角色 HTTP 用例）已接入全套回归。
 
 ## Phase 3 新增能力（2026-11-15，零密钥）
 

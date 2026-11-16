@@ -71,11 +71,20 @@ DEFAULTS: dict[str, str] = {
     "ALLOW_PUBLIC_SAMPLE_TO_CLOUD": "true",   # D 级公开岗位样本（无 PII）可上云
     "METRICS_ENABLED": "true",
     "SLO_WINDOW_DAYS": "30",
+    # ---- 认证 / 分角色（研究学习原型） ----
+    # off：不校验；optional：有令牌就验身份与角色、无令牌放行（本地研究/回归默认）；
+    # required：所有受保护写端点必须带有效令牌且角色匹配。正式部署应设 required。
+    "AUTH_MODE": "optional",
+    "AUTH_SESSION_TTL": "86400",
+    "AUTH_DEMO_ENABLED": "true",   # 未配置真实微信凭据时开放标注清楚的演示扫码
 }
 
 SECRET_KEYS = frozenset({
     "QWEN_API_KEY", "QDRANT_API_KEY", "QDRANT_URL", "POSTGRES_PASSWORD",
     "NEO4J_PASSWORD", "DEEPSEEK_API_KEY", "REDIS_URL",
+    # 认证密钥：微信应用密钥 / 会话签名密钥 / 管理员密码哈希，一律不回显浏览器。
+    "WECHAT_APPID", "WECHAT_APPSECRET", "WECHAT_REDIRECT_URI",
+    "AUTH_SECRET", "ADMIN_PASSWORD_HASH",
 })
 
 # 笔记式标签 → 内部键名。只登记本项目会用到的，其余 provider 一律跳过。

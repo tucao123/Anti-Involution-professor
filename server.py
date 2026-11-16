@@ -48,7 +48,17 @@
    不替代法务书面结论 / 站点许可 / 商务合同、**不改变任何回执 decision 或闸门状态**，
    也不解锁生产采集闸门。
 11. Phase 2 新增组件全部「可选依赖 + 本地降级」：Qdrant / BGE / LangGraph /
-    PostgreSQL / Redis / Neo4j / Celery / Next.js 任一缺失，现有 7 个视图仍可运行。
+    PostgreSQL / Redis / Neo4j / Celery / Next.js 任一缺失，视图仍可运行。
+12. JTBD v2.0 决策工作台（jtbd.py + workbench.html）为面向用户的主入口
+    （`/workbench.html`，根路径 `/` 因 E2E 契约保留旧单页）：方向 → 核对 → 行动 →
+    演练 → 看板。C 级用户文本只在本次请求内存里处理，零落盘、零外发、不进 RAG / 向量库；
+    硬条件单独阻断、无百分比总分、「没提供」一律标未知。看板 / 材料库存浏览器 localStorage。
+    旧单页 index.html 保留为 /index.html 与 /legacy/index.html，仅供既有 E2E 契约与历史回放，
+    不是并行产品；两套页面共用同一后端 API，不重复实现业务逻辑。
+13. 登录与分角色鉴权（auth.py）：个人微信扫码（真实 OAuth / 演示降级）+ 管理员密码登录。
+    /login.html 登录页；工作台右上角个人按钮进个人中心 / 管理后台。会话令牌存 httpOnly cookie；
+    写端点角色映射集中在 _ROLE_FOR_WRITE，由中间件统一鉴权（off / optional / required）。
+    真实微信凭据缺失时明确降级并全程标注「演示 / 非真实微信」，绝不伪装。
 
 启动：python server.py                    （默认端口 8848）
       python server.py --port 9000
@@ -73,9 +83,11 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import approval_gate    # 书面结论回执闸门（只读 / 双闸门 / fail-closed）
+import auth             # 认证与分角色鉴权（微信 OAuth 真实/演示 / 管理员密码 / 会话）
 import capture_executor # B2 真实截图执行体（仅练习沙盒 / 七道闸门 / 严格限速）
 import embedding        # BGE / DashScope / hash 统一 embedding 适配层
 import job_info         # 仅岗位信息粗粒度抽取（不提个人信息 / 不做用户画像）
+import jtbd             # JTBD v2.0 决策工作台（本地规则 / 三态对照 / 行动分流）
 import resume_parse     # B1 文件解析（不留存 / 可撤回删除 / 云端逐次单独同意）
 import llm              # qwen 语言模型层 + 结构化输出契约
 import market           # 公开数据适配层（仅标准库）
@@ -272,6 +284,71 @@ class HybridCompareRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=10)
 
 
+# --- JTBD v2.0 决策工作台（C 级文本仅本次请求内存处理，不落盘不外发） ---
+class JtbdJdItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(default="", max_length=60)
+    text: str = Field(min_length=1, max_length=8000)
+
+
+class JtbdCompareRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    jds: list[JtbdJdItem] = Field(min_length=1, max_length=10)
+    resume_text: str = Field(default="", max_length=4000)
+
+
+class JtbdEvidenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    jd_text: str = Field(min_length=20, max_length=8000)
+    resume_text: str = Field(default="", max_length=4000)
+
+
+class JtbdDiagnoseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    evidence: dict[str, Any]
+    resume_text: str = Field(default="", max_length=4000)
+
+
+class JtbdActionsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    evidence: dict[str, Any]
+    override: dict[str, str] = Field(default_factory=dict)
+
+
+class JtbdDrillRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    requirement: str = Field(min_length=4, max_length=200)
+    project_text: str = Field(min_length=10, max_length=1200)
+    depth: int = Field(default=3, ge=1, le=3)
+
+
+class JtbdReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: dict[str, Any]
+    answer: str = Field(min_length=1, max_length=2000)
+
+
+class AuthStateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    state: str = Field(min_length=16, max_length=80)
+
+
+class AuthDemoConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    state: str = Field(min_length=16, max_length=80)
+
+
+class AuthWechatCallbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=8, max_length=128)
+    state: str = Field(min_length=16, max_length=80)
+
+
+class AuthAdminLoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=1, max_length=128)
+
+
 # ---------------------------------------------------------------------------
 # FastAPI 应用
 # ---------------------------------------------------------------------------
@@ -295,11 +372,47 @@ def fail(status: int, error: str, message: str | None = None) -> JSONResponse:
     return JSONResponse(content=body, status_code=status)
 
 
+# 写端点 → 需要的角色。登录/演示端点公开（None），其余按敏感度分级。
+# OAuth 回调是 GET，不在此表；扫码创建 state / 管理员登录等都在 /api/auth/ 下公开。
+_WRITE_PERSONAL = [
+    "/api/jd/analyze", "/api/jd/delete",
+    "/api/rag/ingest", "/api/rag/query", "/api/rag/delete",
+    "/api/coach/chat", "/api/coach/delete",
+    "/api/graph/run", "/api/tasks/dispatch",
+    "/api/hybrid/search", "/api/hybrid/compare",
+    "/api/vector/search",
+    "/api/resume/parse", "/api/resume/withdraw", "/api/resume/delete",
+]
+_WRITE_ADMIN = [
+    "/api/capture/admin/toggle", "/api/capture/executor/run",
+    "/api/vector/ingest", "/api/vector/delete", "/api/vector/clear-local",
+    "/api/vector/guard/check",
+]
+_ROLE_FOR_WRITE: dict[tuple[str, str], str | None] = {
+    **{("POST", p): auth.ROLE_PERSONAL for p in _WRITE_PERSONAL},
+    **{("POST", p): auth.ROLE_ADMIN for p in _WRITE_ADMIN},
+}
+
+
 @app.middleware("http")
 async def guard(request: Request, call_next):
     # 日志只记录方法与路径，不记录查询串、请求体、请求头或任何凭据
     sys.stderr.write("  %s %s\n" % (request.method, request.url.path))
     t0 = time.perf_counter()
+
+    # ---- 分角色鉴权：集中映射表，避免把校验散落到每个端点 ----
+    # 值：None=公开写端点（登录/演示用）；'personal'=登录用户；'admin'=仅管理员。
+    need = _ROLE_FOR_WRITE.get((request.method, request.url.path))
+    if need and not request.url.path.startswith("/api/auth/"):
+        token = request.cookies.get(auth.COOKIE_NAME)
+        try:
+            auth.authorize(token, need)
+        except auth.AuthError as exc:
+            r = fail(exc.status, exc.code, exc.message)
+            r.headers["X-Content-Type-Options"] = "nosniff"
+            r.headers["Cache-Control"] = "no-store"
+            return r
+
     if request.method == "POST":
         # 文件上传端点单独放宽；其余 POST 仍按研究文本上限收紧
         limit = (RESUME_UPLOAD_MAX_BODY if request.url.path == "/api/resume/parse"
@@ -325,6 +438,100 @@ async def guard(request: Request, call_next):
 @app.exception_handler(RequestValidationError)
 async def bad_request(_request: Request, _exc: RequestValidationError):
     return fail(400, "BAD_REQUEST")
+
+
+@app.exception_handler(auth.AuthError)
+async def auth_error(_request: Request, exc: auth.AuthError):
+    """认证层错误：只回显稳定错误码 + 提示，绝不回显凭据 / 令牌。"""
+    return fail(exc.status, exc.code, exc.message)
+
+
+# ---------------------------------------------------------------------------
+# 认证与会话：微信扫码（真实 OAuth + 演示降级）/ 管理员密码 / 分角色
+# 令牌只存 httpOnly cookie；响应体不返回令牌本身，避免被 JS/XSS 读取。
+# ---------------------------------------------------------------------------
+def _set_session_cookie(response: JSONResponse, token: str) -> None:
+    response.set_cookie(
+        key=auth.COOKIE_NAME, value=token, httponly=True, samesite="lax",
+        max_age=cfg_session_ttl(), path="/", secure=False,  # 本地 http；正式部署应由反代终止 TLS 后置 secure
+    )
+
+
+def cfg_session_ttl() -> int:
+    return secure_config.cfg.integer("AUTH_SESSION_TTL", 86400)
+
+
+@app.get("/api/auth/status")
+def auth_status():
+    return auth.status()
+
+
+@app.get("/api/auth/session")
+def auth_session(request: Request):
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    if not ident:
+        return {"ok": True, "logged_in": False, "role": None}
+    return {
+        "ok": True, "logged_in": True,
+        "role": ident.get("role"), "name": ident.get("name", ""),
+        "demo": bool(ident.get("demo")),
+    }
+
+
+@app.post("/api/auth/wechat/authorize")
+def auth_wechat_authorize():
+    wm = auth.wechat_mode()
+    state = auth.new_state("real" if wm["real_oauth_ready"] else "demo")
+    if wm["real_oauth_ready"]:
+        return {"ok": True, "mode": "real", "authorize_url": auth.authorize_url(state), "state": state}
+    if not wm["demo_allowed"]:
+        return fail(403, "DEMO_DISABLED", "演示扫码已关闭，且未配置微信开放平台凭据")
+    # 演示模式：无真实二维码，返回本地确认所需的 state，前端明确标注「演示」
+    return {"ok": True, "mode": "demo", "authorize_url": None, "state": state,
+            "demo_notice": "未配置微信开放平台凭据，当前为本地演示扫码，非真实微信登录"}
+
+
+@app.post("/api/auth/wechat/demo/confirm")
+def auth_wechat_demo_confirm(req: AuthDemoConfirmRequest):
+    ident = auth.demo_confirm(req.state)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=True)
+    r = JSONResponse(content={"ok": True, "logged_in": True, "role": ident["role"],
+                              "name": ident["name"], "demo": True,
+                              "notice": "演示身份，不代表真实微信用户"})
+    _set_session_cookie(r, token)
+    return r
+
+
+@app.post("/api/auth/wechat/callback")
+def auth_wechat_callback(req: AuthWechatCallbackRequest):
+    ident = auth.exchange_code(req.code, req.state)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=False)
+    r = JSONResponse(content={"ok": True, "logged_in": True, "role": ident["role"],
+                              "name": ident["name"], "demo": False})
+    _set_session_cookie(r, token)
+    return r
+
+
+@app.post("/api/auth/admin/login")
+def auth_admin_login(req: AuthAdminLoginRequest, request: Request):
+    host = request.client.host if request.client else ""
+    ident = auth.admin_login(req.password, host)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=ident["demo"])
+    body: dict[str, Any] = {"ok": True, "logged_in": True, "role": ident["role"],
+                            "name": ident["name"], "demo": ident["demo"]}
+    if ident["demo"]:
+        body["notice"] = "演示凭据登录，正式部署请配置 ADMIN_PASSWORD_HASH"
+    r = JSONResponse(content=body)
+    _set_session_cookie(r, token)
+    return r
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    auth.revoke(request.cookies.get(auth.COOKIE_NAME))
+    r = JSONResponse(content={"ok": True, "logged_in": False})
+    r.delete_cookie(auth.COOKIE_NAME, path="/")
+    return r
 
 
 @app.get("/api/health")
@@ -358,7 +565,7 @@ def health():
             "graph": "adapter+local-fallback",
             "orchestration": "langgraph-or-compat",
             "celery": "eager-fallback",
-            "frontend": "index.html + web/ (Next.js)",
+            "frontend": "workbench.html (JTBD) + index.html (legacy) + web/ (Next.js)",
         },
         "cloud_user_data_allowed": secure_config.cfg.flag("ALLOW_CLOUD_FOR_USER_DATA"),
     }
@@ -505,6 +712,64 @@ def jd_delete(req: DeleteRequest):
     if not user_jd.delete_session(req.id):
         return fail(404, "NOT_FOUND", "会话不存在或已删除（服务重启也会清空）")
     return {"ok": True, "deleted": req.id, "raw_jd_persist": False}
+
+
+# ---------------------------------------------------------------------------
+# JTBD v2.0 决策工作台：方向 → 核对 → 行动 → 演练 → 看板
+# C 级文本只在本次请求内存里处理；不调用 user_jd.analyze 的会话存储、不落盘、不外发。
+# ---------------------------------------------------------------------------
+@app.get("/api/jtbd/status")
+def jtbd_status():
+    return jtbd.status()
+
+
+@app.post("/api/jtbd/compare")
+def jtbd_compare(req: JtbdCompareRequest):
+    try:
+        result = jtbd.compare([i.model_dump() for i in req.jds], req.resume_text)
+    except jtbd.InvalidInput as exc:
+        return fail(400, "INVALID_INPUT", str(exc))
+    sources.log_assessment("jtbd_compare", "user_jd",
+                           {"grade": "C", "samples": result["sample_size"]})
+    return result
+
+
+@app.post("/api/jtbd/evidence")
+def jtbd_evidence(req: JtbdEvidenceRequest):
+    try:
+        result = jtbd.evidence(req.jd_text, req.resume_text)
+    except jtbd.InvalidInput as exc:
+        return fail(400, "INVALID_INPUT", str(exc))
+    sources.log_assessment("jtbd_evidence", "user_jd",
+                           {"grade": "C", "requirements": result["total"]})
+    return result
+
+
+@app.post("/api/jtbd/diagnose")
+def jtbd_diagnose(req: JtbdDiagnoseRequest):
+    if not isinstance(req.evidence, dict) or "requirements" not in req.evidence:
+        return fail(400, "INVALID_EVIDENCE", "请先完成一次要求—证据对照")
+    return jtbd.diagnose(req.evidence, req.resume_text)
+
+
+@app.post("/api/jtbd/actions")
+def jtbd_actions(req: JtbdActionsRequest):
+    if not isinstance(req.evidence, dict) or "requirements" not in req.evidence:
+        return fail(400, "INVALID_EVIDENCE", "请先完成一次要求—证据对照")
+    return jtbd.actions(req.evidence, req.override)
+
+
+@app.post("/api/jtbd/drill")
+def jtbd_drill(req: JtbdDrillRequest):
+    try:
+        return jtbd.drill(req.requirement, req.project_text, req.depth)
+    except jtbd.InvalidInput as exc:
+        return fail(400, "INVALID_INPUT", str(exc))
+
+
+@app.post("/api/jtbd/review")
+def jtbd_review(req: JtbdReviewRequest):
+    return jtbd.review_answer(req.question, req.answer)
 
 
 # ---------------------------------------------------------------------------
@@ -1043,10 +1308,28 @@ def slo_endpoint():
 
 
 # 只放行页面本身，避免把服务端源码、配置与工作区文件暴露到 HTTP
+# 路由约定：
+#   /workbench.html, /workbench  -> JTBD v2.0 决策工作台（面向用户的主入口）
+#   /, /index.html, /legacy/index.html -> 既有 8 视图单页（E2E 契约 + 历史回放）
+# 二者共用同一 BFF 与 API，业务逻辑不重复实现。根路径保持旧页面是为不破坏既有的
+# 浏览器 E2E 与首页内容断言；新用户在启动提示 / Next 控制台被引导到工作台。
 @app.get("/", include_in_schema=False)
 @app.get("/index.html", include_in_schema=False)
+@app.get("/legacy/index.html", include_in_schema=False)
 def index():
     return FileResponse(ROOT / "index.html", media_type="text/html; charset=utf-8")
+
+
+@app.get("/workbench", include_in_schema=False)
+@app.get("/workbench.html", include_in_schema=False)
+def workbench():
+    return FileResponse(ROOT / "workbench.html", media_type="text/html; charset=utf-8")
+
+
+@app.get("/login", include_in_schema=False)
+@app.get("/login.html", include_in_schema=False)
+def login_page():
+    return FileResponse(ROOT / "login.html", media_type="text/html; charset=utf-8")
 
 
 @app.get("/demo-config.js", include_in_schema=False)

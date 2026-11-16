@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="职引者 ZHIYIN · 决策工作台。给急着面试却不知道投哪儿的应届生，一份能照着做决定的证据清单。">
+<title>职引者 ZHIYIN · 决策工作台</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   HOMETRY VISUAL SYSTEM — 保留配色/极简/等距/几何切角
+   LAYOUT — 改为左侧步骤轨道 + 右侧工作区 + 底部操作条
+   ============================================================ */
+:root{
+  --bg:#fafafa; --ink:#111111; --gray:#666666; --line:#e5e5e5; --line-2:#efefef;
+  --void:#0a0a0a; --acid:#E4FF00; --acid-ink:#161a00;
+  --font:'Inter','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  --speed:.5s; --ease:cubic-bezier(.85,0,.15,1);
+  --rail:280px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,textarea{font-family:inherit}
+button{cursor:pointer}
+::selection{background:var(--acid);color:var(--acid-ink)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+/* ---------- 切屏遮罩（HOMETRY 标志性转场，改成横向擦除） ---------- */
+.overlay{position:fixed;inset:0;background:var(--void);z-index:900;transform:translateX(-101%);
+  transition:transform var(--speed) var(--ease);pointer-events:none;display:flex;align-items:center;justify-content:center}
+.overlay.on{transform:translateX(0)}
+.overlay::after{content:'';width:34px;height:34px;border:2px solid var(--acid);
+  transform:rotate(45deg) scale(.5);opacity:0;transition:opacity .3s,transform .5s var(--ease)}
+.overlay.on::after{opacity:1;transform:rotate(225deg) scale(1.4);transition-delay:.12s}
+
+/* ---------- 应用骨架 ---------- */
+.app{display:grid;grid-template-columns:var(--rail) 1fr;height:100vh;width:100vw}
+
+/* 左侧步骤轨道（替代 HOMETRY 顶部导航） */
+.rail{background:var(--void);color:#f5f5f1;display:flex;flex-direction:column;
+  padding:34px 0 24px;position:relative;overflow:hidden}
+.rail::before{content:'';position:absolute;inset:0;opacity:.16;pointer-events:none;
+  background-image:linear-gradient(#333 1px,transparent 1px),linear-gradient(90deg,#333 1px,transparent 1px);
+  background-size:34px 34px;transform:perspective(500px) rotateX(52deg) scale(1.8) translateY(22%);transform-origin:top}
+.brand{display:flex;align-items:center;gap:12px;padding:0 30px 30px;position:relative;z-index:2}
+.brand-mark{width:26px;height:26px;position:relative;flex-shrink:0}
+.brand-mark::before,.brand-mark::after{content:'';position:absolute;background:var(--acid)}
+.brand-mark::before{width:26px;height:6px;top:10px;transform:rotate(-45deg)}
+.brand-mark::after{width:11px;height:11px;top:7px;left:7px;transform:rotate(45deg);background:var(--void);border:2px solid var(--acid)}
+.brand-name{font-weight:900;font-size:17px;letter-spacing:-.04em;line-height:1}
+.brand-name em{display:block;font-style:normal;font-size:8px;font-weight:800;letter-spacing:.24em;color:#7a7a74;margin-top:5px}
+.steps{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;gap:2px;padding:0 16px;overflow-y:auto}
+.step{display:flex;align-items:center;gap:14px;padding:15px 14px;border:1px solid transparent;
+  color:#8d8d88;background:transparent;text-align:left;width:100%;transition:all .3s var(--ease);position:relative}
+.step:hover{color:#fff;background:rgba(255,255,255,.04)}
+.step .num{font-size:10px;font-weight:900;letter-spacing:.1em;width:22px;flex-shrink:0;
+  color:#5a5a55;transition:color .3s}
+.step .lbl{font-size:13px;font-weight:800;letter-spacing:.02em;flex:1}
+.step .sub{font-size:9px;color:#5a5a55;letter-spacing:.1em;text-transform:uppercase;display:block;margin-top:3px;font-weight:600}
+.step.on{background:var(--acid);color:var(--acid-ink);border-color:var(--acid)}
+.step.on .num,.step.on .sub{color:var(--acid-ink);opacity:.65}
+.step.done .num{color:var(--acid)}
+.step.done .lbl::after{content:'✓';margin-left:8px;font-size:10px;color:var(--acid)}
+.step.on.done .lbl::after{color:var(--acid-ink)}
+.rail-foot{position:relative;z-index:2;padding:18px 30px 0;border-top:1px solid #262626;margin:0 16px}
+.rail-foot .sline{font-size:9px;letter-spacing:.14em;color:#666;text-transform:uppercase;margin-bottom:10px;font-weight:700}
+.rail-foot .badge{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:700;color:#c9c9c3}
+.rail-foot .badge i{width:6px;height:6px;background:#666;transform:rotate(45deg);display:block}
+.rail-foot .badge.live i{background:var(--acid)}
+.rail-links{display:flex;gap:12px;margin-top:14px;font-size:10px;color:#666;letter-spacing:.06em}
+.rail-links a{color:inherit;text-decoration:none;cursor:pointer}
+.rail-links a:hover{color:var(--acid)}
+
+/* 右侧工作区 */
+.stage{position:relative;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)}
+.stage-top{height:84px;flex-shrink:0;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  justify-content:space-between;padding:0 clamp(28px,5vw,72px);background:rgba(250,250,250,.9);backdrop-filter:blur(12px)}
+.stage-title{font-size:11px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;display:flex;align-items:center;gap:12px}
+.stage-title i{width:8px;height:8px;background:var(--acid);border:1px solid var(--ink);transform:rotate(45deg);display:block}
+.scope-chip{font-size:10px;font-weight:700;color:var(--gray);border:1px solid var(--line);padding:8px 14px;letter-spacing:.04em}
+.scope-chip b{color:var(--ink)}
+/* 右上角个人按钮 + 下拉菜单 */
+.top-right{display:flex;align-items:center;gap:12px}
+.acct{position:relative}
+.acct-btn{display:flex;align-items:center;gap:10px;border:1px solid var(--ink);background:transparent;
+  padding:8px 12px;font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--ink);transition:background .25s,color .25s}
+.acct-btn:hover{background:var(--ink);color:#fff}
+.acct-btn .avatar{width:24px;height:24px;background:var(--acid);color:var(--acid-ink);border:1px solid var(--ink);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;transform:rotate(-4deg)}
+.acct-btn .who{font-size:10px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-menu{position:absolute;right:0;top:calc(100% + 10px);width:236px;background:#fff;border:1px solid var(--ink);
+  box-shadow:8px 8px 0 rgba(0,0,0,.12);z-index:60;display:none;animation:fade .2s var(--ease)}
+.acct-menu.open{display:block}
+.acct-menu .m-head{padding:14px 16px;border-bottom:1px solid var(--line)}
+.acct-menu .m-head .r{font-size:9px;font-weight:900;letter-spacing:.16em;color:var(--gray);text-transform:uppercase}
+.acct-menu .m-head .n{font-size:14px;font-weight:900;margin-top:4px}
+.acct-menu .m-head .d{font-size:10px;color:#a67c00;margin-top:5px}
+.acct-menu button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;
+  padding:13px 16px;font-size:12px;font-weight:800;text-align:left;color:var(--ink);border-bottom:1px solid var(--line-2)}
+.acct-menu button:last-child{border-bottom:0}
+.acct-menu button:hover{background:var(--acid);color:var(--acid-ink)}
+.acct-menu button .ic{width:18px;text-align:center;font-size:13px}
+.acct-menu button.gone{display:none}
+.views{flex:1;overflow-y:auto;scroll-behavior:smooth}
+.view{display:none;padding:clamp(34px,5vw,64px) clamp(28px,5vw,72px) 120px;animation:fade .5s var(--ease)}
+.view.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.wrap{max-width:1040px;margin:0 auto}
+.eyebrow{font-size:10px;font-weight:900;letter-spacing:.24em;text-transform:uppercase;color:var(--gray);
+  display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.eyebrow::before{content:'';width:26px;height:1px;background:var(--acid)}
+h1{font-size:clamp(38px,5vw,68px);font-weight:900;line-height:1.03;letter-spacing:-.05em;margin-bottom:18px}
+h1 .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
+h2{font-size:clamp(26px,3vw,40px);font-weight:900;letter-spacing:-.04em;margin-bottom:14px}
+.lede{font-size:14px;line-height:1.8;color:var(--gray);max-width:660px;margin-bottom:34px}
+.mono{font-family:var(--font);font-variant-numeric:tabular-nums}
+
+/* 底部操作条（替代 HOMETRY 卡片内按钮） */
+.actionbar{position:absolute;bottom:0;left:0;right:0;height:78px;border-top:1px solid var(--line);
+  background:rgba(250,250,250,.96);backdrop-filter:blur(12px);display:flex;align-items:center;
+  justify-content:space-between;padding:0 clamp(28px,5vw,72px);z-index:20}
+.hint{font-size:10px;color:var(--gray);letter-spacing:.04em;max-width:52%;line-height:1.5}
+.hint b{color:var(--ink)}
+.btn{border:none;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;
+  padding:15px 26px;transition:transform .3s var(--ease),background .3s,color .3s;display:inline-flex;gap:12px;align-items:center}
+.btn:hover{transform:translateY(-2px)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.geo{clip-path:polygon(0 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%)}
+.btn-acid{background:var(--acid);color:var(--acid-ink)}
+.btn-acid:hover{background:var(--ink);color:var(--acid)}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:var(--acid);color:var(--acid-ink)}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+.btn-ghost:hover{background:var(--ink);color:#fff}
+.bar-actions{display:flex;gap:10px}
+
+/* 卡片 / 网格 */
+.card{background:#fff;border:1px solid var(--line);padding:clamp(22px,3vw,36px);margin-bottom:18px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 20px),calc(100% - 20px) 100%,0 100%)}
+.card.dark{background:var(--void);color:#f5f5f1;border-color:var(--void)}
+.card.dark .muted,.card.dark .meta{color:#8d8d88}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.meta{font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gray)}
+.muted{color:var(--gray)}
+.field{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
+.field label{font-size:11px;font-weight:800;letter-spacing:.08em}
+textarea,input[type=text]{width:100%;border:1px solid var(--line);background:var(--bg);padding:14px 16px;
+  font-size:13px;line-height:1.6;resize:vertical;color:var(--ink);transition:border-color .25s}
+textarea:focus,input[type=text]:focus{outline:none;border-color:var(--ink)}
+textarea::placeholder{color:#aaa}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:pointer}
+.consent{display:flex;align-items:flex-start;gap:10px;font-size:11px;line-height:1.6;color:var(--gray);margin:6px 0 20px;cursor:pointer}
+.consent b{color:var(--ink)}
+
+/* 状态标签 */
+.state{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:900;padding:5px 10px;letter-spacing:.04em;border:1px solid}
+.state::before{content:'';width:6px;height:6px;transform:rotate(45deg);display:block}
+.state.evidenced{background:#eaf7c8;border-color:#b9d96a;color:#3d4d00}
+.state.probe{background:#fff6d8;border-color:#e6cb6b;color:#5c4700}
+.state.gap{background:#ffe6e2;border-color:#e8a89d;color:#7a2418}
+.state.unknown{background:#f0f0ee;border-color:#d6d6d2;color:#666}
+
+/* 对照表 */
+.req{border-top:1px solid var(--line);padding:16px 0;display:grid;grid-template-columns:1fr 130px;gap:18px}
+.req:first-child{border-top:none}
+.req .q{font-size:13px;line-height:1.6}
+.req .q .ref{font-size:9px;color:var(--gray);letter-spacing:.08em;margin-bottom:6px}
+.req .why{font-size:11px;color:var(--gray);line-height:1.6;margin-top:7px}
+.req .ask{font-size:10px;color:var(--ink);margin-top:8px;font-weight:700}
+.req .ovr{font-size:10px;color:var(--gray);border:none;background:none;text-decoration:underline;cursor:pointer;padding:4px 0;margin-top:6px}
+.hard-box{border:1px solid #e8a89d;background:#fff6f4;padding:18px 22px;margin-bottom:18px}
+.hard-box h3{font-size:12px;font-weight:900;color:#7a2418;margin-bottom:10px;letter-spacing:.04em}
+.hard-box li{font-size:12px;line-height:1.7;margin-left:18px}
+
+/* 方向卡 */
+.dir{border:1px solid var(--line);padding:22px;position:relative;transition:transform .3s var(--ease),border-color .3s}
+.dir:hover{transform:translateY(-3px);border-color:var(--ink)}
+.dir.pick{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.dir .rank{font-size:34px;font-weight:900;letter-spacing:-.06em;line-height:1;color:var(--acid);-webkit-text-stroke:1px var(--ink)}
+.dir h3{font-size:15px;font-weight:900;margin:12px 0 10px}
+.tag{display:inline-block;font-size:10px;font-weight:700;border:1px solid var(--line);padding:4px 9px;margin:0 5px 5px 0;color:var(--gray)}
+.tag.ok{border-color:#b9d96a;background:#f3fadf;color:#3d4d00}
+.tag.no{border-color:#e8a89d;background:#fff2ef;color:#7a2418}
+
+/* 行动块 */
+.act{border-left:3px solid var(--acid);padding:4px 0 4px 20px;margin-bottom:22px}
+.act .t{font-size:15px;font-weight:900;margin-bottom:8px}
+.act .d{font-size:12px;color:var(--gray);line-height:1.7;margin-bottom:8px}
+.verdict{font-size:clamp(22px,3vw,34px);font-weight:900;letter-spacing:-.04em;margin:8px 0 20px}
+
+/* 演练 */
+.qa{border-top:1px solid var(--line);padding:20px 0}
+.qa:first-child{border-top:none}
+.qa .lbl{font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--gray);text-transform:uppercase;margin-bottom:8px}
+.qa .qq{font-size:15px;font-weight:800;line-height:1.6;margin-bottom:12px}
+.dim{font-size:12px;line-height:1.7;padding:10px 0;border-top:1px dashed var(--line)}
+.dim b{display:inline-block;width:76px;font-weight:900}
+.quote{border-left:2px solid var(--acid);padding-left:14px;font-size:12px;color:var(--gray);line-height:1.7;margin:10px 0 16px}
+
+/* 看板 */
+.board{width:100%;border-collapse:collapse;font-size:12px}
+.board th{text-align:left;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);
+  padding:12px 10px;border-bottom:1px solid var(--ink);font-weight:900}
+.board td{padding:14px 10px;border-bottom:1px solid var(--line);line-height:1.5}
+.board .pill{font-size:9px;font-weight:800;padding:4px 8px;border:1px solid var(--line);white-space:nowrap}
+.board .del{background:none;border:none;color:var(--gray);font-size:12px;text-decoration:underline;cursor:pointer}
+.empty{padding:44px 20px;text-align:center;border:1px dashed var(--line);color:var(--gray);font-size:12px;line-height:1.8}
+
+/* toast */
+.toast{position:fixed;bottom:96px;right:32px;background:var(--void);color:#fff;padding:14px 20px;
+  font-size:11px;font-weight:700;letter-spacing:.03em;z-index:950;transform:translateY(20px);opacity:0;
+  transition:all .3s var(--ease);pointer-events:none;max-width:340px;line-height:1.6}
+.toast.show{transform:none;opacity:1}
+.toast b{color:var(--acid)}
+
+/* 响应式：窄屏把轨道收成顶部条 */
+@media(max-width:860px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .rail{padding:16px 0 10px}
+  .brand{padding:0 20px 14px}
+  .steps{flex-direction:row;overflow-x:auto;padding:0 12px;gap:4px}
+  .step{min-width:118px;padding:10px 12px}
+  .step .sub{display:none}
+  .rail-foot{display:none}
+  .stage-top{height:58px;padding:0 20px}
+  .scope-chip{display:none}
+  .view{padding:26px 20px 110px}
+  .actionbar{padding:0 20px;height:70px}
+  .hint{display:none}
+  .grid2,.grid3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="overlay" id="overlay"></div>
+<div class="app">
+  <!-- 左侧步骤轨道 -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">职引者 ZHIYIN<em>DECISION WORKBENCH</em></div>
+    </div>
+    <div class="steps" id="steps">
+      <button class="step on" data-go="direction"><span class="num">01</span><span class="lbl">找方向<span class="sub">Direction</span></span></button>
+      <button class="step" data-go="evidence"><span class="num">02</span><span class="lbl">做核对<span class="sub">Evidence</span></span></button>
+      <button class="step" data-go="action"><span class="num">03</span><span class="lbl">定行动<span class="sub">Action</span></span></button>
+      <button class="step" data-go="drill"><span class="num">04</span><span class="lbl">过追问<span class="sub">Drill</span></span></button>
+      <button class="step" data-go="board"><span class="num">05</span><span class="lbl">记看板<span class="sub">Board</span></span></button>
+      <button class="step" data-go="materials"><span class="num">06</span><span class="lbl">材料库<span class="sub">Materials</span></span></button>
+    </div>
+    <div class="rail-foot">
+      <div class="sline">Data Boundary</div>
+      <div class="badge" id="apiBadge"><i></i><span>检测本地服务…</span></div>
+      <div class="rail-links">
+        <a data-go="about">说明</a><a href="/legacy/index.html">旧版视图</a><a href="/health">健康页</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 右侧工作区 -->
+  <main class="stage">
+    <div class="stage-top">
+      <div class="stage-title"><i></i><span id="stageName">01 — 找方向</span></div>
+      <div class="top-right">
+        <div class="scope-chip">结论范围 · <b>仅在你提供的 JD 内</b></div>
+        <div class="acct">
+          <button class="acct-btn" id="acctBtn" aria-haspopup="true" aria-expanded="false">
+            <span class="avatar" id="acctAvatar">?</span>
+            <span class="who" id="acctWho">未登录</span>
+            <span style="font-size:9px">▾</span>
+          </button>
+          <div class="acct-menu" id="acctMenu">
+            <div class="m-head">
+              <div class="r" id="acctRole">未登录</div>
+              <div class="n" id="acctName">访客</div>
+              <div class="d" id="acctDemo" style="display:none">演示身份</div>
+            </div>
+            <button id="mProfile"><span class="ic">◎</span>个人中心</button>
+            <button id="mAdmin" class="gone"><span class="ic">▦</span>管理后台</button>
+            <button id="mLogin"><span class="ic">→</span>登录 / 切换账号</button>
+            <button id="mLogout" class="gone"><span class="ic">× </span>退出登录</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="views" id="views">
+
+      <!-- 01 方向 -->
+      <section class="view on" id="view-direction">
+        <div class="wrap">
+          <div class="eyebrow">J1 / 找方向 · 冷启动不需要任何授权数据</div>
+          <h1>先把手上的 JD<br><span class="acid">放在一起比。</span></h1>
+          <p class="lede">粘 5–10 份你正在考虑的岗位描述。系统只做「在这几份里」的比较，告诉你哪些要求反复出现、哪份的要求最接近你已有的经历、补起来最省力的是哪个。不做行业大盘，不写「普遍如此」。</p>
+          <div class="card dark">
+            <div class="meta" style="margin-bottom:14px">INPUT / 你现在考虑的岗位</div>
+            <div id="jdList"></div>
+            <button class="btn btn-acid geo" id="addJd" style="margin-top:6px">+ 增加一份 JD</button>
+          </div>
+          <div class="card">
+            <div class="field">
+              <label>你的经历要点（可选，但填了才能算「可复用」）</label>
+              <textarea id="dirResume" rows="4" placeholder="例：计算机本科，2026 届；做过一个 Python 数据分析课程项目，用 SQL 取数，写过需求文档；在社团负责过招新汇报。"></textarea>
+            </div>
+            <label class="consent"><input type="checkbox" id="dirConsent"><span>我确认这些是我自己提供的内容，仅用于本次本地分析。<b>默认不保存、不外发、不进入任何模型训练。</b></span></label>
+            <button class="btn btn-ink geo" id="dirRun">比较这些方向 ↗</button>
+          </div>
+          <div id="dirResult"></div>
+        </div>
+      </section>
+
+      <!-- 02 核对 -->
+      <section class="view" id="view-evidence">
+        <div class="wrap">
+          <div class="eyebrow">J2 / 做核对 · 核心步骤</div>
+          <h1>把要求逐条<br><span class="acid">对上你的证据。</span></h1>
+          <p class="lede">一条条判「有证据 / 待核实 / 明确缺口 / 未知」。学历、届别、地点这类硬条件单独标出，不被其他技能抵消。没有百分比总分——因为一个数字制造不了依据，只会制造虚假的确定。</p>
+          <div class="card">
+            <div class="field"><label>目标 JD 原文</label><textarea id="evJd" rows="7" placeholder="粘贴一份你决定要投的岗位 JD：岗位职责 + 任职要求…"></textarea></div>
+            <div class="field"><label>你的经历要点（项目 / 实习 / 课程 / 技能）</label><textarea id="evResume" rows="6" placeholder="写你真实做过的事。没做过的不用写——「没写」不等于「不会」，系统会标未知。"></textarea></div>
+            <button class="btn btn-ink geo" id="evRun">生成对照表 ↗</button>
+          </div>
+          <div id="evResult"></div>
+        </div>
+      </section>
+
+      <!-- 03 行动 -->
+      <section class="view" id="view-action">
+        <div class="wrap">
+          <div class="eyebrow">J2→J4 / 定行动 · 按差距类型分流</div>
+          <h1>下一步做什么，<br><span class="acid">分清是哪一种缺口。</span></h1>
+          <p class="lede">缺表达、缺证据、缺能力、缺硬条件，四类动作完全不同。「证据够了，先投」和「这个方向先放弃」都是合法结论——这里不制造「必须补完才能投」的焦虑。</p>
+          <div class="card" id="actionGate">
+            <div class="empty">先在「做核对」生成一次对照表，行动建议会基于那一版的判断。<br><button class="btn btn-ghost geo" data-go="evidence" style="margin-top:16px">去做核对 →</button></div>
+          </div>
+          <div id="actionResult"></div>
+          <div id="diagResult"></div>
+        </div>
+      </section>
+
+      <!-- 04 演练 -->
+      <section class="view" id="view-drill">
+        <div class="wrap">
+          <div class="eyebrow">J3 / 过追问 · 只针对一个缺口</div>
+          <h1>围绕真实项目，<br><span class="acid">被追问三层。</span></h1>
+          <p class="lede">选一条岗位要求，配一段你真实做过的项目。系统连续问三层：做了什么 → 为什么这么做 → 重来怎么改。反馈只引用你刚才的原话，指出哪里空、哪里是判断。压力模式是可选训练，不是默认。</p>
+          <div class="card">
+            <div class="field"><label>要被追问的那条要求</label><input type="text" id="drReq" placeholder="例：用数据支撑业务判断"></div>
+            <div class="field"><label>你的真实项目（≥10 字）</label><textarea id="drProj" rows="5" placeholder="例：我用 Python 做过一个销售数据分析项目，把三个月的订单按区域汇总，做了可视化看板…"></textarea></div>
+            <button class="btn btn-ink geo" id="drStart">开始追问 ↗</button>
+          </div>
+          <div id="drResult"></div>
+        </div>
+      </section>
+
+      <!-- 05 看板 -->
+      <section class="view" id="view-board">
+        <div class="wrap">
+          <div class="eyebrow">J4 / 看反馈 · 唯一让人反复回来的入口</div>
+          <h1>投出去了，<br><span class="acid">记下这一笔。</span></h1>
+          <p class="lede">岗位、投递时间、投的是哪版简历、走到第几轮、结果。很轻，但两周后没回音时，你能回到对照表发现「原来是简历版本投错了」。看板只存在这台设备的浏览器里，由你自己保存和删除。</p>
+          <div class="card">
+            <div class="grid3">
+              <div class="field"><label>岗位</label><input type="text" id="bRole" placeholder="例：数据分析实习生"></div>
+              <div class="field"><label>公司</label><input type="text" id="bCo" placeholder="例：某某科技"></div>
+              <div class="field"><label>简历版本</label><input type="text" id="bVer" placeholder="例：v3-数据岗"></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>投递日期</label><input type="text" id="bDate" placeholder="2026-11-16"></div>
+              <div class="field"><label>当前轮次 / 结果</label><input type="text" id="bStage" placeholder="例：已投递 / 一面 / 无回音"></div>
+            </div>
+            <button class="btn btn-ink geo" id="bAdd">记入看板 ↗</button>
+          </div>
+          <div class="card"><div id="bList"></div></div>
+        </div>
+      </section>
+
+      <!-- 06 材料库 -->
+      <section class="view" id="view-materials">
+        <div class="wrap">
+          <div class="eyebrow">材料与证据库 · 轻量</div>
+          <h1>你的 JD、项目、<br><span class="acid">都放在一处。</span></h1>
+          <p class="lede">列表 + 标签 + 普通搜索，先不做复杂检索。只保存在浏览器本地，你不点保存就没有记录。</p>
+          <div class="card">
+            <div class="grid2">
+              <div class="field"><label>标题</label><input type="text" id="mTitle" placeholder="例：某数据岗 JD / 课程项目说明"></div>
+              <div class="field"><label>标签</label><input type="text" id="mTag" placeholder="例：JD / 项目 / 实习"></div>
+            </div>
+            <div class="field"><label>内容</label><textarea id="mText" rows="5" placeholder="粘贴内容；含手机号邮箱也没关系，只存在本机。"></textarea></div>
+            <button class="btn btn-ink geo" id="mAdd">保存到材料库 ↗</button>
+          </div>
+          <div class="card">
+            <div class="field"><label>搜索</label><input type="text" id="mSearch" placeholder="按标题 / 标签 / 内容搜索"></div>
+            <div id="mList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 说明 -->
+      <section class="view" id="view-about">
+        <div class="wrap">
+          <div class="eyebrow">About / 数据边界与口径</div>
+          <h1>能核对的账，<br><span class="acid">才敢让你照着做。</span></h1>
+          <div class="card dark">
+            <div class="meta" style="margin-bottom:16px">四条不动的边界</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>样本内</b>没有授权数据就不给市场级结论；用你自己的 JD 做对比时，明确写「在你提供的样本内」。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不出本机</b>用户材料默认不保存；保存、外发都要单独确认；删除会说明范围——已发出的内容本地删除 ≠ 外部撤销。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不爬取</b>不自动爬招聘网站、不复用登录态、不绕反爬。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不制造焦虑</b>不承诺录用、不预测薪资；「先投」和「放弃」都是合法结论。</div>
+          </div>
+          <div class="card">
+            <div class="meta" style="margin-bottom:14px">使用限制</div>
+            <p style="font-size:13px;line-height:1.8">本项目仅用于研究与学习，不得用于任何商业行为。该条款对全部数据链路与界面统一适用，且不构成任何合规豁免。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 个人中心 -->
+      <section class="view" id="view-profile">
+        <div class="wrap">
+          <div class="eyebrow">个人中心 / Profile</div>
+          <h1>这是你的<br><span class="acid">工作台。</span></h1>
+          <p class="lede">登录态只用于区分「个人 / 管理员」角色。你的 JD、看板、材料仍然只保存在本机浏览器，不上传账号服务器。</p>
+          <div class="card dark">
+            <div class="meta" style="margin-bottom:16px">当前身份</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>登录方式</b><span id="pfLogin">读取中…</span></div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>角色</b><span id="pfRole">读取中…</span></div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>身份性质</b><span id="pfDemo">读取中…</span></div>
+          </div>
+          <div class="card">
+            <div class="meta" style="margin-bottom:14px">本机数据</div>
+            <p style="font-size:13px;line-height:1.9">投递看板 <b id="pfBoard">0</b> 条 · 材料库 <b id="pfMat">0</b> 条，均只存于当前浏览器。<br>
+            换个浏览器或清理站点数据就会消失——这是设计如此，不是故障。</p>
+            <button class="btn btn-ghost geo" id="pfClear" style="margin-top:8px">清空本机看板与材料</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 管理后台（仅管理员可见内容由服务端角色闸门保证） -->
+      <section class="view" id="view-admin">
+        <div class="wrap">
+          <div class="eyebrow">管理后台 / Administrator · 仅管理员</div>
+          <h1>运行态与闸门，<br><span class="acid">在这里核对。</span></h1>
+          <p class="lede">下面是只读状态。所有管理写操作（采集开关、执行体、出境防护检查）在服务端按管理员角色鉴权；非管理员令牌会被拒绝。</p>
+          <div id="adminDenied" class="card dark" style="display:none">
+            <div class="meta" style="color:#e0a800">权限不足</div>
+            <p style="font-size:13px;line-height:1.8;color:#c9c9c3;margin-top:10px">当前身份不是管理员，无法查看管理面板。请退出后用管理员密码登录。</p>
+          </div>
+          <div id="adminBody">
+            <div class="card">
+              <div class="meta" style="margin-bottom:14px">认证 / 分角色</div>
+              <pre id="adAuth" style="font-size:11px;line-height:1.7;white-space:pre-wrap;word-break:break-all">读取中…</pre>
+            </div>
+            <div class="grid2">
+              <div class="card"><div class="meta" style="margin-bottom:12px">回执台账</div><pre id="adApprovals" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+              <div class="card"><div class="meta" style="margin-bottom:12px">Qdrant 出境防护</div><pre id="adGuard" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+            </div>
+            <div class="grid2">
+              <div class="card"><div class="meta" style="margin-bottom:12px">B2 采集设置</div><pre id="adCapture" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+              <div class="card"><div class="meta" style="margin-bottom:12px">生产采集执行体</div><pre id="adProd" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+            </div>
+            <div class="card">
+              <div class="meta" style="margin-bottom:12px">采集开关（管理员写操作 · 服务端鉴权）</div>
+              <p style="font-size:12px;line-height:1.8;color:var(--gray);margin-bottom:12px">默认关闭。每次手动开启都需单独确认；开启后仍受限速契约与站点许可闸门约束。</p>
+              <label style="display:flex;gap:9px;align-items:center;font-size:13px;margin-bottom:12px"><input type="checkbox" id="adToggle"> 手动开启采集意图</label>
+              <button class="btn btn-ink geo" id="adToggleApply">应用开关 ↗</button>
+              <div class="msg" id="adToggleMsg" style="font-size:12px;color:#b00;margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+    <div class="actionbar">
+      <div class="hint" id="hint"><b>提示</b> · 从「找方向」开始，或直接进入「做核对」。</div>
+      <div class="bar-actions">
+        <button class="btn btn-ghost geo" id="prevBtn">← 上一步</button>
+        <button class="btn btn-acid geo" id="nextBtn">下一步 →</button>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   工作台逻辑：调用 /api/jtbd/*；浏览器 localStorage 只存看板与材料
+   ============================================================ */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const ORDER=['direction','evidence','action','drill','board','materials','about'];
+const EXTRA=['profile','admin'];  // 个人中心 / 管理后台：不在步骤轨道，由个人菜单进入
+const NAME={direction:'01 — 找方向',evidence:'02 — 做核对',action:'03 — 定行动',drill:'04 — 过追问',
+  board:'05 — 记看板',materials:'06 — 材料库',about:'说明 — 数据边界',
+  profile:'个人中心',admin:'管理后台 — 仅管理员'};
+const HINT={direction:'<b>提示</b> · 粘 5–10 份 JD，结论只在你给的这几份里。',
+  evidence:'<b>提示</b> · 「没写」不等于「不会」；硬条件单独阻断。',
+  action:'<b>提示</b> · 每条结论可反驳；「先投」与「放弃」都是合法结论。',
+  drill:'<b>提示</b> · 反馈只引用你的原话，不替你编经历。',
+  board:'<b>提示</b> · 只存本机浏览器，由你自己保存与删除。',
+  materials:'<b>提示</b> · 不点保存就没有记录。',
+  about:'<b>提示</b> · 仅限研究与学习，不得用于商业行为。',
+  profile:'<b>提示</b> · 登录态只区分角色，业务数据仍只存本机。',
+  admin:'<b>提示</b> · 管理与写操作在服务端按管理员角色鉴权。'};
+let view='direction', animating=false, API_OK=false, EV=null, DRILL=null;
+let SESSION={logged_in:false,role:null,name:'',demo:false};
+const LS={board:'zhiyin.jtbd.board',mat:'zhiyin.jtbd.materials'};
+
+function toast(msg){const t=$('#toast');t.innerHTML=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function api(path,body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const d=await r.json(); if(!r.ok||d.ok===false)throw new Error(d.message||d.error||('HTTP '+r.status));return d;
+}
+function go(id){
+  if(animating||!(ORDER.includes(id)||EXTRA.includes(id))||id===view)return;
+  const apply=()=>{$('#view-'+view).classList.remove('on');$('#view-'+id).classList.add('on');
+    view=id;$('#stageName').textContent=NAME[id];$('#hint').innerHTML=HINT[id];
+    $$('.step').forEach(s=>{const g=s.dataset.go;s.classList.toggle('on',g===id);
+      s.classList.toggle('done',ORDER.indexOf(g)<ORDER.indexOf(id)&&ORDER.indexOf(id)>=0);});
+    const inSteps=ORDER.includes(id);
+    $('#prevBtn').disabled=(!inSteps||ORDER.indexOf(id)===0);
+    $('#nextBtn').style.display=(inSteps&&id!=='about'?'inline-flex':'none');
+    $('#views').scrollTop=0;try{location.hash=id}catch(e){}
+    if(id==='action')renderAction();
+    if(id==='profile')renderProfile();
+    if(id==='admin')renderAdmin();
+  };
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){apply();return}
+  animating=true;$('#overlay').classList.add('on');
+  setTimeout(()=>{apply();setTimeout(()=>{$('#overlay').classList.remove('on');
+    setTimeout(()=>animating=false,500)},90)},450);
+}
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)go(g.dataset.go)});
+$('#prevBtn').onclick=()=>go(ORDER[Math.max(0,ORDER.indexOf(view)-1)]);
+$('#nextBtn').onclick=()=>go(ORDER[Math.min(ORDER.length-2,ORDER.indexOf(view)+1)]);
+
+/* ---- 探测后端 ---- */
+async function checkApi(){
+  try{const r=await fetch('/api/jtbd/status');const d=await r.json();API_OK=!!d.ok;
+    const b=$('#apiBadge');b.classList.toggle('live',API_OK);
+    b.querySelector('span').textContent=API_OK?'本地规则引擎已就绪':'离线：请用 python server.py 启动服务';
+  }catch(e){$('#apiBadge span').textContent='离线：请用 python server.py 启动服务'}
+}
+
+/* ---- JD 输入列表 ---- */
+let jdCount=0;
+function addJd(name='',text=''){
+  jdCount++;const id='jd-'+jdCount;
+  const div=document.createElement('div');div.className='card';div.style.marginBottom='12px';div.id=id;
+  div.innerHTML='<div class="grid2"><div class="field"><label>岗位名 / 代号</label><input type="text" class="jn" placeholder="例：数据岗 A" value="'+esc(name)+'"></div>'+
+    '<div class="field" style="justify-content:flex-end"><button class="btn btn-ghost geo jd-del" style="align-self:flex-end">移除</button></div></div>'+
+    '<div class="field"><label>JD 原文</label><textarea class="jt" rows="4" placeholder="粘贴岗位职责 + 任职要求…">'+esc(text)+'</textarea></div>';
+  $('#jdList').appendChild(div);
+  div.querySelector('.jd-del').onclick=()=>div.remove();
+}
+$('#addJd').onclick=()=>addJd();
+addJd();addJd();
+
+$('#dirRun').onclick=async()=>{
+  if(!$('#dirConsent').checked){toast('请先勾选用途确认');return}
+  const jds=$$('#jdList .card').map(c=>({name:c.querySelector('.jn').value.trim(),text:c.querySelector('.jt').value.trim()})).filter(x=>x.text.length>=12);
+  if(jds.length<1){toast('至少填写一份 ≥12 字、含岗位要求关键词的 JD 原文');return}
+  try{
+    const d=await api('/api/jtbd/compare',{jds,resume_text:$('#dirResume').value});
+    $('#dirResult').innerHTML='<div class="card dark"><div class="meta" style="margin-bottom:16px">RESULT / '+esc(d.scope)+'</div>'+
+      '<h2 style="color:#f5f5f1">共同要求</h2><div style="margin:14px 0 30px">'+
+      (d.common_requirements.length?d.common_requirements.map(s=>'<span class="tag ok">'+esc(s)+'</span>').join(''):'<span class="muted">这几份里没有重复出现两次以上的技能词；样本太小，别下结论。</span>')+'</div>'+
+      '<h2 style="color:#f5f5f1">补起来最省力的方向</h2>'+d.lowest_effort.map(x=>
+        '<div class="req" style="border-color:#2a2a2a;grid-template-columns:1fr"><div><div class="q" style="color:#f5f5f1"><b>'+x.rank+'. '+esc(x.name)+'</b></div>'+
+        '<div class="why">可复用：'+(x.reusable.length?x.reusable.map(s=>'<span class="tag ok">'+esc(s)+'</span>').join(''):'<span class="muted">未提供经历要点，不推断</span>')+'</div>'+
+        '<div class="why">要补：'+(x.to_add.length?x.to_add.map(s=>'<span class="tag">'+esc(s)+'</span>').join(''):'<span class="muted">无明显缺口</span>')+'</div>'+
+        (x.hard_check.length?'<div class="why" style="color:#e8a89d">硬条件另核：'+x.hard_check.map(esc).join(' / ')+'</div>':'')+
+        '<button class="btn btn-acid geo jd-pick" data-name="'+esc(x.name)+'" style="margin-top:14px">用这份去做核对 →</button></div></div>').join('')+'</div>';
+    $$('.jd-pick').forEach(b=>b.onclick=()=>{
+      const src=jds.find(j=>j.name===b.dataset.name)||jds[0];
+      $('#evJd').value=src.text;$('#evResume').value=$('#dirResume').value;go('evidence');
+      toast('已把这份 JD 带入「做核对」');
+    });
+    toast('比较完成 · <b>'+d.sample_size+'</b> 份样本');
+  }catch(e){toast('比较失败：'+esc(e.message))}
+};
+
+/* ---- 核对 ---- */
+$('#evRun').onclick=async()=>{
+  try{
+    EV=await api('/api/jtbd/evidence',{jd_text:$('#evJd').value,resume_text:$('#evResume').value});
+    const states=[['evidenced','有证据'],['probe','待核实'],['gap','明确缺口'],['unknown','未知']];
+    $('#evResult').innerHTML='<div class="card"><div class="meta" style="margin-bottom:14px">RESULT / 三态对照（无百分比总分）</div>'+
+      '<div style="margin-bottom:20px">'+states.map(([k,zh])=>'<span class="state '+k+'" style="margin-right:8px">'+zh+' '+EV.counts[k]+'</span>').join('')+'</div>'+
+      (EV.hard_conditions.length?'<div class="hard-box"><h3>⚑ 硬条件单独阻断（不折算进其他项）</h3><ul>'+EV.hard_conditions.map(h=>'<li>'+esc(h.term)+' · '+esc(h.state)+' · '+esc(h.question)+'</li>').join('')+'</ul></div>':'')+
+      EV.requirements.map(r=>'<div class="req" data-id="'+r.id+'"><div class="q"><div class="ref">'+esc(r.evidence_ref)+'</div>'+esc(r.requirement)+
+        '<div class="why">'+esc(r.explanation)+'</div>'+(r.question?'<div class="ask">追问：'+esc(r.question)+'</div>':'')+
+        '<button class="ovr" data-ovr="'+r.id+'">这个判断不对，改成……</button></div>'+
+        '<div><span class="state '+r.state+'">'+r.state_zh+'</span></div></div>').join('')+
+      '<div class="verdict" style="margin-top:28px">'+esc(EV.decision_hint)+'</div>'+
+      '<button class="btn btn-ink geo" data-go="action">据这批判断定行动 →</button></div>';
+    $$('[data-ovr]').forEach(b=>b.onclick=()=>{
+      const id=b.dataset.ovr,r=EV.requirements.find(x=>x.id===id);
+      const opts=states.map(([k,zh])=>k+':'+zh).join(' / ');
+      const v=prompt('把「'+r.requirement.slice(0,40)+'」改判为（'+opts+'）：',r.state);
+      if(v&&['evidenced','probe','gap','unknown'].includes(v.trim())){
+        b.closest('.req').querySelector('.state').className='state '+v.trim();
+        b.closest('.req').querySelector('.state').textContent=({evidenced:'有证据',probe:'待核实',gap:'明确缺口',unknown:'未知'})[v.trim()];
+        toast('已按你的判断改；下一步会沿用这一版');
+      }
+    });
+    toast('对照完成 · <b>'+EV.total+'</b> 条要求');
+  }catch(e){toast('核对失败：'+esc(e.message))}
+};
+
+/* ---- 行动 / 简历诊断 ---- */
+function renderAction(){
+  if(!EV){$('#actionGate').style.display='block';$('#actionResult').innerHTML='';return}
+  $('#actionGate').style.display='none';
+  api('/api/jtbd/actions',{evidence:EV}).then(a=>{
+    const kinds={hard:'先核实硬条件',expression:'先改简历 / 练怎么讲',evidence:'补一个小证据',skill:'安排学习'};
+    $('#actionResult').innerHTML='<div class="card"><div class="meta" style="margin-bottom:18px">ACTION / 按差距类型分流</div>'+
+      '<div class="verdict">'+esc(a.verdict)+'</div>'+
+      '<div style="margin-bottom:24px">'+
+        (a.allow_apply_now?'<span class="tag ok">可以现在投</span>':'')+
+        (a.allow_drop?'<span class="tag no">这个方向先放弃</span>':'')+'</div>'+
+      a.actions.map(x=>'<div class="act"><div class="t">'+esc(x.title)+'</div><div class="d">'+esc(x.do)+'</div>'+
+        '<div>'+x.items.slice(0,4).map(i=>'<span class="tag">'+esc(i.slice(0,42))+'</span>').join('')+'</div></div>').join('')+
+      '<button class="btn btn-ink geo" data-go="drill">挑一条去练追问 →</button></div>';
+    if($('#evResume').value.trim()){
+      api('/api/jtbd/diagnose',{evidence:EV,resume_text:$('#evResume').value}).then(g=>{
+        $('#diagResult').innerHTML='<div class="card"><div class="meta" style="margin-bottom:18px">简历过筛 · 最容易见效的一步</div><div class="grid2">'+
+          '<div><h2 style="font-size:18px;margin-bottom:12px">JD 要、但你没写</h2>'+
+          (g.jd_has_you_not_written.length?g.jd_has_you_not_written.slice(0,6).map(x=>'<div class="dim"><b></b>'+esc(x.requirement.slice(0,60))+'</div>').join(''):'<p class="muted" style="font-size:12px">没有明显遗漏</p>')+'</div>'+
+          '<div><h2 style="font-size:18px;margin-bottom:12px">你写了、但 JD 不看</h2>'+
+          (g.you_written_jd_ignores.length?g.you_written_jd_ignores.map(x=>'<div class="dim"><b></b>'+esc(x.skill)+'</div>').join(''):'<p class="muted" style="font-size:12px">所有要点都对得上</p>')+'</div></div></div>';
+      }).catch(()=>{});
+    }
+  }).catch(e=>toast('行动建议失败：'+esc(e.message)));
+}
+
+/* ---- 追问演练 ---- */
+$('#drStart').onclick=async()=>{
+  try{
+    DRILL=await api('/api/jtbd/drill',{requirement:$('#drReq').value,project_text:$('#drProj').value,depth:3});
+    let idx=0;
+    const draw=()=>{
+      const q=DRILL.questions[idx];
+      $('#drResult').innerHTML='<div class="card dark"><div class="meta">'+(idx+1)+' / '+DRILL.questions.length+' · 第 '+q.layer+' 层</div>'+
+        '<div class="qa"><div class="qq" style="color:#f5f5f1">'+esc(q.question)+'</div>'+
+        '<div class="dim" style="color:#8d8d88;border-color:#2a2a2a">在听：'+esc(q.listen_for)+'</div></div>'+
+        '<div class="field" style="margin-top:22px"><label style="color:#c9c9c3">你的回答（引用你自己的话，不用编）</label>'+
+        '<textarea id="ans" rows="5" placeholder="说清：做了什么、为什么、结果如何。"></textarea></div>'+
+        '<button class="btn btn-acid geo" id="ansBtn">提交这一层 ↗</button></div>'+
+        '<div id="fb"></div>';
+      $('#ansBtn').onclick=async()=>{
+        try{
+          const r=await api('/api/jtbd/review',{question:q,answer:$('#ans').value});
+          $('#fb').innerHTML='<div class="card"><div class="meta" style="margin-bottom:14px">反馈 · 只引用你的原话</div>'+
+            '<div class="quote">“'+esc(r.quote)+'”</div>'+
+            Object.entries(r.dimensions||{}).map(([k,v])=>'<div class="dim"><b>'+esc(k)+'</b>'+esc(v)+'</div>').join('')+
+            '<div class="verdict" style="font-size:18px;margin-top:18px">'+esc(r.next)+'</div>'+
+            (idx<DRILL.questions.length-1?'<button class="btn btn-ink geo" id="nextLayer">继续下一层 →</button>':'<button class="btn btn-ghost geo" data-go="board">记进看板 →</button>')+'</div>';
+          if($('#nextLayer'))$('#nextLayer').onclick=()=>{idx++;draw()};
+        }catch(e){toast('反馈失败：'+esc(e.message))}
+      };
+    };
+    draw();
+  }catch(e){toast('追问失败：'+esc(e.message))}
+};
+
+/* ---- 看板（localStorage） ---- */
+const getBoard=()=>{try{return JSON.parse(localStorage.getItem(LS.board)||'[]')}catch(e){return[]}};
+const setBoard=v=>localStorage.setItem(LS.board,JSON.stringify(v));
+function drawBoard(){
+  const rows=getBoard();
+  $('#bList').innerHTML=rows.length?'<table class="board"><thead><tr><th>岗位</th><th>公司</th><th>简历版本</th><th>投递日期</th><th>轮次 / 结果</th><th></th></tr></thead><tbody>'+
+    rows.map((r,i)=>'<tr><td><b>'+esc(r.role)+'</b></td><td>'+esc(r.co)+'</td><td>'+esc(r.ver)+'</td><td>'+esc(r.date)+'</td>'+
+      '<td><span class="pill">'+esc(r.stage)+'</span></td><td><button class="del" data-del="'+i+'">删</button></td></tr>').join('')+'</tbody></table>':
+    '<div class="empty">还没有记录。投出第一份后回来记一笔——这是你会反复回来的入口。</div>';
+  $$('[data-del]').forEach(b=>b.onclick=()=>{const r=getBoard();r.splice(+b.dataset.del,1);setBoard(r);drawBoard();toast('已删除这一条（仅本机）')});
+}
+$('#bAdd').onclick=()=>{
+  const role=$('#bRole').value.trim();if(!role){toast('请填岗位名');return}
+  const r=getBoard();r.unshift({role,co:$('#bCo').value.trim(),ver:$('#bVer').value.trim(),
+    date:$('#bDate').value.trim(),stage:$('#bStage').value.trim()||'已投递'});
+  setBoard(r);['#bRole','#bCo','#bVer','#bDate','#bStage'].forEach(s=>$(s).value='');
+  drawBoard();toast('已记入看板 · 仅存本机浏览器');
+};
+
+/* ---- 材料库（localStorage） ---- */
+const getMat=()=>{try{return JSON.parse(localStorage.getItem(LS.mat)||'[]')}catch(e){return[]}};
+const setMat=v=>localStorage.setItem(LS.mat,JSON.stringify(v));
+function drawMat(){
+  const q=($('#mSearch').value||'').toLowerCase(),rows=getMat().filter(m=>(m.title+m.tag+m.text).toLowerCase().includes(q));
+  $('#mList').innerHTML=rows.length?rows.map((m,i)=>'<div class="req" data-mi="'+i+'"><div class="q"><div class="ref">'+esc(m.tag)+' · '+esc(m.at)+'</div><b>'+esc(m.title)+'</b>'+
+    '<div class="why">'+esc(m.text.slice(0,180))+'</div></div><div><button class="del" data-mdel="'+i+'">删</button></div></div>').join(''):
+    '<div class="empty">没有材料。保存一份 JD 或项目说明，之后在核对时可以直接复制。</div>';
+  $$('[data-mdel]').forEach(b=>b.onclick=()=>{const r=getMat();r.splice(+b.dataset.mdel,1);setMat(r);drawMat();toast('已删除（仅本机）')});
+}
+$('#mAdd').onclick=()=>{
+  const title=$('#mTitle').value.trim(),text=$('#mText').value.trim();
+  if(!title||!text){toast('请填标题和内容');return}
+  const r=getMat();r.unshift({title,tag:$('#mTag').value.trim()||'未分类',text,at:new Date().toLocaleDateString('zh-CN')});
+  setMat(r);['#mTitle','#mTag','#mText'].forEach(s=>$(s).value='');drawMat();toast('已保存到本机材料库');
+};
+$('#mSearch').oninput=drawMat;
+
+/* ---- 会话 / 个人按钮 / 角色菜单 ---- */
+async function loadSession(){
+  try{const r=await fetch('/api/auth/session');const d=await r.json();SESSION=d;renderAccount();
+  }catch(e){SESSION={logged_in:false};renderAccount()}
+}
+function renderAccount(){
+  const a=$('#acctAvatar'),w=$('#acctWho');
+  if(SESSION.logged_in){
+    a.textContent=SESSION.role==='admin'?'管':'我';
+    w.textContent=SESSION.name||(SESSION.role==='admin'?'管理员':'个人用户');
+    $('#acctRole').textContent=SESSION.role==='admin'?'管理员 / ADMIN':'个人 / PERSONAL';
+    $('#acctName').textContent=SESSION.name||'用户';
+    $('#acctDemo').style.display=SESSION.demo?'block':'none';
+    $('#mLogin').classList.add('gone');$('#mLogout').classList.remove('gone');
+    $('#mAdmin').style.display=SESSION.role==='admin'?'flex':'none';
+  }else{
+    a.textContent='?';w.textContent='未登录';
+    $('#acctRole').textContent='未登录 / GUEST';$('#acctName').textContent='访客';
+    $('#acctDemo').style.display='none';
+    $('#mLogin').classList.remove('gone');$('#mLogout').classList.add('gone');
+    $('#mAdmin').style.display='none';
+  }
+}
+function closeMenu(){$('#acctMenu').classList.remove('open');$('#acctBtn').setAttribute('aria-expanded','false')}
+$('#acctBtn').onclick=e=>{e.stopPropagation();const m=$('#acctMenu');
+  const open=m.classList.toggle('open');$('#acctBtn').setAttribute('aria-expanded',open?'true':'false')};
+document.addEventListener('click',e=>{if(!e.target.closest('.acct'))closeMenu()});
+$('#mLogin').onclick=()=>{closeMenu();location.href='/login.html'};
+$('#mLogout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  SESSION={logged_in:false};renderAccount();closeMenu();toast('已退出登录');if(view==='admin'||view==='profile')go('direction')};
+$('#mProfile').onclick=()=>{closeMenu();go('profile')};
+$('#mAdmin').onclick=()=>{closeMenu();go('admin')};
+
+function renderProfile(){
+  $('#pfLogin').textContent=SESSION.demo?'演示扫码 / 演示凭据':'登录态有效';
+  $('#pfRole').textContent=SESSION.role==='admin'?'管理员':(SESSION.role==='personal'?'个人':(SESSION.role||'未登录'));
+  $('#pfDemo').textContent=SESSION.demo?'演示身份（非真实微信 / 非生产凭据）':'正式身份';
+  $('#pfBoard').textContent=getBoard().length;$('#pfMat').textContent=getMat().length;
+}
+$('#pfClear').onclick=()=>{if(!confirm('确定清空本机看板与材料？此操作不可撤销，且不影响账号。'))return;
+  setBoard([]);setMat([]);renderProfile();drawBoard();drawMat();toast('已清空本机数据')};
+
+const pretty=o=>JSON.stringify(o,null,2);
+async function getJson(path){try{const r=await fetch(path);return await r.json()}catch(e){return{error:String(e)}}}
+async function renderAdmin(){
+  if(SESSION.role!=='admin'){$('#adminBody').style.display='none';$('#adminDenied').style.display='block';return}
+  $('#adminBody').style.display='block';$('#adminDenied').style.display='none';
+  const [authS,appr,guard,cap,prod]=await Promise.all([
+    getJson('/api/auth/status'),getJson('/api/approvals/status'),getJson('/api/vector/guard'),
+    getJson('/api/capture/admin'),getJson('/api/capture/production/status')]);
+  $('#adAuth').textContent=pretty({auth_mode:authS.auth_mode,wechat:authS.wechat?.mode,
+    admin_password_source:authS.admin?.password_source,secret_ephemeral:authS.secret_ephemeral});
+  $('#adApprovals').textContent=pretty({enabled:appr.enabled,pending:appr.pending,
+    legal_opinion_received:appr.legal_opinion_received});
+  $('#adGuard').textContent=pretty({endpoint_ok:guard.endpoint_ok,ok:guard.ok,
+    checks:guard.checks?Object.keys(guard.checks).length:undefined});
+  $('#adCapture').textContent=pretty({toggle:cap.toggle,admin:cap.admin?Object.keys(cap.admin):undefined});
+  $('#adProd').textContent=pretty({implemented:prod.implemented,unlocked:prod.unlocked,
+    blocked_by:prod.blocked_by});
+  if(cap.toggle)$('#adToggle').checked=!!cap.toggle.enabled;
+}
+$('#adToggleApply').onclick=async()=>{
+  const msg=$('#adToggleMsg');msg.style.color='#b00';
+  if(!$('#adToggle').checked){msg.textContent='请先在研究学习用途下手动勾选确认';return}
+  const r=await fetch('/api/capture/admin/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({enabled:true,operator_ack:true})});
+  const d=await r.json().catch(()=> ({}));
+  if(r.ok){msg.style.color='#0a7a00';msg.textContent='已应用采集开关（管理员写操作通过服务端鉴权）';renderAdmin()}
+  else{msg.textContent='失败：'+(d.message||d.error||r.status)}
+};
+
+/* ---- 初始化 ---- */
+checkApi();drawBoard();drawMat();loadSession();
+const hash=location.hash.slice(1);
+if((ORDER.includes(hash)||EXTRA.includes(hash))&&hash!=='direction')setTimeout(()=>go(hash),100);
+</script>
+</body>
+</html>
