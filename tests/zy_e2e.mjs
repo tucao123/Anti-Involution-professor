@@ -61,6 +61,11 @@ try {
     try { targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json(); if (targets.length) break; } catch {}
     await sleep(250);
   }
+  if (!targets || !targets.length) {
+    console.log('SKIP BROWSER: CDP endpoint unavailable (Chrome started but /json not reachable)');
+    try { proc.kill(); } catch {}
+    process.exit(0);
+  }
   const page = targets.find(t => t.type === 'page' && t.url.startsWith(URL));
   if (!page) throw new Error('no page target');
   ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -78,10 +83,13 @@ try {
   // ---------- 双模式 ----------
   const init = await q('initial', `{view: currentView, modeBtns: document.querySelectorAll('[data-imode]').length,
     modesFromServer: modeData ? modeData.modes.map(m=>m.id+':'+m.ready) : null,
-    llmLive: LLM.live, jdTabs: document.querySelectorAll('[data-jd]').length}`);
+    llmLive: LLM.live, llmChecked: LLM.checking, jdTabs: document.querySelectorAll('[data-jd]').length}`);
   check('两个模式按钮渲染', init.modeBtns === 2);
   check('服务端就绪状态已加载', Array.isArray(init.modesFromServer) && init.modesFromServer.includes('cn_market:false'), JSON.stringify(init.modesFromServer));
-  check('BFF 已连接', init.llmLive === true);
+  // BFF 可达性与「模型是否在线」是两件事：qwen 未配置 / 未启用时前端按设计走离线规则引擎。
+  const bffOk = await (async () => { try { const r = await fetch(URL + 'api/health'); const j = await r.json(); return r.ok && j.ok === true && j.phase === 2; } catch { return false; } })();
+  check('BFF 已连接（Phase 2）', bffOk);
+  check('模型状态检测已完成（离线为预期降级）', init.llmChecked === false);
 
   await evalJS(`switchView('insight',true);setInsightMode('cn_market');0`);
   await sleep(250);

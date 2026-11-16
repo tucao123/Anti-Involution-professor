@@ -1,0 +1,33 @@
+# 职引者 ZHIYIN · Prometheus 抓取配置
+# 启动：docker compose --profile monitoring up prometheus grafana
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: zhiyin
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: zhiyin-bff
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ['api:8848']
+        labels:
+          component: bff
+
+  # Next.js 控制台自身没有 Prometheus 文本端点；它的 /metrics 被 rewrite 到 BFF，
+  # 若在这里再抓一次会造成 BFF 指标重复计数，因此不配置该 job。
+  # Web 存活由 Dockerfile 的 HEALTHCHECK 与 /api/health 探针保证；
+  # 如需 HTTP 黑盒探测，请另加 blackbox_exporter。
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+
+# 如需三库指标，可另起 exporter 并加入下列 targets（默认不部署以避免镜像膨胀）：
+#   redis_exporter   -> redis:9121
+#   postgres_exporter-> postgres:9187
+#   neo4j            -> neo4j:2004 (需启用 prometheus 插件)

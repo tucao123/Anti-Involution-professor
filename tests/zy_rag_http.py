@@ -54,7 +54,8 @@ check("research-only" in h["rag_scope"], "RAG 口径标注", h.get("rag_scope"))
 s, p = req("/api/research/policy")
 check(s == 200 and p["verdict"] == "pending_legal", "研究策略 verdict")
 check(p["legal_position"]["is_exemption"] is False, "非商用不是豁免")
-check(p["gate"]["ready"] is False and p["auto_capture_executor"] == "disabled", "双闸门 + 执行体禁用")
+check(p["gate"]["ready"] is False and p["auto_capture_executor"] == "test_sandbox_only"
+      and p["production_capture_unlocked"] is False, "双闸门 + 执行体仅限练习沙盒")
 check(p["rate_control"]["concurrency_per_host"] == 1 and p["rate_control"]["ua_rotation"] is False,
       "限速参数：并发 1 / 无 UA 轮换")
 check(len(p["admission_conditions"]) >= 8 and len(p["permanently_forbidden"]) >= 6,
@@ -70,8 +71,8 @@ check(cp["research_use"]["is_exemption"] is False, "策略层否定豁免")
 check(cp["ocr"]["rag"]["plaintext_at_rest"] is False, "片段不明文落盘")
 
 s, reg = req("/api/sources")
-check(s == 200 and len(reg["sources"]) == 10, "注册表 10 源", len(reg["sources"]))
-check(len(reg["legal_checklist"]) == 17, "法务清单 17 问", len(reg["legal_checklist"]))
+check(s == 200 and len(reg["sources"]) == 11, "注册表 11 源", len(reg["sources"]))
+check(len(reg["legal_checklist"]) == 18, "法务清单 18 问", len(reg["legal_checklist"]))
 rc = next(x for x in reg["sources"] if x["id"] == "research_capture")
 check(rc["legal_status"] == "pending_legal" and rc["grade"] == "B", "研究源状态/分级")
 

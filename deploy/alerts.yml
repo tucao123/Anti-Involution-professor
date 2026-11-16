@@ -1,0 +1,62 @@
+# 职引者 ZHIYIN · 告警规则（对应 deploy/slo.yaml）
+# 严重级别：critical = 立即处理；warning = 需关注；info = 降级状态提示，不算故障。
+groups:
+  - name: zhiyin-availability
+    rules:
+      - alert: ZHIYINBFFDown
+        expr: up{job="zhiyin-bff"} == 0
+        for: 1m
+        labels: { severity: critical, slo: availability }
+        annotations:
+          summary: "FastAPI BFF 不可达"
+          description: "Prometheus 连续 1 分钟无法抓取 /metrics，完整应用可能已离线。"
+
+      - alert: ZHIYINHigh5xxRate
+        expr: |
+          sum(rate(zhiyin_http_5xx_total[5m]))
+            / clamp_min(sum(rate(zhiyin_http_requests_total[5m])), 1) > 0.01
+        for: 5m
+        labels: { severity: warning, slo: availability }
+        annotations:
+          summary: "5xx 比例超过 1%，正在消耗可用性错误预算"
+          description: "30d 目标 0.995；持续 5 分钟超阈值需排查上游与降级链路。"
+
+      - alert: ZHIYINErrorBudgetFastBurn
+        expr: |
+          sum(rate(zhiyin_http_5xx_total[1h]))
+            / clamp_min(sum(rate(zhiyin_http_requests_total[1h])), 1) > 0.05
+        for: 10m
+        labels: { severity: critical, slo: availability }
+        annotations:
+          summary: "错误预算快速燃烧（1h 窗口 5xx > 5%）"
+          description: "按此速率 30d 错误预算将在数小时内耗尽。"
+
+  - name: zhiyin-latency
+    rules:
+      - alert: ZHIYINLatencyP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(zhiyin_http_request_duration_seconds_bucket[5m]))) > 0.8
+        for: 10m
+        labels: { severity: warning, slo: latency_p95 }
+        annotations:
+          summary: "P95 延迟超过 800ms 目标"
+          description: "检查是否误连不可达的 Qdrant / qwen 端点；降级路径应自动生效。"
+
+  - name: zhiyin-compliance
+    rules:
+      - alert: ZHIYINGateRejectionSpike
+        expr: sum(rate(zhiyin_gate_rejections_total[5m])) > 1
+        for: 5m
+        labels: { severity: info, slo: compliance_gate_integrity }
+        annotations:
+          summary: "合规闸门拒绝次数上升"
+          description: "多数是预期行为（未授权 / PII 拦截）；持续上升需人工复盘是否有绕过尝试。"
+
+      - alert: ZHIYINComponentDegraded
+        expr: zhiyin_component_up == 0
+        for: 15m
+        labels: { severity: info, slo: availability }
+        annotations:
+          summary: "{{ $labels.component }} 正在使用本地降级实现"
+          description: "降级是设计内行为，不算故障；但需确认容器编排是否漏起对应服务。"

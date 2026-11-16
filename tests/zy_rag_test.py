@@ -133,7 +133,9 @@ check(pol["verdict"] == "pending_legal", "研究模式待法务结论")
 check(pol["gate"]["ready"] is False, "双重闸门未满足")
 check(pol["legal_position"]["is_exemption"] is False, "非商用不是豁免")
 check(len(pol["admission_conditions"]) >= 8, "准入条件齐备", len(pol["admission_conditions"]))
-check(pol["auto_capture_executor"] == "disabled", "执行体禁用")
+check(pol["auto_capture_executor"] == "test_sandbox_only"
+      and pol["production_capture_unlocked"] is False,
+      "执行体仅限练习沙盒，生产采集未解锁")
 check(pol["rate_control"]["concurrency_per_host"] == 1, "单域名并发 1")
 check(pol["rate_control"]["ua_rotation"] is False, "无 UA 轮换")
 check(pol["rate_control"]["example_pace"]["days_required"] >= 1, "节奏可估算")
@@ -161,7 +163,8 @@ check(verdicts["automated_third_party_screenshot"] == "pending_legal", "受控�
 check(verdicts["automated_evasion_screenshot"] == "prohibited", "规避手段=永久禁止")
 check(verdicts["rag_ingest_from_local_ocr"] == "allowed", "本地 OCR 入库=允许")
 check(p["research_use"]["is_exemption"] is False, "策略层否定豁免")
-check(len(sources.SOURCES) == 10 and len(sources.LEGAL_QUESTIONS) == 17, "注册表 10 源 / 法务 17 问")
+check(len(sources.SOURCES) == 11 and len(sources.LEGAL_QUESTIONS) == 18,
+      "注册表 11 源 / 法务 18 问")
 check(sources.insight_modes()["modes"][1]["ready"] is False, "国内市场模式仍待授权")
 ok_audit, n_audit, bad = privacy.verify_chain()
 check(ok_audit, "审计哈希链完整", "%d 条 / first_bad=%s" % (n_audit, bad))

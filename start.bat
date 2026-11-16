@@ -21,9 +21,14 @@ if errorlevel 1 (
 )
 
 if not exist ".env" (
-  echo [ZHIYIN] NOTE: .env not found. Live LLM is disabled; offline demo mode still works.
-  echo [ZHIYIN]       To enable: copy .env.example to .env and fill the deepseek key.
+  echo [ZHIYIN] NOTE: .env not found. Credentials may still come from ZHIYIN_ENV_FILE
+  echo [ZHIYIN]       or .zhiyin_key_path. qwen stays OFF by default; offline demo works.
+  echo [ZHIYIN]       To enable: copy .env.example to .env, fill QWEN_API_KEY, set LLM_ENABLED=true.
 )
 
+echo [ZHIYIN] Phase 3: A1 coach / A2 browser voice / A3 GitHub metadata / A4 hybrid RRF.
+echo [ZHIYIN] Optional components (BGE / LangGraph / stores / Celery) degrade gracefully.
+echo [ZHIYIN] If WorkBuddy's bundled Python was upgraded it may wipe site-packages;
+echo [ZHIYIN] restore with: python -m pip install -r requirements.txt -r requirements-optional.txt
 echo [ZHIYIN] Open http://127.0.0.1:8848/  (Ctrl+C to stop)
 python server.py %*

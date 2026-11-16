@@ -200,6 +200,26 @@ SOURCES: dict[str, dict[str, Any]] = {
         "limits": "需法务书面结论 + 站点书面许可 + 书面批准记录 + 注册表状态变更四者齐备；"
                   "执行体当前不存在。禁止登录态、字体反爬、验证码与 UA 轮换；位图 OCR 后立即丢弃",
     },
+    "github_public_repos": {
+        "name": "GitHub 公开仓库 REST 元数据（匿名只读）",
+        "url": "https://api.github.com",
+        "kind": "public_api",
+        "region": "global_public",
+        "grade": "D",
+        "legal_status": "approved",
+        "legal_basis": "官方公开 REST API 的仓库级结构与语言元数据；匿名只读、不带 token、"
+                       "不读取用户资料/私有仓库/代码内容、不绕登录态与限频、保留出处回链；"
+                       "工程侧按 Jobicy / RemoteOK 同类公开 API 口径登记，法务 Q18-Q21 书面结论待回，"
+                       "期间仅做单仓库实时查询、结果不落盘、不用于个人画像",
+        "robots_required": False,
+        "crawl_delay_s": 2,
+        "retention_days": 0,
+        "raw_jd_persist": False,
+        "attribution": {"required": True, "text": "GitHub REST API",
+                        "url": "https://docs.github.com/rest", "nofollow": False},
+        "limits": "匿名限频 60 次/小时；工程侧再限串行 ≥2 秒、每日 60 次；"
+                  "禁止批量扫描、用户画像、能力评分与国内市场结论",
+    },
     "demo": {
         "name": "内置演示数据集",
         "url": "",
@@ -244,6 +264,10 @@ LEGAL_QUESTIONS = [
     "受控研究采集（站点书面许可、robots 允许、单域名并发 1、间隔 ≥ Crawl-delay、每日上限、真实可联络 UA、"
     "仅公开可见页面）能否满足《网络数据安全管理条例》第 18 条『评估影响、不得干扰』？"
     "哪些证据 / 留痕足以证明已履行该义务？",
+    "Q21（工程侧新增，待书面确认）：匿名读取 GitHub 公开仓库的语言构成 / 结构元数据，"
+    "用于技能方向性参考，是否属于『合理范围内处理已合法公开的信息』？"
+    "匿名 REST 限频、不读用户资料、不落盘、不做能力评分与画像的约束是否足够？"
+    "如需书面许可或 API Terms 逐条确认，请指出应由 BD 还是法务出具。",
 ]
 
 # 交给 BD / 采购的授权要点
@@ -416,14 +440,17 @@ CAPTURE_POLICY: dict[str, Any] = {
     ],
     "forbidden_capabilities": [
         "在取得站点书面许可与法务书面结论前，启用任何定时 / 批量 / 巡航式截图任务",
-        "服务端或浏览器自动打开第三方招聘页面并截图（执行体不存在）",
+        "服务端或浏览器自动打开第三方招聘页面并截图（执行体仅限练习沙盒，招聘站在代码层拒绝）",
         "复用或伪造登录态后截图登录墙内内容、破解字体反爬、绕过验证码与风控",
         "把截图 OCR 结果聚合成需求热度、同比、薪资或蓝海岗位排序",
         "把截图原图发送到服务端、云端模型或任何第三方 OCR 服务",
         "把『向量化』当作匿名化，因而省略文本加密、TTL、删除权或审计留痕",
     ],
     "research_use": {
-        "claim": "主要用于研究、不商用",
+        # 2026-11-16 全项目条款化：字面量与 usage_policy.CLAUSE_ZH 保持一致
+        # （由 tests/zy_approval_test.py 断言核对），本模块保持仅依赖标准库。
+        "claim": "本项目仅用于研究与学习，不得用于任何商业行为",
+        "clause_id": "USAGE-RESTRICTION-2026-11-16",
         "is_exemption": False,
         "why": "PIPL 第 13 条采封闭列举，没有笼统的『研究 / 非商用』项；"
                "《条例》第 18 条评价的是访问行为本身，与是否盈利无关。",

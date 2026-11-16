@@ -10,7 +10,10 @@
 - 不可篡改审计：append-only JSONL 哈希链，每次访问/导出/删除/拦截都留痕，可校验链完整性。
 - LLM 前置 PII 拦截：检测到个人信息的内容一律不外发到云端模型。
 
-未实现（按用户要求「机制做完再接」）：简历 PDF 上传、版面解析、OCR、PII 入库入口。
+2026-11-16 变更：B1 简历上传 / 解析已按项目所有者回执开放，但**不在本模块入库**。
+`resume_parse.py` 只在内存解析 pdf / docx，只输出粗粒度岗位信息，文件与原文解析完即释放；
+个人信息不提取、不入库；个人画像由用户主动提供 JD / 简历的本地 `/api/jd/analyze` 链路提供。
+撤回与删除入口见 `/api/resume/withdraw`、`/api/resume/delete`。PII 入库入口仍不开放。
 传输层 TLS 1.3 由部署侧反向代理提供；本地开发仅绑定 127.0.0.1。
 """
 from __future__ import annotations
@@ -263,6 +266,14 @@ def delete_record(rid: str) -> bool:
 
 
 def status() -> dict[str, Any]:
+    # B1 是否开放由书面回执闸门实时推导，不缓存、不手工硬编码
+    try:
+        import approval_gate
+        b1 = approval_gate.gate("B1")
+        resume_open = b1["enabled"]
+        resume_legal = b1["legal_review"]
+    except Exception:
+        resume_open, resume_legal = False, "pending"
     with _LOCK:
         purge_expired()
         ok, count, first_bad = verify_chain()
@@ -274,8 +285,16 @@ def status() -> dict[str, Any]:
             "retention_days": RETENTION_DAYS,
             "records": len(_read_vault()),
             "pii_ingest_open": False,
-            "resume_parse_open": False,
+            "resume_parse_open": resume_open,
+            "resume_parse_legal_review": resume_legal,
+            "resume_parse_retention": "none（文件 / 原文仅内存，不入库）",
+            "resume_withdraw_endpoint": "/api/resume/withdraw",
+            "resume_delete_endpoint": "/api/resume/delete",
+            "screenshot_pii_to_store": False,
             "llm_pii_guard": True,
             "audit": {"entries": count, "chain_ok": ok, "first_bad_seq": first_bad},
-            "note": "简历上传 / 解析入口未开放；含 PII 内容一律不外发至云端模型，本地模型路由待后续接入。",
+            "note": "简历解析按 B1 回执开放（仅岗位信息、不留存、可撤回删除）；"
+                    "PII 入库入口仍关闭，含 PII 内容一律不外发至云端模型。"
+                    "截图 / 爬取链路的隐私信息整行剔除、不入库；"
+                    "个人画像走用户主动提供数据的本地 /api/jd/analyze 链路。",
         }

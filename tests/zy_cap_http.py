@@ -92,7 +92,7 @@ check(src["user_screenshot"]["grade"] == "C", "user_screenshot 为 C 级")
 check("auto_screenshot" in src and src["auto_screenshot"]["legal_status"] == "blocked",
       "auto_screenshot 已封禁")
 check(src["auto_screenshot"]["kind"] == "automated_capture", "auto_screenshot 类型为自动化采集")
-check(len(reg["legal_checklist"]) == 17, "法务清单同步为 17 问", len(reg["legal_checklist"]))
+check(len(reg["legal_checklist"]) == 18, "法务清单同步为 18 问", len(reg["legal_checklist"]))
 check("research_capture" in src and src["research_capture"]["legal_status"] == "pending_legal",
       "受控研究采集源已登记且待法务结论")
 
@@ -134,9 +134,26 @@ print("=== 路由表 ===")
 s, spec = get("/openapi.json")
 paths = spec.get("paths", {})
 check("/api/capture/policy" in paths, "新接口已注册")
+# 以下 /api/capture/* POST 端点都是「只收布尔标记 / 页数 + ack」的控制端点，
+# 不是截图上传端点：admin/toggle 是管理员手动开关；executor/run 只收
+# {pages, operator_ack}，目标 URL 由服务端白名单生成、不接受客户端 URL 或文件。
+# B1 的 /api/resume/parse 是唯一文件上传端点，且只收 pdf / docx（由 zy_approval_http.py 校验）。
+CAPTURE_NON_UPLOAD = {"/api/capture/policy", "/api/capture/admin/toggle",
+                      "/api/capture/executor/run"}
 check(all(not ("/capture" in p and "post" in methods) for p, methods in paths.items()
-          if p != "/api/capture/policy"),
+          if p not in CAPTURE_NON_UPLOAD),
       "不存在任何截图上传 POST 端点")
+check("multipart/form-data" not in str(paths.get("/api/capture/executor/run", {}).get("post", {}))
+      and "upload" not in str(paths.get("/api/capture/executor/run", {}).get("post", {})).lower(),
+      "执行体端点只收控制参数，不接受文件 / 图片上传")
+check(not any(("upload" in p or "image" in p or "screenshot" in p) and "post" in methods
+              for p, methods in paths.items()),
+      "路由表中没有任何图片 / 截图上传端点")
+check("multipart/form-data" not in str(paths.get("/api/capture/admin/toggle", {}).get("post", {})),
+      "管理员开关不是文件上传端点")
+check(sum(1 for p, m in paths.items() if "post" in m
+          and "multipart/form-data" in str(m["post"])) == 1,
+      "文件上传端点仅 B1 一处")
 
 print("\n%s  CAP HTTP CHECKS PASSED: %d / %d" % ("OK" if FAIL == 0 else "FAILED", PASS, PASS + FAIL))
 if FAIL:

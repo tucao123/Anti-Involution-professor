@@ -42,6 +42,7 @@ from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+import job_info     # 截图链路：只留岗位信息行、隐私信息整行不入库
 import privacy
 import sources
 import user_jd
@@ -279,6 +280,21 @@ def ingest(text: str, source_id: str, title: str = "研究文本",
     clean, n_pii, kinds = user_jd.redact(raw)
     if privacy.scan_pii(clean):
         raise InvalidInput("PII_RESIDUAL")
+
+    # 2026-11-16 用户约束：截图 / 本地 OCR 链路的隐私信息不要入库。
+    # 个人信息语境行整行剔除（不是留占位符），只把岗位信息行送进索引；
+    # pii_redacted / pii_kinds 仍按原始全文统计，作为「检出并排除」的举证。
+    job_only = False
+    if origin == "local_ocr":
+        kept = job_info.job_only_lines(clean)
+        filtered = "\n".join(kept)
+        if not filtered.strip():
+            raise InvalidInput("NO_JOB_INFO")
+        clean = filtered
+        job_only = True
+        if privacy.scan_pii(clean):
+            raise InvalidInput("PII_RESIDUAL")
+
     chunks = _chunks(clean)
     if not chunks:
         raise InvalidInput("NO_CHUNK")
@@ -317,12 +333,14 @@ def ingest(text: str, source_id: str, title: str = "研究文本",
             "chunk_count": len(chunks),
             "pii_redacted": n_pii,
             "pii_kinds": kinds,
+            "job_only": job_only,
+            "pii_lines_excluded": job_only,
         }
         _write(store)
         _invalidate()
         privacy.audit("rag_ingest", did,
-                      "来源 %s / %s 级 / %d 块 / 脱敏 %d 处 / 留存 %d 天"
-                      % (source_id, src["grade"], len(chunks), n_pii, days))
+                      "来源 %s / %s 级 / %d 块 / 脱敏 %d 处 / 仅岗位=%s / 留存 %d 天"
+                      % (source_id, src["grade"], len(chunks), n_pii, job_only, days))
     sources.log_assessment("rag_ingest", source_id,
                            {"grade": src["grade"], "chunks": len(chunks),
                             "pii_redacted": n_pii, "retain_days": days})
@@ -332,8 +350,9 @@ def ingest(text: str, source_id: str, title: str = "研究文本",
         "vectorization": "字符 2/3-gram + 技能本体 · 稀疏 TF-IDF · 余弦相似度",
         "encrypted_at_rest": True,
         "image_uploaded": False,
-        "note": "位图自始未上传；入库的是脱敏后文本的加密片段与稀疏向量。"
-                "向量不等同于匿名化，故同时提供 TTL、单文档删除与整库清空。",
+        "note": "位图自始未上传；截图 / 本地 OCR 链路的隐私信息整行剔除、不入库，"
+                "只保留岗位信息。个人画像由用户主动提供 JD / 简历的本地 /api/jd/analyze 链路提供，"
+                "两条链路分离。向量不等同于匿名化，故同时提供 TTL、单文档删除与整库清空。",
     }
 
 
@@ -445,6 +464,10 @@ def status() -> dict[str, Any]:
             "fetchable_sources": [k for k, v in sources.SOURCES.items()
                                   if v["legal_status"] == "approved"],
             "allowed_origins": list(ORIGINS),
+            "screenshot_pii_to_store": False,
+            "local_ocr_job_only": True,
+            "user_profiling_project_wide": True,
+            "profiling_path": "/api/jd/analyze",
             "image_upload": False,
             "cloud_model": False,
             "external_vector_db": False,

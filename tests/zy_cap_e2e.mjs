@@ -60,6 +60,11 @@ try {
     try { targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json(); if (targets.length) break; } catch {}
     await sleep(250);
   }
+  if (!targets || !targets.length) {
+    console.log('SKIP BROWSER: CDP endpoint unavailable (Chrome started but /json not reachable)');
+    try { proc.kill(); } catch {}
+    process.exit(0);
+  }
   const page = targets.find(t => t.type === 'page' && t.url.startsWith(URL));
   if (!page) throw new Error('no page target');
   ws = new WebSocket(page.webSocketDebuggerUrl);

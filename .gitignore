@@ -20,12 +20,20 @@ __pycache__/
 .market_snapshots.jsonl
 .privacy/
 .rag/
+.stores/
 
 # 测试产物与缓存
 tests/out/
 tests/.cache/
 *.log
 .pytest_cache/
+
+# Next.js 控制台（依赖与构建产物不入库；public/legacy 是源码副本，需入库）
+web/node_modules/
+web/.next/
+web/out/
+web/*.tsbuildinfo
+web/next-env.d.ts
 
 # 工作区助手数据与工作日志（保留在本地，不入库）
 .workbuddy/

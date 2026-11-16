@@ -1,0 +1,29 @@
+{
+  "name": "zhiyin-web",
+  "version": "2.0.0",
+  "private": true,
+  "description": "职引者 ZHIYIN · Next.js 控制台（代理到 FastAPI BFF，托管既有单页应用）",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "build:win": "node -r ./scripts/win-trace-shim.cjs ./node_modules/next/dist/bin/next build",
+    "dev:win": "node -r ./scripts/win-trace-shim.cjs ./node_modules/next/dist/bin/next dev -p 3000",
+    "start": "next start -p 3000",
+    "sync-legacy": "node scripts/sync-legacy.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,41 @@
+# 职引者 ZHIYIN · 可选增强依赖（Phase 2）
+#
+# 全部为「有则接真服务、无则本地降级」，安装失败不影响核心服务启动。
+# 建议用 Docker 镜像安装（见 Dockerfile / docker-compose.yml）；本机按需挑选，
+# 不必一次性全装。Python 3.13 实测 sentence-transformers 6.x + torch 2.x 可正常安装，
+# 本地 BGE 512 维语义向量可用；缺权重 / 缺依赖时后端自动降级并如实标注。
+#
+# 本机注意（2026-11-16）：WorkBuddy 会向所有 Python 进程注入沙箱 sitecustomize，
+# pip 收尾清理临时目录时可能触发 SAFE_DELETE_BULK_GUARD_ERROR。做法是「逐包安装 +
+# --no-clean」（一次装太多也会触发）：
+#   python -m pip install --no-clean "sentence-transformers>=3.0"
+# 若应用升级重置了 site-packages，先装 requirements.txt，再按需逐包装本文件。
+#
+#   python -m pip install -r requirements-optional.txt
+#   python -m pip install -r "requirements-optional.txt" --no-deps sentence-transformers  # 单挑
+
+# ---- 向量库：Qdrant 官方客户端（本项目的 vector_store.py 用 REST，不强制此项）----
+qdrant-client>=1.9
+
+# ---- Embedding：BGE 本地语义向量 ----
+sentence-transformers>=3.0
+# FlagEmbedding>=1.2   # 备选实现，二选一即可
+
+# ---- 语言模型 SDK（llm.py 用标准库 HTTP，不强制）----
+dashscope>=1.20
+# openai>=1.40        # 若走任意 OpenAI 兼容中转端点
+
+# ---- 编排 ----
+langgraph>=0.2
+
+# ---- 异步任务 / 缓存 ----
+celery>=5.4
+redis>=5.0
+
+# ---- 三库驱动 ----
+psycopg[binary]>=3.2
+neo4j>=5.0
+SQLAlchemy>=2.0
+
+# ---- 可观测（metrics.py 用标准库输出，不强制）----
+prometheus-client>=0.20

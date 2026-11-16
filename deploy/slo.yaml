@@ -1,0 +1,52 @@
+# 职引者 ZHIYIN · SLO 定义（与 metrics.py::SLO 保持一致）
+# 这是工程目标，不是法律意见。合规闸门目标恒为 1.0，不允许用错误预算换放宽。
+service: zhiyin-bff
+version: "2.0"
+window: 30d
+evaluation_interval: 15s
+
+objectives:
+  - name: availability
+    target: 0.995
+    unit: ratio
+    sli: "非 5xx 响应数 / 全部 HTTP 响应数"
+    error_budget: "30d 内约 216 分钟不可用"
+    indicator: '1 - sum(rate(zhiyin_http_5xx_total[30d])) / clamp_min(sum(rate(zhiyin_http_requests_total[30d])), 1)'
+
+  - name: latency_p95
+    target_ms: 800
+    unit: ms
+    sli: "/api/* 请求耗时 P95"
+    error_budget: "P95 持续高于 800ms 视为预算消耗"
+    indicator: 'histogram_quantile(0.95, sum by (le) (rate(zhiyin_http_request_duration_seconds_bucket[5m])))'
+
+  - name: schema_validation_success
+    target: 0.99
+    unit: ratio
+    sli: "模型输出通过 Pydantic JSON Schema 校验的比例"
+    error_budget: "校验失败即降级为规则引擎，绝不渲染未校验内容"
+    indicator: "由 /api/llm 的 SCHEMA_VALIDATION_FAILED 计数推导"
+
+  - name: compliance_gate_integrity
+    target: 1.0
+    unit: ratio
+    sli: "C 级数据外发次数 / 未批准来源绕过次数，必须为 0"
+    error_budget: "零容忍，无错误预算；任何一次命中都需人工复盘"
+    indicator: "PII_BLOCKED / USER_DATA_BLOCKED / SOURCE_NOT_APPROVED 审计链"
+
+scope:
+  in_scope:
+    - FastAPI BFF 的 /api/* 与 /metrics
+    - Next.js 控制台 / 与 /health
+    - 三库、Celery、Qdrant 适配器的可用性与降级状态
+  out_of_scope:
+    - 第三方公开 API（Jobicy / RemoteOK）的可用性，失败时前端降级为内置演示集
+    - Qdrant Cloud 跨境网络可达性，不可达时降级本地内存索引
+    - 云端 LLM 的可用性与质量，未启用时走离线规则引擎
+
+degradation_policy: |
+  任一外部依赖不可达时，服务必须自动降级而非返回错误页：
+  Qdrant -> 本地内存索引；BGE/DashScope -> 确定性 hash 投影；
+  PostgreSQL -> SQLite；Redis -> 内存 TTL；Neo4j -> 本地邻接表；
+  Celery -> eager 同步执行；LangGraph -> 同语义标准库状态图；
+  qwen -> 规则引擎。降级状态必须在 /api/* 与 /metrics 中如实标注。

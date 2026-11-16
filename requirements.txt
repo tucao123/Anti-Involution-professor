@@ -1,3 +1,6 @@
+# 职引者 ZHIYIN · 核心运行时（最小依赖，缺一不可）
+# Phase 2 的全部新增组件均为「可选依赖 + 本地降级」：
+# 未安装 requirements-optional.txt 时，服务仍可完整启动，7 个视图全部可用。
 fastapi>=0.160
 uvicorn>=0.30
 pydantic>=2.9
