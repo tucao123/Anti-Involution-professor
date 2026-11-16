@@ -162,6 +162,15 @@ def ensure_collection(dim: int) -> dict[str, Any]:
                  {"vectors": {"size": dim, "distance": "Cosine"}}, timeout=10)
         sources.log_assessment("qdrant_collection_created", "jobicy",
                                {"collection": name, "dim": dim, "grade": "D"})
+    else:
+        # 2026-11-16：BGE 恢复后本地语义向量为 512 维，而既有集合按
+        # DashScope 1024 维建立。维度不符时明确拒绝，避免把错误维度的向量
+        # 发给云端后被 400 拒绝、再静默降级为本地写入。
+        existing = state.get("target_collection") or {}
+        existing_dim = existing.get("dim")
+        if isinstance(existing_dim, int) and existing_dim != dim:
+            raise VectorUnavailable(
+                "COLLECTION_DIM_MISMATCH:%d!=%d" % (existing_dim, dim))
     _COLLECTION_DIM = dim
     _PROBE_CACHE["result"] = None  # 强制下次重新读集合列表
     return {"ok": True, "collection": name, "dim": dim, "distance": "Cosine"}

@@ -33,6 +33,11 @@
    注册表仍为 `pending_legal`，故 `effective=false`、生产 `requests_issued=0`、
    `production_capture_unlocked=false`；实际发出的沙盒测试请求另以
    `sandbox_test_requests_total` 如实记录，不把练习沙盒实跑冒充为生产采集。
+   同日第三轮按所有者指令接入 `production_capture.py` **生产执行体能力**（九道闸门），
+   但目标只由人类线下放置的站点书面许可回执 `.privacy/site_licenses/*.json` 驱动，
+   并须法务书面结论 `B2-legal.json` + 注册表 `approved`；两份材料都未回，
+   故 `production_capture_unlocked=false`、生产 `requests_issued=0`。
+   只读 `GET /api/capture/production/status`；工程侧不提供许可写入 API，不假造许可。
 9. **Q18 出境写入防护**（`outbound_guard.py`）：每次请求前锁定 Qdrant Cloud 官方域 /
    集合名 / 分级 D / 已批准来源 / payload 字段白名单 / 逐字段 PII / 体积批量上限；
    凭据与原文不回显，审计只写 digest。只读 `GET /api/vector/guard`，
@@ -77,6 +82,7 @@ import market           # 公开数据适配层（仅标准库）
 import privacy          # PIPL 合规基础设施（AES-256-GCM / 脱敏 / 删除 / 审计链）
 import rag_store        # 本地研究检索库（稀疏 TF-IDF / 加密 / TTL / 可删除）
 import outbound_guard   # Q18 出境写入防护（目标 / 集合 / 分级 / 字段 / PII / 体积）
+import production_capture  # B2 生产执行体（站点书面许可回执驱动 / 九道闸门 / 默认不解锁）
 import research_capture # 受控研究采集护栏（限速 / robots / 四重闸门 / 测试沙盒执行体）
 import secure_config    # 统一安全配置（凭据仅在内存）
 import sources          # 数据源注册 / fail-closed 合规闸门 / 数据分级
@@ -980,6 +986,16 @@ def capture_executor_run(req: CaptureExecutorRunRequest):
     finally:
         research_capture.set_admin_toggle(False, False)
     return report
+
+
+@app.get("/api/capture/production/status")
+def capture_production_status():
+    """只读：B2 生产执行体能力、九道闸门、许可回执与法务结论状态。
+
+    纯本地文件与注册表读取，不联网、不截图、不加载模型、不写入。
+    生产执行体「能力已接入」与「当前已解锁」是两个独立状态位。
+    """
+    return production_capture.status()
 
 
 @app.get("/api/capture/admin")

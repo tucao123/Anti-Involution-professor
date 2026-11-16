@@ -21,7 +21,8 @@ type Card = { title: string; value: string; note: string; warn?: boolean };
 
 export default async function Page() {
   const [health, stores, tasks, vector, embed, llm, graph, config, phase3,
-         approvals, resumeSt, captureAdmin, usage, pace, guard, executor] = await Promise.all([
+         approvals, resumeSt, captureAdmin, usage, pace, guard, executor,
+         production] = await Promise.all([
     safeGet('/api/health'),
     safeGet('/api/stores/status'),
     safeGet('/api/tasks/status'),
@@ -38,6 +39,7 @@ export default async function Page() {
     safeGet('/api/capture/pace'),
     safeGet('/api/vector/guard'),
     safeGet('/api/capture/executor/status'),
+    safeGet('/api/capture/production/status'),
   ]);
 
   const bffOnline = Boolean(health?.ok);
@@ -58,7 +60,7 @@ export default async function Page() {
       title: 'Embedding',
       value: embed?.selected_backend?.public || '未连接',
       note: embed?.bge_available
-        ? 'BGE 本地 512 维语义向量已就绪 · 用户侧向量不外发云端'
+        ? `BGE 本地 512 维语义向量已恢复 · ${embed.bge_runtime || '独立依赖目录'} · 用户侧向量不外发云端`
         : (embed?.bge_reason || '本地语义模型未就绪；按配置降级，后端如实标注'),
       warn: !embed?.bge_available,
     },
@@ -172,6 +174,16 @@ export default async function Page() {
       warn: !executor,
     },
     {
+      title: 'B2 生产采集执行体',
+      value: production?.production_executor_implemented
+        ? (production.production_capture_unlocked ? '已解锁（需持续满足九道闸门）' : '能力已接入 · 默认不解锁')
+        : '未连接',
+      note: production
+        ? `九道闸门 · 站点书面许可回执 ${production.site_licenses?.valid ?? 0} 份有效 / ${production.site_licenses?.files_seen ?? 0} 份扫描 · 法务结论 ${production.legal_conclusion?.reason || '-'} · 注册表 ${production.registry?.legal_status || '-'} · 生产请求 ${production.requests_issued} · 阻断项 ${(production.blocked_by || []).join(' / ') || '无'} · 不假造许可 / 不指向无许可招聘站 / 禁止规避检测`
+        : '未连接到 /api/capture/production/status',
+      warn: !production,
+    },
+    {
       title: 'B2 放行与严格限速',
       value: pace?.owner_risk_release?.released ? '所有者自担风险放行' : '未放行 / 未连接',
       note: `工程决策闸门（legal_review=pending，非法务结论 / 非站点许可）· 决策闸门${captureAdmin?.decision_gate_released ? '已' : '待手动'}开启 · 每页 ≥ ${pace?.example?.interval_s ?? 15}s · 串行 1 / 每日 ${pace?.contract?.daily_cap ?? 60} · 「模拟人类」= 慢速串行，规避检测式拟人化仍禁止 · 目标白名单：本地测试页 + books.toscrape.com 练习沙盒，不去招聘网站`,
@@ -186,7 +198,7 @@ export default async function Page() {
         <h1>职引者 · 组件控制台</h1>
         <p className="sub">
           这一页只做状态观测，包含 Phase 3 的 A1–A4 与 2026-11-16 决策落地（回执闸门 / B1 文件解析 /
-          管理员采集设置 / 项目性质与使用限制条款 / B2 真实执行体与严格限速 / Q18 出境写入防护）。完整的 8 个视图（含管理员）仍在既有单页应用中，本控制台通过反向代理复用同一个 FastAPI BFF。
+          管理员采集设置 / 项目性质与使用限制条款 / B2 真实执行体与严格限速 / B2 生产执行体 / Q18 出境写入防护 / BGE 恢复）。完整的 8 个视图（含管理员）仍在既有单页应用中，本控制台通过反向代理复用同一个 FastAPI BFF。
         </p>
         <p className="meta">
           凭据来源：{config?.file_source || '未知'} · 密钥仅在服务端进程内存 · 页面不接触任何密钥
@@ -221,8 +233,8 @@ export default async function Page() {
           <li><b>B2 本轮由项目所有者自担风险放行工程决策闸门，并接入真实截图执行体</b>（B2.json，<code>legal_review=pending</code>，不冒充法务结论 / 站点书面许可）；执行体作用域硬限定为练习沙盒，站点许可与法务结论仍未回，<code>production_capture_unlocked=false</code>、<code>effective=false</code>、生产 <code>requests_issued=0</code>，默认仍不自动爬取、逐次手动开关。</li>
           <li><b>「截图不能太快」已升级为代码级硬契约</b>：单域名串行 1 / 每页间隔 ≥ max(15s, 人类阅读静置 12s, Crawl-delay) / 每日 60 / 单批次 10 页 / 冷却 300s / 真实 UA / 每页留痕。「模拟人类」只指<b>人类可读的低频节奏</b>（慢速串行、可核查），<b>不是</b>伪装真人身份或躲风控；UA / IP 轮换、随机抖动规避检测、绕过验证码 / WAF / Cloudflare 一律永久禁止。</li>
           <li><b>截图测试目标白名单</b>：本地自建测试页（<code>/api/capture/test-page</code>，虚构演示文本）与经核实的练习沙盒 <code>books.toscrape.com</code>（页面自述 Sandbox / scraping purposes、随机价格评分、无真实个人信息，公开声明<b>不是站点书面许可函</b>）；招聘网站与任何其他 host 在代码层硬拒绝。实跑步页间真实等待 ≥15s、位图用完即弃、不解析文本 / 不 OCR / 不入 RAG，<b>不去招聘网站</b>。</li>
-          <li>受控研究采集的<b>执行体仅限练习沙盒，生产采集闸门一格未放</b>；B2 同时保留「手动截图 → 本地 OCR → 仅岗位信息 → 本地 RAG → AI」合规替代链路；规避技术措施与规避检测式拟人化手段永久禁止。</li>
-          <li>qwen 已启用（mode=live）但 <code>ALLOW_CLOUD_FOR_USER_DATA=false</code>：云端只收结构化技能字段，C 级原文前置拦截；Q19 / Q21 书面结论仍待回，Q18 已发生的境外写入保持开启并叠加出站防护，数据出境评估仍待回。</li>
+          <li><b>第三轮已接入 B2 生产执行体能力</b>（<code>production_capture.py</code>，九道闸门），但目标只由第三方站点方签发的<b>站点书面许可函回执</b> <code>.privacy/site_licenses/*.json</code> 驱动，并须法务书面结论 <code>B2-legal.json</code> 与注册表 <code>approved</code>；工程侧只读、无许可写入 API，自签发 / 过期 / 格式错误一律 fail-closed。当前两份材料未回、<code>pending_legal</code>，故 <code>production_capture_unlocked=false</code>、生产请求 0，<b>不假造许可、不指向无许可招聘站</b>。真实 UA / robots / 页间 ≥15s / 位图即弃与禁止规避检测一格未放宽。B2 同时保留「手动截图 → 本地 OCR → 仅岗位信息 → 本地 RAG → AI」合规替代链路。</li>
+          <li>qwen 已启用（mode=live）但 <code>ALLOW_CLOUD_FOR_USER_DATA=false</code>：云端只收结构化技能字段，C 级原文前置拦截；Q19 / Q21 书面结论仍待回。Q18 所有者已明确<b>维持境外写入允许、不回滚</b>（回执 <code>owner_confirmation</code>，<code>legal_review=pending</code>），出站防护一格未放宽，数据出境评估仍待回。<b>BGE 本地语义向量已恢复</b>：独立依赖目录 <code>.bge_env</code>（transformers 4.49.0 / ST 3.4.1）避开主环境混合损坏并按官方 modules.json 加载 CLS pooling；user 侧为 512 维本地语义向量、零云端调用，public 侧为与既有 1024 维 Qdrant 集合保持一致仍优先 DashScope（集合维度不符时明确拒绝写入，不静默降级）。</li>
           <li>语音：服务端零音频上传、无音频上传端点；<b>浏览器 ASR 可能由厂商云端完成</b>，音频可能离开设备，不承诺「音频不出设备」。</li>
         </ul>
       </div>

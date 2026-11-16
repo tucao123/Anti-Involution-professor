@@ -138,7 +138,7 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 | 项 | 实现 | 状态 |
 |---|---|---|
 | qwen 叙述层 | 官方 DashScope 兼容端点实测 200，`LLM_ENABLED=true`，`/api/health` 为 `mode=live`；PII / 原文字段仍前置拦截 | 已启用 |
-| BGE 本地语义向量 | `torch` 2.15 + `BAAI/bge-small-zh-v1.5` 512 维权重已下载；2026-11-16 依赖被应用升级重置后，`sentence-transformers` 依赖栈未能在沙箱内完整恢复 | ⚠️ 当前降级（见「已知边界」），权重与配置均未丢失 |
+| BGE 本地语义向量 | `torch` 2.15 + `BAAI/bge-small-zh-v1.5` 512 维权重；主环境 `transformers 4.57.6` / `sentence-transformers 6.3.0` 互斥且混入两套文件触发循环导入，改用 `pip --target=.bge_env` 干净组合（transformers 4.49.0 / ST 3.4.1 / tokenizers 0.21.0 / hf-hub 0.29.3 / Pillow 11.1.0），`embedding.py` 前置到 `sys.path` | ✅ 已恢复：`bge_available=true`、按官方 `modules.json` 加载 CLS pooling、`user` 侧 512 维本地语义向量（`cloud_used=false`）；`public` 侧为与既有 1024 维 Qdrant 集合保持一致仍优先 DashScope。`.bge_env/` 为 gitignored 本机产物，缺失时自动退回原降级链路 |
 | A1 多轮辅导 | `coach.py` + 面试视图面板：会话仅内存、原文零落盘、零云调用、可撤回、护栏固定 | 已做 |
 | A2 浏览器语音 | Web Speech 语音输入 / 朗读，逐次授权、不支持时降级文字；**服务端零音频上传**，并如实告知浏览器 ASR 可能由厂商云端完成 | 已做 |
 | A3 公开仓库元数据 | `github_meta.py`：匿名只读、限频、回链、不落盘、不构成能力评分 | 已做（法务 Q21 待书面结论） |
@@ -163,8 +163,11 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 | **B2 自担风险放行 + 严格限速** | `.privacy/approvals/B2.json`（`issuer=项目所有者`、`risk_bearing=project_owner`、`legal_review=pending`，不冒充法务结论 / 站点许可）；`PACE_CONTRACT` + `enforce_pace()` 代码级硬闸门；`GET /api/capture/pace` | 已做（决策闸门放行；生产 `effective=false`、`requests_issued=0`） |
 | **Q18 出境写入防护** | `outbound_guard.py`：端点官方域 / 集合 / 分级 D / 已批准来源 / payload 字段白名单 / 逐字段 PII / 体积批量上限；凭据与原文不回显，审计只写 digest；`GET /api/vector/guard`、dry-run `POST /api/vector/guard/check` | 已做（不产生新的境外写入） |
 | **B2 真实执行体 + 练习沙盒** | `capture_executor.py`：七道闸门 + 严格限速 + 真实 UA + 每页留痕 + 位图即弃；白名单仅本地测试页与 `books.toscrape.com`（公开声明 Sandbox / scraping purposes）；`GET /api/capture/executor/status`、`POST /api/capture/executor/run` | 已做并实跑（仅沙盒；`production_capture_unlocked=false`） |
+| **Q18 维持允许（不回滚）** | `Q18.json` 新增 `owner_confirmation`：所有者明确维持 `QDRANT_ALLOW_WRITE=true`、不回滚已发生写入、不关闭双闸门；`approval_gate` 把确认摘要暴露到 `/api/approvals/status` | 已做（`legal_review=pending`，出站防护一格未放宽，数据出境评估仍待回） |
+| **BGE 恢复** | `.bge_env/` 独立依赖目录 + `embedding.py` 的 `sys.path` 前置；不修补被污染的主环境 | 已做并实测（`selected_backend.user=bge`、512 维零云调用；`public` 维持 1024 维 DashScope 以匹配既有集合；`ensure_collection()` 增维度冲突硬拒绝） |
+| **B2 生产执行体** | `production_capture.py`：生产能力 + 九道闸门，目标只由第三方签发的站点书面许可函回执 `.privacy/site_licenses/*.json` 驱动，并须法务书面结论 `B2-legal.json` + 注册表 `approved`；`GET /api/capture/production/status` 只读 | 已接入能力，**默认不解锁**（两份材料未回、`pending_legal`、`production_capture_unlocked=false`、生产请求 0）；工程侧无许可写入 API、不假造许可、不指向无许可招聘站 |
 
-新增端点：`/api/project/usage`、`/api/approvals/status`、`/api/resume/{status,consent,parse,withdraw,delete}`、`/api/capture/admin`、`/api/capture/admin/toggle`、`/api/capture/pace`、`/api/vector/guard`、`/api/vector/guard/check`、`/api/capture/executor/{status,run}`。
+新增端点：`/api/project/usage`、`/api/approvals/status`、`/api/resume/{status,consent,parse,withdraw,delete}`、`/api/capture/admin`、`/api/capture/admin/toggle`、`/api/capture/pace`、`/api/vector/guard`、`/api/vector/guard/check`、`/api/capture/executor/{status,run}`、`/api/capture/production/status`。
 
 **B2 口径**：所有者「自担风险直接放行，但截图不能太快、必须严格控制速度模拟人类」，本轮追加
 「截图爬取测试网站 https://books.toscrape.com/」「接入 B2 真实执行体」。放行的是**工程决策
@@ -198,12 +201,28 @@ python tests/zy_capture_executor_test.py --pages 3   # 真实执行体对练习�
 位图留存 `none`、页面文本未解析、未入 RAG、未产出生产数据。报告在
 `tests/out/capture_executor_report.json`（gitignored）。
 
+**B2 生产执行体（第三轮）**：`production_capture.py` 已接入生产能力与九道闸门
+（B2 回执 / 逐次手动开关 / `operator_ack` / 研究学习条款 / `enforce_pace` / 站点书面许可回执 /
+法务书面结论 / 注册表 `approved` / Chrome）。许可回执由**站点方签发、人线下放置**到
+`.privacy/site_licenses/*.json`（gitignored、工程侧只读、无写入 API），校验 `license_ref` /
+`issuer` / `signed_by` / 有效期 / `self_issued=false` / `decision=approved` / `conditions_met` /
+`legal_opinion=false` / `scope.allowed_hosts` + `allowed_path_prefixes` + 仅 D 级；
+自签发、过期、格式错误一律 fail-closed。法务结论另需 `.privacy/approvals/B2-legal.json`
+（`legal_opinion=true`、`legal_review=received`、范围含 `production_capture`）。
+`production_run()` 只在九道闸门全过后发起请求，目标必须被许可的 host + path 覆盖，
+执行期沿用真实 UA / robots / 页间 ≥15s / 每页留痕 / 位图即弃 / 不解析文本 / 不 OCR / 不入 RAG。
+`tests/zy_production_capture_test.py`（43 项，已接入 `run_all.py`）用临时目录校验许可与闸门，
+**不真的联网**。
+
 **仍如实标注 / 拒绝实现**：站点书面许可函与法务书面结论仍未回，注册表仍为
-`pending_legal`；执行体存在但作用域仅为练习沙盒，`effective=false`、生产
-`requests_issued=0`、`production_capture_unlocked=false`，实际沙盒请求另以
-`sandbox_test_requests_total` 如实记录。伪装真人身份、按「刚好不被发现」调参、随机抖动
+`pending_legal`，故 `production_capture_unlocked=false`、生产 `requests_issued=0`、
+`effective=false`；实际沙盒请求另以 `sandbox_test_requests_total` 如实记录。
+**能力已接入 ≠ 已解锁**：练习沙盒公开声明、所有者自担风险、研究学习条款都不替代两份第三方
+书面材料；许可齐备后无需改代码即可解锁。伪装真人身份、按「刚好不被发现」调参、随机抖动
 躲风控、UA / IP 轮换、隐身、绕过验证码 / WAF / Cloudflare、登录墙 / 字体反爬一律永久禁止；
 「研究学习 / 非商用」仍不构成合规豁免，也不据此放行其余待书面结论事项。
+Q18 已按所有者确认维持允许、不回滚，`outbound_guard.py` 六道出站校验一格未放宽，
+`legal_review=pending`、数据出境评估仍待回。
 
 ## 测试
 
@@ -243,11 +262,12 @@ user_jd.py            C 级用户自带 JD：技能抽取 / PII 脱敏 / 原文�
 rag_store.py          本地研究检索：稀疏 TF-IDF / 加密片段 / TTL / 删除
 research_capture.py   受控采集护栏：限速 / robots / 四重闸门 / 练习沙盒白名单
 capture_executor.py   B2 真实截图执行体：七道闸门 / 严格限速 / 位图即弃（仅练习沙盒）
+production_capture.py B2 生产执行体：九道闸门 / 站点书面许可回执驱动 / 默认不解锁
 outbound_guard.py     Q18 出境写入防护：目标 / 集合 / 分级 / 字段 / PII / 体积锁定
 privacy.py            AES-256-GCM / 脱敏 / 一键删除 / 审计哈希链
 tests/                自包含回归套件
 技术文档.md           架构设计与红线      合规与授权沟通稿.md  法务 / BD 沟通稿
-待书面结论事项与回执清单.md   B1 / Q18 / Q19 / Q21 / B3 请求单 · 回执台账 · 启用闸门（v1.1）
+待书面结论事项与回执清单.md   B1 / Q18 / Q19 / Q21 / B3 请求单 · 回执台账 · 启用闸门（v1.4，含 §7.7 第三轮决策）
 数据出境与公开元数据条款清单.md   Q19 / Q21 需补条款 · 单独告知同意模板 · DPA 条款清单
 参考素材-*.html       外部设计稿，非本项目文档
 ```
@@ -262,15 +282,17 @@ tests/                自包含回归套件
   2026-11-16 项目所有者逐项决策后 **B1 / Q18 已按工程开关启用**（回执 `issuer=项目所有者`、`legal_review=pending`，不等于法务结论）；
   Q19 / Q21 因只是复述问题栏而保持 CLOSED，需补条款见 [`数据出境与公开元数据条款清单.md`](数据出境与公开元数据条款清单.md)；B3 未提及、保持关闭。
   代码级回执闸门已接线（`approval_gate.py`），`/api/approvals/status` 可实时核查。
-- Qdrant Cloud 已按 Q18 回执开启云写入并实测 `backend=qdrant-cloud`：集合 `zhiyin_public_d` 已创建，目前含 2 条 D 级公开样本（回归用例写入），临时验收样本已删除。
-  **数据出境评估与来源方条款的法务书面结论仍未回**；`ALLOW_CLOUD_FOR_USER_DATA=false`，C 级用户数据仍禁止入云。回滚：`.env` 置回 `QDRANT_ALLOW_WRITE=false` 或移走 `.privacy/approvals/Q18.json`，写入立即停止；`/api/vector/delete` 可删除已写入点。
+- Qdrant Cloud 已按 Q18 回执开启云写入并实测 `backend=qdrant-cloud`：集合 `zhiyin_public_d` 已创建，目前含 2 条 D 级公开样本（回归用例写入），临时验收样本已删除。2026-11-16 17:24 所有者明确「**境外写入允许**」，`Q18.json` 已记入 `owner_confirmation`（维持 `QDRANT_ALLOW_WRITE=true`、不回滚、不关闭双闸门），`/api/approvals/status` 可核查该确认摘要。
+  **数据出境评估与来源方条款的法务书面结论仍未回，`legal_review=pending`**；`outbound_guard.py` 六道出站校验一格未放宽，`ALLOW_CLOUD_FOR_USER_DATA=false`，C 级用户数据仍禁止入云。回滚：`.env` 置回 `QDRANT_ALLOW_WRITE=false` 或移走 `.privacy/approvals/Q18.json`，写入立即停止；`/api/vector/delete` 可删除已写入点。
 - 本机 PostgreSQL 18 已接线（库 / 角色 `zhiyin`，端口 5432，驱动 `psycopg[binary]`）；`/api/stores/status` 的 `postgresql.backend` 应为 `postgresql`。密码由外部 `key.env` 提供，不写进任何项目文件；未装驱动或服务未启动时自动降级 SQLite。
 - 8848 现为 Phase 3 服务，`start.bat` 可直接启动；无需再处理上一版遗留进程。
 
 - qwen 已启用但**不代表放宽数据边界**：`ALLOW_CLOUD_FOR_USER_DATA=false`、C 级原文零落盘零外发；Q18 云写入虽已开启，仍只收 D 级公开样本，书面结论未回。
-- **BGE 当前为降级状态**：512 维权重仍在 `~/.cache/huggingface`，`.env` 的 `BGE_AUTOLOAD=true` 也未改；但依赖栈恢复时 `transformers` 4.x/5.x 版本冲突未能解消，`/api/embedding/status` 如实返回 `bge_available=false` 与 `bge_reason`，用户侧落到确定性 hash（`cloud_used=false`）、不冒充语义向量。**在普通终端（无 `PYTHONPATH` 注入）执行一次 `python -m pip install "sentence-transformers>=3.0"` 即可自动恢复**，无需改配置。
+- **BGE 已恢复（2026-11-16 17:24）**：病因是主环境 `transformers 4.57.6` 与 `sentence-transformers 6.3.0` 版本互斥（后者要求 transformers 5.x）且目录混入两套文件，触发 `_LazyModule` 循环导入。不再覆盖修补主环境，改用 `pip install --no-deps --target=.bge_env` 装干净组合（transformers 4.49.0 / ST 3.4.1 / tokenizers 0.21.0 / hf-hub 0.29.3 / Pillow 11.1.0），`embedding.py` 把 `.bge_env` 前置到 `sys.path`，并把 HF repo id 解析为本地 hub snapshot 绝对路径——否则 huggingface-hub 的 `.no_exist` 缓存标记会让 SentenceTransformer 误判 `modules.json` 不存在、回退成 mean pooling。实测 `/api/embedding/status` 返回 `bge_available=true`、`bge_runtime=isolated:.bge_env`、`bge_model_source=local_hub_snapshot`（模型含 Transformer + Pooling(CLS) + Normalize 三层）、`selected_backend.user=bge`，`embed(scope=user)` 产出 512 维归一化语义向量、`cloud_used=false`。
+  **维度一致性约束**：既有 Qdrant 集合 `zhiyin_public_d` 是按 DashScope `text-embedding-v3` 的 1024 维建立的，BGE 只有 512 维。故 `EMBED_BACKEND=auto` 下 `public` 优先 1024 维 DashScope、`user` 优先本地 BGE；`vector_store.ensure_collection()` 在检测到集合维度不符时明确抛 `COLLECTION_DIM_MISMATCH`，避免 512 维向量发到云端被拒后静默降级为本地写入。`.bge_env/` 是 gitignored 本机产物；**目录不存在时自动沿用主环境并退回原降级链路**，不影响启动。应用再次升级清空主环境时，重跑一次该 `--target` 安装即可恢复。
 - Docker Desktop 启动被本机安全策略拦截（`wsl.exe` 黑名单），未重试或绕行；Redis / Neo4j 服务端未运行，继续走本地降级。
 - Chrome 的 CDP 远程调试端口在本环境不监听，交互 E2E 用例优雅 SKIP；DOM 静态审计与渲染后 DOM 检查仍通过。
-- **Python 环境会被应用升级重置**：`python` 指向 WorkBuddy 内置解释器（`3.13.12` 是软链，实际 3.13.14）。2026-11-16 升级后 `site-packages` 被清空，BFF 因缺 `cryptography` 无法启动。恢复方式：先 `python -m pip install -r requirements.txt`（核心可一次装），再对 `requirements-optional.txt` 中的包**逐个**执行 `python -m pip install --no-clean "<包名>"`——一次装多个、或让 pip 清理临时目录，都会触发沙箱的 `SAFE_DELETE_BULK_GUARD_ERROR`。BGE 权重在 `~/.cache/huggingface`，不受应用升级影响。彻底隔离建议改用项目级 venv，**尚未实施**。
+- **Python 环境会被应用升级重置**：`python` 指向 WorkBuddy 内置解释器（`3.13.12` 是软链，实际 3.13.14）。2026-11-16 升级后 `site-packages` 被清空，BFF 因缺 `cryptography` 无法启动。恢复方式：先 `python -m pip install -r requirements.txt`（核心可一次装），再对 `requirements-optional.txt` 中的包**逐个**执行 `python -m pip install --no-clean "<包名>"`——一次装多个、或让 pip 清理临时目录，都会触发沙箱的 `SAFE_DELETE_BULK_GUARD_ERROR`。BGE 权重在 `~/.cache/huggingface`、干净依赖栈在项目内 `.bge_env/`，两者都不受应用升级影响。彻底隔离建议改用项目级 venv，**尚未实施**。
+- **B2 生产执行体默认不解锁**：`production_capture.py` 能力已接入，但 `.privacy/site_licenses/` 无第三方站点书面许可函、`B2-legal.json` 法务结论未回、注册表仍 `pending_legal`，故 `GET /api/capture/production/status` 返回 `production_capture_unlocked=false`、生产请求 0。这是**设计内状态，不是待修 bug**；工程侧不提供许可写入 API、不假造许可、不指向无许可招聘站。两份书面材料由人线下放置后无需改代码即可解锁。
 
 本项目文档中的合规判断均为工程侧过程控制，**不构成法律意见**，最终边界以法务书面结论为准。

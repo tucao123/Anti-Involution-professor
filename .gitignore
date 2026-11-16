@@ -37,3 +37,6 @@ web/next-env.d.ts
 
 # 工作区助手数据与工作日志（保留在本地，不入库）
 .workbuddy/
+
+# BGE 独立依赖目录（pip --target 生成，本机环境修复产物，不入库）
+.bge_env/

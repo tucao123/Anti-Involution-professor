@@ -16,6 +16,23 @@
 """
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# BGE 独立依赖目录（2026-11-16 恢复）
+#   主环境 site-packages 中 transformers 4.57.6 与 sentence-transformers 6.3.0
+#   版本互斥（后者要求 transformers>=5,<6），且目录混入两套文件，触发
+#   `_LazyModule` 循环导入。反复覆盖安装只会让主环境更不一致，因此不再修补它，
+#   改用 pip --target 生成的干净组合（transformers 4.49.0 + ST 3.4.1 +
+#   tokenizers 0.21.0 + hf-hub 0.29.3 + Pillow 11.1.0）并前置到 sys.path。
+#   目录为 gitignored 本地产物；不存在时静默沿用主环境，降级路径完全不变。
+# ---------------------------------------------------------------------------
+import os
+import sys
+from pathlib import Path as _Path
+
+_BGE_ENV = _Path(__file__).resolve().parent / ".bge_env"
+if _BGE_ENV.is_dir() and str(_BGE_ENV) not in sys.path:
+    sys.path.insert(0, str(_BGE_ENV))
+
 import hashlib
 import json
 import math
@@ -58,6 +75,30 @@ def _bge_package_installed() -> bool:
     return importlib.util.find_spec("sentence_transformers") is not None
 
 
+def _bge_model_path() -> str:
+    """优先把 HF repo id 解析为本地 hub snapshot 绝对路径。
+
+    huggingface-hub 的 `.no_exist` 缓存标记会让 SentenceTransformer 误判
+    `modules.json` 不存在，从而打印「Creating a new one with mean pooling」并用
+    mean pooling 重建，丢掉 BGE 官方的 CLS pooling + Normalize 配置。直接指向
+    完整 snapshot 目录即可按官方 modules.json 加载；找不到时返回原 repo id。
+    """
+    name = str(cfg.get("BGE_MODEL") or "")
+    if not name or "/" not in name or _Path(name).is_dir():
+        return name
+    org, repo = name.split("/", 1)
+    hub = _Path(os.environ.get("HF_HOME", str(_Path.home() / ".cache" / "huggingface")))
+    base = hub / "hub" / ("models--%s--%s" % (org, repo)) / "snapshots"
+    if not base.is_dir():
+        return name
+    for d in sorted(base.iterdir()):
+        if (d.is_dir() and (d / "modules.json").is_file()
+                and ((d / "model.safetensors").is_file()
+                     or (d / "pytorch_model.bin").is_file())):
+            return str(d)
+    return name
+
+
 def _bge_available() -> bool:
     """只在 BGE_AUTOLOAD=true 时才真正加载权重（可能触发数百 MB 下载）。
 
@@ -72,7 +113,7 @@ def _bge_available() -> bool:
     _BGE_TRIED = True
     try:
         from sentence_transformers import SentenceTransformer  # type: ignore
-        _BGE = SentenceTransformer(cfg.get("BGE_MODEL"))
+        _BGE = SentenceTransformer(_bge_model_path())
     except Exception:
         _BGE = None
         _BGE_TRIED = False  # 允许下载完成后再次尝试
@@ -127,8 +168,17 @@ def embed(texts: list[str], scope: str = "public") -> dict[str, Any]:
     if scope not in ("public", "user"):
         scope = "user"  # 未知范围按最严格处理
     chosen = cfg.get("EMBED_BACKEND", "auto").lower()
-    candidates = (["bge", "dashscope", "hash"] if chosen == "auto"
-                  else [chosen, "hash"] if chosen != "hash" else ["hash"])
+    if chosen == "auto":
+        # 维度一致性约束：现有 Qdrant 集合 zhiyin_public_d 是按 DashScope
+        # text-embedding-v3 的 1024 维建立的，BGE 是 512 维。public 样本优先
+        # 沿用 1024 维后端，避免 BGE 恢复后把 512 维向量写进 1024 维集合而
+        # 被云端拒绝、静默降级；user（C 级）数据必须留在本机，优先本地 BGE。
+        candidates = (["dashscope", "bge", "hash"] if scope == "public"
+                      else ["bge", "dashscope", "hash"])
+    elif chosen == "hash":
+        candidates = ["hash"]
+    else:
+        candidates = [chosen, "hash"]
     last_note = ""
     for backend in candidates:
         try:
@@ -197,6 +247,9 @@ def status() -> dict[str, Any]:
             return "bge" if bge_ok else HASH
         if chosen == "dashscope":
             return DASHSCOPE if allow_cloud else HASH
+        # auto：public 优先维持 1024 维（与既有 Qdrant 集合一致）；user 优先本地 BGE
+        if scope == "public":
+            return DASHSCOPE if allow_cloud else ("bge" if bge_ok else HASH)
         return "bge" if bge_ok else (DASHSCOPE if allow_cloud else HASH)
 
     return {
@@ -206,7 +259,16 @@ def status() -> dict[str, Any]:
         "bge_available": bge_ok,
         "bge_package_installed": _bge_package_installed(),
         "bge_autoload": cfg.flag("BGE_AUTOLOAD", False),
-        "bge_reason": ("已加载本地权重" if bge_ok else
+        "bge_runtime": ("isolated:.bge_env（transformers 4.49.0 / ST 3.4.1，"
+                        "避开主环境 4.x-5.x 混合损坏）" if _BGE_ENV.is_dir()
+                        else "main-site-packages（独立目录不存在）"),
+        "bge_model_source": ("local_hub_snapshot（按官方 modules.json 加载 CLS pooling）"
+                             if _bge_model_path() != str(cfg.get("BGE_MODEL") or "")
+                             else "huggingface_repo_id"),
+        "dimension_policy": "public 优先 1024 维 DashScope（与既有 Qdrant 集合一致）；"
+                            "user 优先本地 BGE 512 维，避免维度不匹配导致云写入静默降级",
+        "bge_reason": ("已加载本地权重（独立依赖目录）" if bge_ok and _BGE_ENV.is_dir() else
+                       "已加载本地权重" if bge_ok else
                        "BGE_AUTOLOAD=false，未加载权重（避免健康检查触发下载）"
                        if not cfg.flag("BGE_AUTOLOAD", False) else
                        "sentence-transformers 未安装" if not _bge_package_installed() else

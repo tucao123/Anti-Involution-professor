@@ -26,6 +26,7 @@ const PATHS = [
   '/api/approvals/status', '/api/resume/status', '/api/resume/consent',
   '/api/capture/admin', '/api/capture/pace', '/api/capture/test-page',
   '/api/capture/pace-test/status', '/api/capture/executor/status',
+  '/api/capture/production/status',
   '/api/vector/guard', '/api/project/usage',
 ];
 

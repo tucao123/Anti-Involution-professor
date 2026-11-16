@@ -208,6 +208,12 @@ def validate(item_id: str) -> dict[str, Any]:
         "valid_until": str(raw.get("valid_until", ""))[:32],
         "legal_opinion": raw.get("legal_opinion") is True,
         "legal_review": str(raw.get("legal_review", "pending"))[:32],
+        "owner_confirmation": {
+            "present": True,
+            "decision": str(raw["owner_confirmation"].get("decision", ""))[:160],
+            "risk_bearing": str(raw["owner_confirmation"].get("risk_bearing", ""))[:32],
+            "legal_review": str(raw["owner_confirmation"].get("legal_review", "pending"))[:32],
+        } if isinstance(raw.get("owner_confirmation"), dict) else {"present": False},
         "conditions": [str(c)[:120] for c in raw.get("conditions", [])][:8]
                       if isinstance(raw.get("conditions"), list) else [],
         "reason": "OK" if valid else ";".join(reasons),
@@ -239,6 +245,7 @@ def gate(item_id: str) -> dict[str, Any]:
         "approval_valid": approval["valid"],
         "legal_review": approval["legal_review"],
         "decision": approval["decision"],
+        "owner_confirmation": approval.get("owner_confirmation", {"present": False}),
         "reason": approval["reason"],
         "usage_restriction": usage_policy.scope_marker(),
         "note": "回执有效 + 注册表/配置双闸门同时满足；工程侧不提供自我授权入口。"

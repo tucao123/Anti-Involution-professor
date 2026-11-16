@@ -290,5 +290,44 @@ check(s == 403, "未确认时执行体端点拒绝（403）")
 s, notoggle = req("/api/capture/executor/run", "POST", {"pages": 1, "operator_ack": True})
 check(s == 403, "未逐次手动开启开关时执行体端点拒绝（403）")
 
+# ---- 第四轮：Q18 维持允许 / BGE 恢复 / B2 生产执行体 ----
+s, ast = req("/api/approvals/status")
+q18 = (ast.get("items") or {}).get("Q18", {}) if s == 200 else {}
+oc = q18.get("owner_confirmation") or {}
+check(oc.get("present") is True and "不回滚" in str(oc.get("decision", "")),
+      "Q18 所有者「维持允许、不回滚」确认可观测")
+check(oc.get("legal_review") == "pending" and q18.get("legal_review") == "pending",
+      "Q18 确认如实标注 legal_review=pending，不冒充法务结论")
+s, emb = req("/api/embedding/status")
+check(s == 200 and emb.get("bge_available") is True
+      and (emb.get("selected_backend") or {}).get("user") == "bge"
+      and "bge_env" in str(emb.get("bge_runtime", "")),
+      "BGE 已恢复：独立依赖目录 + user 侧本地语义向量")
+check(emb.get("semantic", {}).get("bge") is True
+      and emb.get("user_data_stays_local") is True,
+      "BGE 恢复后用户数据仍不出本机")
+check(str(emb.get("bge_model_source", "")).startswith("local_hub_snapshot"),
+      "BGE 按官方 modules.json 加载（非 mean pooling 重建）")
+check((emb.get("selected_backend") or {}).get("public") == "dashscope-text-embedding-v3"
+      and "1024" in str(emb.get("dimension_policy", "")),
+      "public 侧维持 1024 维后端，与既有 Qdrant 集合维度一致")
+s, prod = req("/api/capture/production/status")
+check(s == 200 and prod.get("production_executor_implemented") is True,
+      "B2 生产执行体能力已接入（只读状态端点可用）")
+check(prod.get("production_capture_unlocked") is False
+      and prod.get("requests_issued") == 0
+      and prod.get("unlicensed_targets_touched") == 0,
+      "生产执行体默认不解锁 / 零生产请求 / 零无许可接触")
+check((prod.get("site_licenses") or {}).get("valid") == 0
+      and (prod.get("legal_conclusion") or {}).get("received") is False
+      and (prod.get("registry") or {}).get("legal_status") == "pending_legal",
+      "站点许可 / 法务结论 / 注册表三项缺口如实上报")
+check("site_written_licenses" in (prod.get("blocked_by") or [])
+      and "legal_written_conclusion" in (prod.get("blocked_by") or []),
+      "九道闸门缺项逐项列出")
+check((prod.get("policy") or {}).get("license_writable_api") is False
+      and (prod.get("policy") or {}).get("evasion_techniques") == "forbidden",
+      "无许可写入 API、规避检测仍禁止")
+
 print("\n=== 回执 / B1 / 管理员 HTTP 回归：PASS %d  FAIL %d ===" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)
