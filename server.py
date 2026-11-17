@@ -149,12 +149,17 @@ class ResumeSessionRequest(BaseModel):
 
 
 class KnowledgeIngestRequest(BaseModel):
-    """管理员知识入库：只收文本（截图由浏览器本地 OCR 后传文本），不收图片。"""
+    """管理员知识入库：只收文本（截图由浏览器本地 OCR / CSV 解析后传文本），不收图片。
+
+    job_only=True（默认）：岗位知识条目，仅保留岗位信息行。
+    job_only=False：模拟面试素材（STAR 案例 / 追问范式），脱敏后整段保留。
+    """
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=20, max_length=12000)
     title: str = Field(default="管理员知识条目", max_length=80)
-    origin: Literal["admin_text", "admin_ocr"] = "admin_text"
+    origin: Literal["admin_text", "admin_ocr", "admin_csv", "interview_material"] = "admin_text"
     purpose_ack: bool = Field(default=False)
+    job_only: bool = Field(default=True)
 
 
 class KnowledgeDeleteRequest(BaseModel):
@@ -688,7 +693,7 @@ def knowledge_ingest_route(req: KnowledgeIngestRequest):
     try:
         return knowledge_ingest.ingest(
             text=req.text, origin=req.origin, title=req.title,
-            purpose_ack=req.purpose_ack,
+            purpose_ack=req.purpose_ack, job_only=req.job_only,
         )
     except knowledge_ingest.ConsentRequired:
         return fail(403, "CONSENT_REQUIRED", "请先确认研究用途授权（默认不视为同意）")
@@ -701,6 +706,7 @@ def knowledge_ingest_route(req: KnowledgeIngestRequest):
             "IMAGE_PAYLOAD_REJECTED": "检测到图片 / base64 数据；服务端只接受 OCR 后的文本",
             "PII_RESIDUAL": "脱敏后仍检出个人信息，已拒绝入库",
             "NO_JOB_INFO": "未检出岗位信息；本库只收岗位信息，隐私行整行剔除",
+            "NO_TEXT": "文本无有效内容",
             "NO_CHUNK": "文本无法切分出有效片段",
             "ORIGIN_INVALID": "来源形态不合法",
             "TOO_MANY_CHUNKS": "文本切片过多，请精简后分批提交",

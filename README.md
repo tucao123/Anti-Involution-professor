@@ -1,7 +1,18 @@
 # 职引者 ZHIYIN
 
 给「急着面试却不知道投哪儿」的应届生，一份**能照着做决定的证据清单**。
-主入口是 **JTBD v2.0 决策工作台**：找方向 → 做核对 → 定行动 → 过追问 → 记看板。
+主入口是 **决策工作台**（`http://127.0.0.1:8848/workbench.html`），按 `功能以及实现流程.md` 的七大功能重组为左侧 7 模块轨道，
+视觉沿用 HOMETRY 极简等距风不变。
+
+> **前端按文档 7 模块重组（最新）**：左侧轨道为 ①洞察对齐 ②输入解析 ③定向学习 ④模拟面试
+> ⑤AI 辅导 ⑥材料检索 ⑦隐私合规；投递看板 / 说明 / 个人中心 / 管理后台为辅助入口。
+> 全部功能复用既有 BFF 端点：洞察走 `/api/market` + `/api/jtbd/*` + `/api/llm`（行业专家 agent 解读），
+> 输入走本地 OCR + `/api/resume/parse`，学习路径可勾选（仅本机），面试走 `/api/llm` 四阶段 + `/api/hybrid/search`
+> 素材支撑，辅导走 `/api/coach/chat`，检索走 `/api/hybrid/search`（**稠密路走 Qdrant，本地仅降级**），
+> 隐私走 `/api/privacy/*`。管理页「知识入库」新增 **CSV 解析**（浏览器本地解析成文本）与
+> **模拟面试素材入库**（`job_only=false`，脱敏后保留 STAR 案例全文），两种模式都切片向量化写入 Qdrant。
+> 服务端新增可选字段 `origin=admin_csv|interview_material` 与 `job_only`（默认 true，不影响既有行为）。
+
 
 > **知识来源变更（最新）**：自动爬取与截图执行体已**整体移除**——`research_capture.py` /
 > `capture_executor.py` / `production_capture.py` 及所有 `/api/capture/*` 执行端点全部删除，

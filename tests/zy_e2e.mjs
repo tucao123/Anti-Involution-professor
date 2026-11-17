@@ -78,7 +78,27 @@ try {
     if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') consoleErrors.push('[log] ' + m.params.entry.text);
   };
   await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
-  await sleep(2400);
+  // 页面含 module script 动态 import（外网 three.js），top-level await 可能延迟首个普通脚本执行；
+  // 轮询业务变量就绪后再断言，避免固定等待在网络慢时 flaky。
+  {
+    let ready = false;
+    for (let i = 0; i < 40; i++) {
+      try {
+        const r = await send('Runtime.evaluate', { expression: 'typeof currentView !== "undefined" && typeof VIEW_IDS !== "undefined"', returnByValue: true });
+        if (r.result && r.result.value === true) { ready = true; break; }
+      } catch {}
+      await sleep(250);
+    }
+    if (!ready) await sleep(2400);
+    // 再等 LLM 状态探测收敛（原固定 2400ms 同时覆盖了两件事）
+    for (let i = 0; i < 40; i++) {
+      try {
+        const r = await send('Runtime.evaluate', { expression: 'typeof LLM !== "undefined" && LLM.checking === false', returnByValue: true });
+        if (r.result && r.result.value === true) break;
+      } catch {}
+      await sleep(250);
+    }
+  }
 
   // ---------- 双模式 ----------
   const init = await q('initial', `{view: currentView, modeBtns: document.querySelectorAll('[data-imode]').length,

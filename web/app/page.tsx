@@ -181,8 +181,9 @@ export default async function Page() {
         <p className="sub">
           这一页只做状态观测，包含 Phase 3 的 A1–A4 与决策落地（回执闸门 / B1 文件解析 /
           管理员知识入库 / 项目性质与使用限制条款 / Q18 出境写入防护 / BGE 恢复）。
-          自动爬取与截图执行体已整体移除，知识只由管理员提供文本或截图（浏览器本地 OCR）。
-          面向用户的主入口是 <b>JTBD v2.0 决策工作台</b>（方向 → 核对 → 行动 → 演练 → 看板）；既有 8 视图单页保留为 legacy，仅供历史回放与 E2E 契约，二者共用同一个 FastAPI BFF。
+          自动爬取与截图执行体已整体移除，知识只由管理员提供文本 / 截图（浏览器本地 OCR）/ CSV。
+          面向用户的主入口是 <b>决策工作台</b>（洞察对齐 → 输入解析 → 定向学习 → 模拟面试 → AI 辅导 → 材料检索 → 隐私合规，按功能以及实现流程.md 的 7 模块重组，视觉沿用 HOMETRY）；
+          知识入库稠密路全部走 Qdrant、本地仅降级。既有 8 视图单页保留为 legacy，仅供历史回放与 E2E 契约，二者共用同一个 FastAPI BFF。
         </p>
         <p className="meta">
           凭据来源：{config?.file_source || '未知'} · 密钥仅在服务端进程内存 · 页面不接触任何密钥
@@ -212,13 +213,13 @@ export default async function Page() {
       <div className="notice">
         <strong>数据边界（不因架构升级而放宽）</strong>
         <ul>
-          <li><b>JTBD 决策工作台</b>（<code>/workbench.html</code>）：C 级 JD / 经历文本只在本次请求内存里推导，零落盘、零外发、不进 RAG / 向量库；硬条件单独阻断、无百分比总分、「没提供」一律标未知，结论限定在你提供的 JD 内。看板与材料库只存浏览器 localStorage，由用户自己保存 / 删除。</li>
+          <li><b>决策工作台</b>（<code>/workbench.html</code>）：按功能以及实现流程.md 的 7 模块重组（洞察对齐 / 输入解析 / 定向学习 / 模拟面试 / AI 辅导 / 材料检索 / 隐私合规）。C 级 JD / 经历文本只在本次请求内存里推导，零落盘、零外发、不进 RAG / 向量库；结论限定在样本内、硬条件单独阻断。投递看板 / 材料库 / 学习进度只存浏览器 localStorage，由用户自己保存 / 删除。</li>
           <li>C 级用户自带 JD / 简历 / 本地 OCR 文本：原文零落盘、PII 前置脱敏、可撤回删除，默认不出本机。</li>
           <li>云向量库只收 D 级公开岗位样本；Q18 写入依据项目所有者回执开启（<code>legal_review=pending</code>），叠加配置 + 回执双闸门与 <code>outbound_guard.py</code> 出站硬校验：端点官方域 / 集合名 / 分级 D / 已批准来源 / 字段白名单 / 逐字段 PII / 体积批量上限，凭据与原文不回显。</li>
           <li>D 级样本为全球远程岗，<b>不代表中国境内招聘市场</b>；国内市场洞察仍为 pending_license、零数值。</li>
           <li><b>全项目条款：本项目仅用于研究与学习，不得用于任何商业行为。</b>对 B1 / B2 / Q18 / Q19 / Q21 / B3 同理适用，禁止商业化、对外分发与商业决策用途；该条款只收紧用途，不构成合规豁免、不改变任何回执闸门状态，也不减少待回的书面结论。</li>
           <li><b>自动爬取与截图执行体已整体移除</b>：<code>research_capture.py</code> / <code>capture_executor.py</code> / <code>production_capture.py</code> 与所有 <code>/api/capture/*</code> 执行端点全部删除，系统不再访问任何第三方页面、不再有生产采集请求。原 B2 放行 / 限速契约 / 测试目标白名单随执行体一并移除；使用限制条款仍对全部事项统一适用，不因移除而改变任何回执状态。</li>
-          <li><b>知识只由管理员提供</b>：在决策工作台 <code>/workbench.html</code> 的「知识入库」面板粘贴文本，或上传截图由 <b>Tesseract.js 浏览器本地 OCR</b> 识别成文本；位图只在浏览器内存处理，<b>不上传、不落盘</b>，服务端自始至终只接收文本。<code>/api/admin/knowledge/*</code> 按管理员角色鉴权。</li>
+          <li><b>知识只由管理员提供</b>：在决策工作台 <code>/workbench.html</code> 的「知识入库」面板粘贴文本、上传截图由 <b>Tesseract.js 浏览器本地 OCR</b> 识别，或上传 <b>CSV</b>（浏览器本地解析成文本）；位图只在浏览器内存处理，<b>不上传、不落盘</b>，服务端自始至终只接收文本。还可勾选「模拟面试素材」关闭岗位行过滤（仍强制 PII 脱敏）入库 STAR 案例。<code>/api/admin/knowledge/*</code> 按管理员角色鉴权，切片向量化全部写入 Qdrant。</li>
           <li><b>入库链路固定为「PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant」</b>：无论文本还是 OCR 链路都先脱敏再按岗位语境过滤，个人信息整行剔除；写入经 <code>outbound_guard</code> 逐字段 PII / 分级 D / 来源白名单硬校验，可按入库返回的 chunk id 删除。D 级知识只作研究参考，不产出市场级或个人画像结论。数据出境评估与法务书面结论仍待回。</li>
           <li>qwen 已启用（mode=live）但 <code>ALLOW_CLOUD_FOR_USER_DATA=false</code>：云端只收结构化技能字段，C 级原文前置拦截；Q19 / Q21 书面结论仍待回。Q18 所有者已明确<b>维持境外写入允许、不回滚</b>（回执 <code>owner_confirmation</code>，<code>legal_review=pending</code>），出站防护一格未放宽，数据出境评估仍待回。<b>BGE 本地语义向量已恢复</b>：独立依赖目录 <code>.bge_env</code>（transformers 4.49.0 / ST 3.4.1）避开主环境混合损坏并按官方 modules.json 加载 CLS pooling；user 侧为 512 维本地语义向量、零云端调用，public 侧为与既有 1024 维 Qdrant 集合保持一致仍优先 DashScope（集合维度不符时明确拒绝写入，不静默降级）。</li>
           <li>语音：服务端零音频上传、无音频上传端点；<b>浏览器 ASR 可能由厂商云端完成</b>，音频可能离开设备，不承诺「音频不出设备」。</li>

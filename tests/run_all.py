@@ -36,7 +36,7 @@ GROUPS: dict[str, list[tuple[str, str]]] = {
              ("python", "zy_rag_test.py"), ("python", "zy_phase2_test.py"),
              ("python", "zy_phase3_test.py"), ("python", "zy_approval_test.py"),
              ("python", "zy_outbound_guard_test.py"),
-             ("python", "zy_knowledge_test.py"),
+             ("python", "zy_knowledge_test.py"), ("python", "zy_knowledge_v2_test.py"),
              ("python", "zy_jtbd_test.py"), ("python", "zy_auth_test.py")],
     "http": [("python", "zy_http_test.py"), ("python", "zy_cap_http.py"),
              ("python", "zy_rag_http.py"), ("python", "zy_phase2_http.py"),

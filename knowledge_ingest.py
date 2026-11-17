@@ -34,7 +34,7 @@ import vector_store
 
 ROOT = None  # 占位：本模块不落盘任何原文，无需路径
 
-ORIGINS = ("admin_text", "admin_ocr")
+ORIGINS = ("admin_text", "admin_ocr", "admin_csv", "interview_material")
 SOURCE_ID = "admin_curated"
 
 MIN_TEXT = 20
@@ -87,8 +87,14 @@ def _chunks(text: str) -> list[str]:
 
 
 def prepare(text: str, origin: str, title: str = "管理员知识条目",
-            purpose_ack: bool = False) -> dict[str, Any]:
-    """只做本地加工，不联网、不写入。供入库与只读校验共用。"""
+            purpose_ack: bool = False, job_only: bool = True) -> dict[str, Any]:
+    """只做本地加工，不联网、不写入。供入库与只读校验共用。
+
+    job_only=True（默认）：只保留岗位信息行，适用于岗位知识条目。
+    job_only=False：保留全部非隐私文本（仍强制 PII 脱敏），适用于模拟面试素材
+    （STAR 案例、追问范式等并非「岗位 JD」语境，但同属 D 级研究参考知识）。
+    两种模式都经过同样的 PII 脱敏 + 出站闸门，区别仅在岗位语境行过滤这一步。
+    """
     if purpose_ack is not True:
         raise ConsentRequired("RESEARCH_PURPOSE_ACK_REQUIRED")
     if origin not in ORIGINS:
@@ -106,11 +112,17 @@ def prepare(text: str, origin: str, title: str = "管理员知识条目",
     if privacy.scan_pii(clean):
         raise KnowledgeRejected("PII_RESIDUAL")
 
-    # 用户在两种来源下都选择「脱敏 PII + 仅保留岗位信息」
-    kept = job_info.job_only_lines(clean)
-    filtered = "\n".join(kept)
-    if not filtered.strip():
-        raise KnowledgeRejected("NO_JOB_INFO")
+    if job_only:
+        kept = job_info.job_only_lines(clean)
+        filtered = "\n".join(kept)
+        if not filtered.strip():
+            raise KnowledgeRejected("NO_JOB_INFO")
+    else:
+        # 面试素材：整段保留，仅去掉空行；个人信息已在上面脱敏
+        kept = [ln for ln in clean.splitlines() if ln.strip()]
+        filtered = "\n".join(kept)
+        if not filtered.strip():
+            raise KnowledgeRejected("NO_TEXT")
     if privacy.scan_pii(filtered):
         raise KnowledgeRejected("PII_RESIDUAL")
 
@@ -133,13 +145,14 @@ def prepare(text: str, origin: str, title: str = "管理员知识条目",
         "pii_redacted": n_pii,
         "pii_kinds": kinds,
         "lines_kept": len(kept),
+        "job_only": job_only,
     }
 
 
 def ingest(text: str, origin: str = "admin_text", title: str = "管理员知识条目",
-           purpose_ack: bool = False) -> dict[str, Any]:
-    """脱敏 + 仅岗位信息 → 分块 → 向量化 → Qdrant 云（分批以符合出站上限）。"""
-    prep = prepare(text, origin, title, purpose_ack)
+           purpose_ack: bool = False, job_only: bool = True) -> dict[str, Any]:
+    """脱敏 +（默认仅岗位信息）→ 分块 → 向量化 → Qdrant 云（分批以符合出站上限）。"""
+    prep = prepare(text, origin, title, purpose_ack, job_only)
     doc_id = "kb-" + secrets.token_hex(8)
     batches = [prep["chunks"][i:i + MAX_BATCH]
                for i in range(0, len(prep["chunks"]), MAX_BATCH)]
@@ -165,7 +178,7 @@ def ingest(text: str, origin: str = "admin_text", title: str = "管理员知识�
         "lines_kept": prep["lines_kept"],
         "pii_redacted": prep["pii_redacted"],
         "pii_kinds": prep["pii_kinds"],
-        "job_only": True,
+        "job_only": prep["job_only"],
         "source_id": SOURCE_ID,
         "grade": "D",
         "backend": ",".join(backends),

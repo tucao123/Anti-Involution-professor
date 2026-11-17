@@ -89,7 +89,19 @@ try {
       consoleErrors.push('[log] ' + m.params.entry.text);
   };
   await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
-  await sleep(2400);
+  // 页面含 module script 动态 import，top-level await 会延迟首个普通脚本执行；
+  // 轮询业务函数就绪后再断言，避免固定 2400ms 在网络慢时 flaky。
+  {
+    let ready = false;
+    for (let i = 0; i < 40; i++) {
+      try {
+        const r = await send('Runtime.evaluate', { expression: 'typeof switchView === "function"', returnByValue: true });
+        if (r.result && r.result.value === true) { ready = true; break; }
+      } catch {}
+      await sleep(250);
+    }
+    if (!ready) await sleep(2400);
+  }
 
   await evalJS(`switchView('align',true);0`);
   await sleep(350);
