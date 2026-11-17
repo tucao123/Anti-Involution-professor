@@ -47,19 +47,23 @@ JD = ("岗位名称：AI 应用工程师（校招）\n联系人：张伟　电�
 print("=== 1. health / 策略接口 ===")
 s, h = req("/api/health")
 check(s == 200 and h["ok"], "health 200")
-check(h["research_mode"] == "pending_legal", "研究模式待法务结论", h.get("research_mode"))
-check("rag_ingest=allowed" in h["capture_policy"], "截图判定含 RAG 入库", h.get("capture_policy"))
-check("research-only" in h["rag_scope"], "RAG 口径标注", h.get("rag_scope"))
+check(h["research_mode"] == "admin_curated_only / no_third_party_capture",
+      "研究模式=仅管理员提供 / 无第三方采集", h.get("research_mode"))
+check("automated_capture=removed" in h["capture_policy"], "自动采集已移除", h.get("capture_policy"))
+check("rag_ingest=allowed(qdrant_cloud)" in h["capture_policy"], "RAG 入库指向 Qdrant 云", h.get("capture_policy"))
+check("research-only" in h["rag_scope"] and "qdrant-cloud" in h["rag_scope"],
+      "RAG 口径标注", h.get("rag_scope"))
 
 s, p = req("/api/research/policy")
-check(s == 200 and p["verdict"] == "pending_legal", "研究策略 verdict")
-check(p["legal_position"]["is_exemption"] is False, "非商用不是豁免")
-check(p["gate"]["ready"] is False and p["auto_capture_executor"] == "test_sandbox_only"
-      and p["production_capture_unlocked"] is False, "双闸门 + 执行体仅限练习沙盒")
-check(p["rate_control"]["concurrency_per_host"] == 1 and p["rate_control"]["ua_rotation"] is False,
-      "限速参数：并发 1 / 无 UA 轮换")
-check(len(p["admission_conditions"]) >= 8 and len(p["permanently_forbidden"]) >= 6,
-      "准入条件与永久禁止项齐备")
+check(s == 200 and p["verdict"] == "admin_curated_only", "研究策略 verdict")
+check(p["automated_capture_executor"] == "removed", "采集执行体已整体移除")
+check(p["production_capture_unlocked"] is False and p["third_party_requests"] == 0,
+      "生产采集未解锁 / 零第三方请求")
+asrc = p["admin_source"]
+check(asrc["source_id"] == "admin_curated" and asrc["grade"] == "D", "管理员来源 D 级")
+check(asrc["image_upload_endpoint"] is False and "browser-local" in asrc["ocr_location"],
+      "无图片上传端点 / OCR 在浏览器本地")
+check(asrc["pii_to_store"] is False and asrc["job_only"] is True, "隐私不入库 / 仅岗位信息")
 
 s, cp = req("/api/capture/policy")
 v = {x["id"]: x["verdict"] for x in cp["scenarios"]}
@@ -71,10 +75,10 @@ check(cp["research_use"]["is_exemption"] is False, "策略层否定豁免")
 check(cp["ocr"]["rag"]["plaintext_at_rest"] is False, "片段不明文落盘")
 
 s, reg = req("/api/sources")
-check(s == 200 and len(reg["sources"]) == 11, "注册表 11 源", len(reg["sources"]))
+check(s == 200 and len(reg["sources"]) == 12, "注册表 12 源（含 admin_curated）", len(reg["sources"]))
 check(len(reg["legal_checklist"]) == 18, "法务清单 18 问", len(reg["legal_checklist"]))
-rc = next(x for x in reg["sources"] if x["id"] == "research_capture")
-check(rc["legal_status"] == "pending_legal" and rc["grade"] == "B", "研究源状态/分级")
+adm = next(x for x in reg["sources"] if x["id"] == "admin_curated")
+check(adm["legal_status"] == "approved" and adm["grade"] == "D", "管理员来源已批准 / D 级")
 
 s, modes = req("/api/insight/modes")
 check(modes["modes"][1]["ready"] is False, "国内市场洞察仍待授权")

@@ -54,7 +54,7 @@ check("无可用 A 级源", by["cn_market"]["sources"] == [])
 check("技能词频可用", by["skill_reference"]["ready"] is True)
 
 s, reg = call("/api/sources")
-check("数据源注册表", s == 200 and len(reg["sources"]) == 11)
+check("数据源注册表", s == 200 and len(reg["sources"]) == 12)
 check("法务清单 18 问", len(reg["legal_checklist"]) == 18)
 check("BD 8 项要点", len(reg["bd_checklist"]) == 8)
 check("爬虫路径封禁", any(x["id"] == "domestic_crawler" and x["legal_status"] == "blocked" for x in reg["sources"]))

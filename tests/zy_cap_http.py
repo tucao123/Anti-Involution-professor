@@ -55,7 +55,11 @@ print("=== /api/health ===")
 s, h = get("/api/health")
 check(s == 200 and h["ok"], "health 200")
 check("capture_policy" in h, "health 暴露截图策略字段")
-check("prohibited" in h.get("capture_policy", ""), "自动截图被标为 prohibited")
+check("automated_capture=removed" in h.get("capture_policy", ""),
+      "自动采集已整体移除", h.get("capture_policy"))
+check("admin_text_or_screenshot_ocr=allowed" in h.get("capture_policy", ""),
+      "管理员文本 / 截图 OCR 被允许")
+check("qdrant_cloud" in h.get("capture_policy", ""), "RAG 写入指向 Qdrant 云")
 
 print("=== /api/capture/policy ===")
 s, p = get("/api/capture/policy")
@@ -133,24 +137,17 @@ check(s == 200 and d["ok"], "撤回删除 200")
 print("=== 路由表 ===")
 s, spec = get("/openapi.json")
 paths = spec.get("paths", {})
-check("/api/capture/policy" in paths, "新接口已注册")
-# 以下 /api/capture/* POST 端点都是「只收布尔标记 / 页数 + ack」的控制端点，
-# 不是截图上传端点：admin/toggle 是管理员手动开关；executor/run 只收
-# {pages, operator_ack}，目标 URL 由服务端白名单生成、不接受客户端 URL 或文件。
-# B1 的 /api/resume/parse 是唯一文件上传端点，且只收 pdf / docx（由 zy_approval_http.py 校验）。
-CAPTURE_NON_UPLOAD = {"/api/capture/policy", "/api/capture/admin/toggle",
-                      "/api/capture/executor/run"}
-check(all(not ("/capture" in p and "post" in methods) for p, methods in paths.items()
-          if p not in CAPTURE_NON_UPLOAD),
-      "不存在任何截图上传 POST 端点")
-check("multipart/form-data" not in str(paths.get("/api/capture/executor/run", {}).get("post", {}))
-      and "upload" not in str(paths.get("/api/capture/executor/run", {}).get("post", {})).lower(),
-      "执行体端点只收控制参数，不接受文件 / 图片上传")
+check("/api/capture/policy" in paths, "截图策略只读端点已注册")
+check("/api/admin/knowledge/ingest" in paths, "知识入库端点已注册")
+check("/api/admin/knowledge/delete" in paths, "知识删除端点已注册")
+# 自动爬取 / 执行体已整体移除：capture 命名空间下只剩只读 GET，无任何 POST
+check(not any("/capture" in p and "post" in methods for p, methods in paths.items()),
+      "capture 命名空间下不存在任何 POST 端点")
+check(not any("/capture/executor" in p or "/capture/production" in p or "/capture/pace" in p
+              for p in paths), "执行体 / 生产采集 / 限速端点已全部移除")
 check(not any(("upload" in p or "image" in p or "screenshot" in p) and "post" in methods
               for p, methods in paths.items()),
       "路由表中没有任何图片 / 截图上传端点")
-check("multipart/form-data" not in str(paths.get("/api/capture/admin/toggle", {}).get("post", {})),
-      "管理员开关不是文件上传端点")
 check(sum(1 for p, m in paths.items() if "post" in m
           and "multipart/form-data" in str(m["post"])) == 1,
       "文件上传端点仅 B1 一处")

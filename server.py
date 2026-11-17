@@ -14,39 +14,25 @@
    **默认不出本机**；云端向量库 / 云端模型都有独立闸门。B1 已按所有者 2026-11-16
    决策开放 pdf/docx 内存解析：文件与原文只在内存、解析完即释放，只输出粗粒度岗位信息，
    不提取个人信息、不做用户画像；云端解析需逐次单独告知同意且只发去标识化岗位字段。
-5. Qdrant Cloud 只收 D 级公开岗位样本；集合名 zhiyin_public_d；结果强制带
+5. Qdrant Cloud 只收 D 级去标识化岗位知识；集合名 zhiyin_public_d；结果强制带
    grade / region / forbidden_claims，不得据此得出国内市场结论。
 6. 行业洞察双模式：仅 A 级境内授权数据可解锁 cn_market，当前 pending、零数值。
 7. 研究检索库只收文本、仅 research；片段 AES-256-GCM 加密、TTL 30 天、可删除、审计哈希链。
-8. 受控研究采集**默认不自动爬取**：设置集中在管理员视图，由手动开关逐次控制；
-   开关只记录管理员意图，不发起任何请求。2026-11-16 本轮已按所有者指定接入
-   `capture_executor.py` 真实截图执行体，但作用域硬限定为「本地测试页 + 公开声明
-   允许爬取的练习沙盒 books.toscrape.com」，招聘网站与真实业务站点在代码层拒绝。
-   2026-11-16 所有者已**自担风险放行 B2 的工程决策闸门**（`.privacy/approvals/B2.json`，
-   只读、`issuer=项目所有者`、`legal_review=pending`，不冒充法务结论 / 站点许可）。
-   「截图不能太快」升级为 `research_capture.PACE_CONTRACT` + `enforce_pace()` 代码级硬契约：
-   单域名串行 1 / burst 1 / 每页 ≥ max(15s, 人类阅读静置 12s, Crawl-delay) /
-   每日上限 60 / 单批次 10 页 / 批次冷却 300s / 真实 UA / 每页留痕。
-   「模拟人类」只指**人类可读的低频节奏**（慢速串行、可核查）；伪装真人身份、
-   抖动躲风控、UA / IP 轮换、绕过验证码 / WAF / Cloudflare、登录墙 / 字体反爬一律永久禁止。
-   **执行体存在 ≠ 生产采集解锁**：站点书面许可与法务书面结论仍未回、
-   注册表仍为 `pending_legal`，故 `effective=false`、生产 `requests_issued=0`、
-   `production_capture_unlocked=false`；实际发出的沙盒测试请求另以
-   `sandbox_test_requests_total` 如实记录，不把练习沙盒实跑冒充为生产采集。
-   同日第三轮按所有者指令接入 `production_capture.py` **生产执行体能力**（九道闸门），
-   但目标只由人类线下放置的站点书面许可回执 `.privacy/site_licenses/*.json` 驱动，
-   并须法务书面结论 `B2-legal.json` + 注册表 `approved`；两份材料都未回，
-   故 `production_capture_unlocked=false`、生产 `requests_issued=0`。
-   只读 `GET /api/capture/production/status`；工程侧不提供许可写入 API，不假造许可。
+8. **自动爬取 / 自动截图执行体已整体移除**（原 `research_capture.py` /
+   `capture_executor.py` / `production_capture.py` 与 `/api/capture/*` 全部删除）：
+   系统不访问任何第三方页面、不发截图请求。知识的唯一来源是**管理员主动提供**——
+   直接粘贴文本（origin=admin_text），或上传截图由浏览器本地 Tesseract.js OCR 成文本
+   （origin=admin_ocr）。位图自始不上传服务端，服务端只收文本。两种来源统一经
+   PII 脱敏 + 只保留岗位信息行后分块、向量化，写入 Qdrant 云向量库
+   （`knowledge_ingest.py` + `/api/admin/knowledge/*`，管理员角色闸门）。
 9. **Q18 出境写入防护**（`outbound_guard.py`）：每次请求前锁定 Qdrant Cloud 官方域 /
    集合名 / 分级 D / 已批准来源 / payload 字段白名单 / 逐字段 PII / 体积批量上限；
    凭据与原文不回显，审计只写 digest。只读 `GET /api/vector/guard`，
-   不联网不写入的 dry-run `POST /api/vector/guard/check`。
+   不联网不写入的 dry-run `POST /api/vector/guard/check`。管理员知识入库同样过此闸门。
 10. **全项目使用限制条款**（2026-11-16 所有者确立，见 usage_policy.py）：
-   「本项目仅用于研究与学习，不得用于任何商业行为」。该条款对 B1 / B2 / Q18 / Q19 /
+   「本项目仅用于研究与学习，不得用于任何商业行为」。该条款对 B1 / Q18 / Q19 /
    Q21 / B3 同理适用，收紧目的限定并禁止商业化 / 对外分发；但它**不是合规豁免**、
-   不替代法务书面结论 / 站点许可 / 商务合同、**不改变任何回执 decision 或闸门状态**，
-   也不解锁生产采集闸门。
+   不替代法务书面结论 / 站点许可 / 商务合同、**不改变任何回执 decision 或闸门状态**。
 11. Phase 2 新增组件全部「可选依赖 + 本地降级」：Qdrant / BGE / LangGraph /
     PostgreSQL / Redis / Neo4j / Celery / Next.js 任一缺失，视图仍可运行。
 12. JTBD v2.0 决策工作台（jtbd.py + workbench.html）为面向用户的主入口
@@ -84,18 +70,16 @@ from typing import Annotated, Any, Literal
 
 import approval_gate    # 书面结论回执闸门（只读 / 双闸门 / fail-closed）
 import auth             # 认证与分角色鉴权（微信 OAuth 真实/演示 / 管理员密码 / 会话）
-import capture_executor # B2 真实截图执行体（仅练习沙盒 / 七道闸门 / 严格限速）
 import embedding        # BGE / DashScope / hash 统一 embedding 适配层
 import job_info         # 仅岗位信息粗粒度抽取（不提个人信息 / 不做用户画像）
 import jtbd             # JTBD v2.0 决策工作台（本地规则 / 三态对照 / 行动分流）
+import knowledge_ingest # 管理员知识库入库（文本 / 截图 OCR 文本 → 脱敏 → 岗位信息 → Qdrant）
 import resume_parse     # B1 文件解析（不留存 / 可撤回删除 / 云端逐次单独同意）
 import llm              # qwen 语言模型层 + 结构化输出契约
 import market           # 公开数据适配层（仅标准库）
 import privacy          # PIPL 合规基础设施（AES-256-GCM / 脱敏 / 删除 / 审计链）
 import rag_store        # 本地研究检索库（稀疏 TF-IDF / 加密 / TTL / 可删除）
 import outbound_guard   # Q18 出境写入防护（目标 / 集合 / 分级 / 字段 / PII / 体积）
-import production_capture  # B2 生产执行体（站点书面许可回执驱动 / 九道闸门 / 默认不解锁）
-import research_capture # 受控研究采集护栏（限速 / robots / 四重闸门 / 测试沙盒执行体）
 import secure_config    # 统一安全配置（凭据仅在内存）
 import sources          # 数据源注册 / fail-closed 合规闸门 / 数据分级
 import usage_policy     # 全项目「仅限研究学习 / 禁止商业行为」统一条款
@@ -164,11 +148,19 @@ class ResumeSessionRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=64)
 
 
-class CaptureToggleRequest(BaseModel):
-    """管理员手动采集开关：默认 false，开启需管理员显式确认。"""
+class KnowledgeIngestRequest(BaseModel):
+    """管理员知识入库：只收文本（截图由浏览器本地 OCR 后传文本），不收图片。"""
     model_config = ConfigDict(extra="forbid")
-    enabled: bool = Field(default=False)
-    operator_ack: bool = Field(default=False)
+    text: str = Field(min_length=20, max_length=12000)
+    title: str = Field(default="管理员知识条目", max_length=80)
+    origin: Literal["admin_text", "admin_ocr"] = "admin_text"
+    purpose_ack: bool = Field(default=False)
+
+
+class KnowledgeDeleteRequest(BaseModel):
+    """按入库返回的 chunk id 删除；不含原文。"""
+    model_config = ConfigDict(extra="forbid")
+    ids: list[str] = Field(min_length=1, max_length=200)
 
 
 class JdAnalyzeRequest(BaseModel):
@@ -231,13 +223,6 @@ class VectorGuardCheckRequest(BaseModel):
     items: list[VectorItem] = Field(min_length=1, max_length=20)
     source_id: str = Field(default="jobicy", min_length=1, max_length=48)
     scope: Literal["public", "user"] = "public"
-
-
-class CaptureExecutorRunRequest(BaseModel):
-    """练习沙盒限速截图：需管理员先逐次手动开启开关，并显式 ack。"""
-    model_config = ConfigDict(extra="forbid")
-    pages: int = Field(default=3, ge=1, le=3)
-    operator_ack: bool = Field(default=False)
 
 
 class GraphRunRequest(BaseModel):
@@ -384,7 +369,7 @@ _WRITE_PERSONAL = [
     "/api/resume/parse", "/api/resume/withdraw", "/api/resume/delete",
 ]
 _WRITE_ADMIN = [
-    "/api/capture/admin/toggle", "/api/capture/executor/run",
+    "/api/admin/knowledge/ingest", "/api/admin/knowledge/delete",
     "/api/vector/ingest", "/api/vector/delete", "/api/vector/clear-local",
     "/api/vector/guard/check",
 ]
@@ -552,10 +537,10 @@ def health():
         "market_scope": "global_remote / grade D（不代表中国境内招聘市场）",
         "insight_modes": ["skill_reference (ready)", "cn_market (pending_license)"],
         "user_jd_scope": "user_provided / grade C（原文零落盘、可撤回、默认不出本机）",
-        "capture_policy": "user_manual=allowed(C) / controlled_research=pending_legal / "
-                          "evasion=prohibited / rag_ingest=allowed",
-        "research_mode": research_capture.status()["verdict"],
-        "rag_scope": "research-only / text-only / encrypted-at-rest / TTL 30d / deletable",
+        "capture_policy": "automated_capture=removed / admin_text_or_screenshot_ocr=allowed / "
+                          "pii_redact+job_only / rag_ingest=allowed(qdrant_cloud)",
+        "research_mode": "admin_curated_only / no_third_party_capture",
+        "rag_scope": "research-only / text-only / PII-redacted / job-info-only / qdrant-cloud / deletable",
         "components": {
             "llm": "qwen/" + ls["mode"],
             "embedding": es["selected_backend"]["public"],
@@ -590,7 +575,7 @@ def llm_status():
 
 
 # ---------------------------------------------------------------------------
-# 数据源 / 市场 / 洞察 / 截图策略（Phase 1 契约完全保留）
+# 数据源 / 市场 / 洞察（Phase 1 契约完全保留）
 # ---------------------------------------------------------------------------
 @app.get("/api/sources")
 def source_registry():
@@ -615,12 +600,24 @@ def insight_modes():
 
 @app.get("/api/capture/policy")
 def capture_policy():
+    """只读：截图输入策略（用户/管理员手动截图 + 浏览器本地 OCR）。不执行任何采集。"""
     return sources.capture_policy()
 
 
 @app.get("/api/research/policy")
 def research_policy():
-    return research_capture.research_policy()
+    """只读：自动采集已移除，知识来源只剩管理员文本 / 截图 OCR。"""
+    return {
+        "ok": True,
+        "verdict": "admin_curated_only",
+        "automated_capture_executor": "removed",
+        "production_capture_unlocked": False,
+        "third_party_requests": 0,
+        "admin_source": knowledge_ingest.status(),
+        "principle": "系统不访问任何第三方页面；知识由管理员主动提供文本或截图（浏览器本地 OCR），"
+                     "经脱敏与仅岗位信息过滤后入库。",
+        "note": "原受控研究采集执行体已整体删除；本端点只声明当前策略，不执行采集。",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -675,6 +672,49 @@ def rag_delete(req: DeleteRequest):
     if not rag_store.delete_document(req.id):
         return fail(404, "NOT_FOUND", "文档不存在或已过期删除")
     return {"ok": True, "deleted": req.id}
+
+
+# ---------------------------------------------------------------------------
+# 管理员知识库入库：文本 / 截图 OCR 文本 → 脱敏 → 岗位信息 → 分块 → Qdrant
+# （取代原自动爬取链路；服务端只收文本，位图自始不上传）
+# ---------------------------------------------------------------------------
+@app.get("/api/admin/knowledge/status")
+def knowledge_status():
+    return knowledge_ingest.status()
+
+
+@app.post("/api/admin/knowledge/ingest")
+def knowledge_ingest_route(req: KnowledgeIngestRequest):
+    try:
+        return knowledge_ingest.ingest(
+            text=req.text, origin=req.origin, title=req.title,
+            purpose_ack=req.purpose_ack,
+        )
+    except knowledge_ingest.ConsentRequired:
+        return fail(403, "CONSENT_REQUIRED", "请先确认研究用途授权（默认不视为同意）")
+    except sources.SourceBlocked:
+        return fail(403, "SOURCE_NOT_APPROVED", "该来源未获批准，已拒绝入库")
+    except knowledge_ingest.KnowledgeRejected as exc:
+        code = str(exc)
+        message = {
+            "TEXT_LENGTH_INVALID": "文本长度需在 20–12000 字之间",
+            "IMAGE_PAYLOAD_REJECTED": "检测到图片 / base64 数据；服务端只接受 OCR 后的文本",
+            "PII_RESIDUAL": "脱敏后仍检出个人信息，已拒绝入库",
+            "NO_JOB_INFO": "未检出岗位信息；本库只收岗位信息，隐私行整行剔除",
+            "NO_CHUNK": "文本无法切分出有效片段",
+            "ORIGIN_INVALID": "来源形态不合法",
+            "TOO_MANY_CHUNKS": "文本切片过多，请精简后分批提交",
+        }.get(code, "输入不符合要求")
+        return fail(400, code, message)
+    except vector_store.VectorRejected as exc:
+        return fail(400, "OUTBOUND_GUARD_REJECTED", "出站防护拒绝写入：" + str(exc))
+    except vector_store.CloudUserDataBlocked:
+        return fail(403, "CLOUD_USER_DATA_BLOCKED", "用户数据默认禁止写入云向量库")
+
+
+@app.post("/api/admin/knowledge/delete")
+def knowledge_delete_route(req: KnowledgeDeleteRequest):
+    return knowledge_ingest.delete(req.ids)
 
 
 # ---------------------------------------------------------------------------
@@ -1163,118 +1203,6 @@ def resume_delete(req: ResumeSessionRequest):
     return resume_parse.delete(req.session_id)
 
 
-@app.get("/api/capture/pace")
-def capture_pace_contract():
-    """只读：B2 严格限速硬契约 + 一次准入核算示例。不发起任何第三方请求。"""
-    return {
-        "ok": True,
-        "contract": research_capture.PACE_CONTRACT,
-        "example": research_capture.enforce_pace(5),
-        "owner_risk_release": research_capture.owner_release_state(),
-        "human_scale_pacing": "enforced",
-        "evasion_techniques": "forbidden",
-        "requests_issued": 0,
-        "test_target_allowlist": {
-            "default_policy": "local_test_page_plus_verified_sandbox",
-            "local_test_page": research_capture.LOCAL_TEST_TARGETS[0],
-            "recruitment_sites_forbidden": True,
-            "forbidden_keywords": list(research_capture.FORBIDDEN_TARGET_KEYWORDS),
-            "extra_allowed_targets": list(research_capture.EXTRA_ALLOWED_TEST_TARGETS),
-            "sandbox_sites": {k: {"evidence_url": s["evidence_url"],
-                                  "evidence_quote": s["evidence_quote"],
-                                  "is_site_written_license": s["is_site_written_license"]}
-                              for k, s in research_capture.SANDBOX_SITES.items()},
-            "plan_example": research_capture.pace_test_plan(2),
-            "sandbox_plan_example": research_capture.pace_test_plan(
-                2, research_capture.sandbox_page_urls(2)),
-        },
-        "executor": capture_executor.status(),
-        "production_capture_unlocked": False,
-        "recruitment_sites_touched": 0,
-        "note": "「模拟人类」只落地为人类可读的低频节奏（慢速串行、可核查留痕）；"
-                "伪装身份 / 抖动躲风控 / UA 轮换 / 绕过技术保护措施一律永久禁止。"
-                "截图测试只允许本地自建测试页与经核实明确允许爬取的练习沙盒 "
-                "books.toscrape.com；招聘网站与任何其他 host 在代码层被拒绝。"
-                "本端点只做准入核算，不打开任何页面。",
-        "disclaimer": research_capture.ADMIN_POLICY["disclaimer"],
-    }
-
-
-@app.get("/api/capture/test-page", include_in_schema=False)
-def capture_local_test_page():
-    """本地自建测试页：明确允许爬取的截图测试目标，非招聘网站、无真实个人信息。"""
-    return PlainTextResponse(research_capture.LOCAL_TEST_PAGE_HTML,
-                             media_type="text/html; charset=utf-8")
-
-
-@app.get("/api/capture/pace-test/status")
-def capture_pace_test_status():
-    """只读：最近一次本地限速截图测试报告（由独立脚本产出，不含位图）。"""
-    p = ROOT / "tests" / "out" / "capture_pace_report.json"
-    if not p.is_file():
-        return {"ok": True, "report_present": False,
-                "note": "尚未运行本地限速截图测试；执行 python tests/zy_capture_pace_test.py"}
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {"ok": True, "report_present": False, "reason": "REPORT_UNREADABLE"}
-    return {"ok": True, "report_present": True, "report": data,
-            "note": "报告由本地测试脚本产出；目标仅为本地允许爬取的测试页，第三方请求恒为 0。"}
-
-
-@app.get("/api/capture/executor/status")
-def capture_executor_status():
-    """只读：真实执行体策略与最近一次练习沙盒实跑摘要（不含位图 / 页面文本）。"""
-    return capture_executor.status()
-
-
-@app.post("/api/capture/executor/run")
-def capture_executor_run(req: CaptureExecutorRunRequest):
-    """练习沙盒限速截图：真的会发起请求，因此闸门极严。
-
-    前置：管理员已在 `/api/capture/admin/toggle` 逐次手动开启开关 + 本请求 operator_ack。
-    目标由服务端从 sandbox_page_urls() 生成，**不接受客户端传入任意 URL**；
-    跑完自动关闭开关（逐次手动语义）。
-    """
-    if not req.operator_ack:
-        return fail(403, "OPERATOR_ACK_REQUIRED", "执行截图需管理员显式确认")
-    if not research_capture.admin_status()["toggle"]["enabled"]:
-        return fail(403, "MANUAL_TOGGLE_REQUIRED",
-                    "请先在管理员页面逐次手动开启采集开关；默认关闭")
-    urls = research_capture.sandbox_page_urls(req.pages)
-    try:
-        report = capture_executor.run(req.pages, operator_ack=True, urls=urls)
-    except capture_executor.ExecutorBlocked as exc:
-        return fail(403, "EXECUTOR_GATE_CLOSED", str(exc))
-    except Exception:
-        return fail(502, "EXECUTOR_RUN_FAILED", "练习沙盒截图失败，未产出任何生产数据")
-    finally:
-        research_capture.set_admin_toggle(False, False)
-    return report
-
-
-@app.get("/api/capture/production/status")
-def capture_production_status():
-    """只读：B2 生产执行体能力、九道闸门、许可回执与法务结论状态。
-
-    纯本地文件与注册表读取，不联网、不截图、不加载模型、不写入。
-    生产执行体「能力已接入」与「当前已解锁」是两个独立状态位。
-    """
-    return production_capture.status()
-
-
-@app.get("/api/capture/admin")
-def capture_admin_status():
-    return research_capture.admin_status()
-
-
-@app.post("/api/capture/admin/toggle")
-def capture_admin_toggle(req: CaptureToggleRequest):
-    """管理员手动开关：只记录意图，闸门未齐备时绝不发起任何第三方请求。"""
-    if req.enabled and not req.operator_ack:
-        return fail(403, "OPERATOR_ACK_REQUIRED", "开启采集需管理员显式确认")
-    return research_capture.set_admin_toggle(req.enabled, req.operator_ack)
-
 
 @app.get("/api/phase3/status")
 def phase3_status():
@@ -1364,11 +1292,10 @@ def main():
            "开启" if secure_config.cfg.flag("QDRANT_ALLOW_WRITE") else "关闭(默认)"))
     print("数据闸门   : fail-closed · /api/sources · /api/insight/modes · 国内市场洞察待授权")
     print("C 级入口   : /api/jd/analyze · 原文零落盘 · PII 先脱敏 · 可撤回 · 默认不出本机")
-    print("截图策略   : 手动截图 + 本地 OCR 可用 · 受控研究采集待法务结论 · 规避手段永久禁止")
+    print("知识入库   : /api/admin/knowledge/* · 管理员文本 / 截图 OCR 文本 · 脱敏+仅岗位信息 · Qdrant")
     print("研究检索   : /api/rag/* · 仅文本 · 加密片段 · TTL %d 天 · 可删除" %
           rag_store.DEFAULT_RETENTION)
-    print("研究模式   : /api/research/policy · %s · 执行体仅限练习沙盒（生产采集未解锁）" %
-          research_capture.status()["verdict"])
+    print("采集状态   : 自动爬取 / 自动截图执行体已移除 · 系统不访问任何第三方页面")
     print("出境防护   : /api/vector/guard · 目标/集合/分级/字段/PII/体积锁定 · 凭据与原文不回显")
     print("凭据状态   : 来源 %s · 密钥仅在本进程内存，不会下发或打印" % ls["credential_source"])
     print("按 Ctrl+C 停止")

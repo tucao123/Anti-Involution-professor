@@ -156,10 +156,11 @@ try {
     text:document.querySelector('#ragPolicyBody').textContent})`);
   check('判定面板已展开', policy.hidden === false);
   check('明确否定「研究/非商用」豁免', policy.text.includes('不是合规豁免'), policy.text.slice(0, 80));
-  check('显示待法务结论状态', policy.text.includes('pending_legal'), '');
-  check('说明限速定位与永久禁止项', policy.text.includes('不干扰网络服务') &&
+  check('显示仅管理员提供来源状态', policy.text.includes('admin_curated_only'), policy.text.slice(0, 80));
+  check('说明自动采集已移除与永久禁止项', policy.text.includes('自动采集') &&
     policy.text.includes('永久禁止'), '');
-  check('列出准入条件', policy.text.includes('解锁需同时满足'), '');
+  check('说明仅文本入库 / 位图不上传', policy.text.includes('只接收文本') &&
+    policy.text.includes('不上传'), '');
 
   // 截图对齐页研究面板
   await evalJS(`document.querySelector('#ragPanel').scrollIntoView({block:'start'});0`);

@@ -11,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import rag_store as rag
-import research_capture as rc
 import sources
 import privacy
 
@@ -127,34 +126,17 @@ check(all(h["doc_id"] != did for h in rag.query("Python")["hits"]), "删除后�
 check(rag.delete_all() == 1, "整库清空返回剩余文档数")
 check(rag.status()["chunks"] == 0, "清空后片段数为 0")
 
-print("=== 5. 研究采集护栏 ===")
-pol = rc.research_policy()
-check(pol["verdict"] == "pending_legal", "研究模式待法务结论")
-check(pol["gate"]["ready"] is False, "双重闸门未满足")
-check(pol["legal_position"]["is_exemption"] is False, "非商用不是豁免")
-check(len(pol["admission_conditions"]) >= 8, "准入条件齐备", len(pol["admission_conditions"]))
-check(pol["auto_capture_executor"] == "test_sandbox_only"
-      and pol["production_capture_unlocked"] is False,
-      "执行体仅限练习沙盒，生产采集未解锁")
-check(pol["rate_control"]["concurrency_per_host"] == 1, "单域名并发 1")
-check(pol["rate_control"]["ua_rotation"] is False, "无 UA 轮换")
-check(pol["rate_control"]["example_pace"]["days_required"] >= 1, "节奏可估算")
-try:
-    rc.plan_capture(["/jobs"])
-    check(False, "采集计划被闸门拒绝", "应抛 SourceBlocked")
-except sources.SourceBlocked:
-    check(True, "采集计划被闸门拒绝")
-try:
-    rc.capture_screenshot("https://example.com/job")
-    check(False, "截图执行体拒绝", "应抛 CaptureDisabled")
-except rc.CaptureDisabled:
-    check(True, "截图执行体拒绝")
-
-lim = rc.RateLimiter(min_interval_s=10, crawl_delay_s=30, daily_cap=2, burst=1)
-check(lim.interval == 30, "Crawl-delay 优先于默认间隔", lim.interval)
-check(lim.acquire()["allowed"] is True, "首个令牌放行")
-check(lim.acquire()["reason"] == "RATE_LIMIT_WAIT", "第二个请求需等待")
-check(lim.estimate(5)["days_required"] == 3, "每日上限决定跨天数", lim.estimate(5))
+print("=== 5. 管理员知识来源（爬取执行体已移除）===")
+admin_src = sources.SOURCES["admin_curated"]
+check(admin_src["legal_status"] == "approved", "管理员来源已批准")
+check(admin_src["grade"] == "D", "管理员来源为 D 级")
+check(admin_src["kind"] == "admin_curated", "来源类型为管理员主动提供")
+sources.assert_fetchable("admin_curated")
+check(True, "管理员来源通过 fail-closed 准入")
+# 已删除的爬取执行体来源仍登记在册、仍处于封禁/待法务状态（策略声明用途，不代表可执行）
+check(sources.SOURCES["auto_screenshot"]["legal_status"] == "blocked", "自动截图仍永久封禁")
+check(sources.SOURCES["research_capture"]["legal_status"] == "pending_legal",
+      "受控研究采集仍待法务结论")
 
 print("=== 6. 策略一致性 ===")
 p = sources.capture_policy()
@@ -163,8 +145,8 @@ check(verdicts["automated_third_party_screenshot"] == "pending_legal", "受控�
 check(verdicts["automated_evasion_screenshot"] == "prohibited", "规避手段=永久禁止")
 check(verdicts["rag_ingest_from_local_ocr"] == "allowed", "本地 OCR 入库=允许")
 check(p["research_use"]["is_exemption"] is False, "策略层否定豁免")
-check(len(sources.SOURCES) == 11 and len(sources.LEGAL_QUESTIONS) == 18,
-      "注册表 11 源 / 法务 18 问")
+check(len(sources.SOURCES) == 12 and len(sources.LEGAL_QUESTIONS) == 18,
+      "注册表 12 源（含 admin_curated）/ 法务 18 问")
 check(sources.insight_modes()["modes"][1]["ready"] is False, "国内市场模式仍待授权")
 ok_audit, n_audit, bad = privacy.verify_chain()
 check(ok_audit, "审计哈希链完整", "%d 条 / first_bad=%s" % (n_audit, bad))

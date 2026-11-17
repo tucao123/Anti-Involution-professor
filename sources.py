@@ -235,6 +235,25 @@ SOURCES: dict[str, dict[str, Any]] = {
         "attribution": {"required": False, "text": "", "url": "", "nofollow": False},
         "limits": "仅用于展示交互闭环",
     },
+    "admin_curated": {
+        "name": "管理员主动提供的岗位知识文本（粘贴 / 截图本地 OCR）",
+        "url": "",
+        "kind": "admin_curated",
+        "region": "n/a",
+        "grade": "D",
+        "legal_status": "approved",
+        "legal_basis": "项目管理员主动提供文本或自行截图并在浏览器本地 OCR 后的文本；"
+                       "系统不访问任何第三方页面。入库前统一 PII 脱敏且只保留岗位信息行，"
+                       "因此进入向量库的是去标识化的岗位知识，而非个人信息或用户画像",
+        "robots_required": False,
+        "crawl_delay_s": 0,
+        "retention_days": 90,
+        "raw_jd_persist": False,
+        "attribution": {"required": False, "text": "", "url": "", "nofollow": False},
+        "limits": "需显式研究用途授权；位图自始不上传、不落盘；个人信息整行剔除；"
+                  "仅用于研究检索，不得据此得出国内市场、薪资或画像结论；"
+                  "数据出境评估与法务书面结论仍待回，legal_review=pending",
+    },
 }
 
 # 交给法务的书面确认清单（可直接作为邮件/工单正文）
@@ -459,7 +478,7 @@ CAPTURE_POLICY: dict[str, Any] = {
         "conditions": ["目的限定", "最小必要", "PII 前置脱敏与文本加密",
                        "默认 30 天 TTL 与删除权", "不对外分发、不用于个人画像或重新识别",
                        "robots / Crawl-delay / 单域名并发 1 / 每日上限 / 真实 UA", "全程审计留痕"],
-        "note": "研究用途不是解锁开关，而是一组更严格的举证条件；详见 research_capture.LEGAL_POSITION。",
+        "note": "研究用途不是解锁开关，而是一组更严格的举证条件；自动采集执行体已整体移除，本条为历史合规判定留档。",
     },
     "legal_basis": [
         "《网络数据安全管理条例》第 18 条：自动化工具须评估对网络服务的影响，不得非法侵入、干扰",

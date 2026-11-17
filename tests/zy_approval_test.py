@@ -8,7 +8,6 @@ import io
 import json
 import shutil
 import sys
-import urllib.parse
 import zipfile
 from pathlib import Path
 
@@ -18,7 +17,6 @@ sys.path.insert(0, str(ROOT))
 import approval_gate
 import job_info
 import rag_store
-import research_capture
 import resume_parse
 import secure_config as sc
 import sources
@@ -195,23 +193,16 @@ notice = resume_parse.consent_notice()
 check("third_party_notice_ack" in notice["required_flags"] and "Q19" in notice["notice"],
       "第三方告知文案明示接收方与待回结论")
 
-print("=== 5. 管理员手动开关（默认不自动爬取）===")
-a = research_capture.admin_status()
-check(a["auto_capture_default"] is False and a["toggle"]["enabled"] is False, "默认关闭")
-check(a["effective"] is False and a["requests_issued"] == 0, "默认不产生任何第三方请求")
-check(a["gates"]["capture_executor_implemented"] is True
-      and a["gates"]["production_capture_unlocked"] is False,
-      "执行体已接入但仅限练习沙盒，生产采集未解锁")
-check(a["policy"]["noncommercial_exemption"] is False, "毕设 / 非商用不构成合规豁免")
-check(a["policy"]["human_pace_simulation"] == "forbidden", "拒绝以模拟人类节奏规避封禁")
-t = research_capture.set_admin_toggle(True, True)
-check(t["toggle"]["enabled"] is True and t["effective"] is False,
-      "手动开启只记录意图，闸门未齐备仍不执行")
-check(t["requests_issued"] == 0, "开关开启后累计请求仍为 0")
-research_capture.set_admin_toggle(False, False)
-check(research_capture.admin_status()["toggle"]["enabled"] is False, "可随时关闭并复位")
-rp = research_capture.research_policy()
-check(rp["admin_control"]["requires_manual_toggle"] is True, "研究策略同步声明手动开关")
+print("=== 5. 自动爬取已移除 / 管理员知识来源 ===")
+import knowledge_ingest
+st = knowledge_ingest.status()
+check(st["image_upload_endpoint"] is False, "服务端无图片上传端点")
+check("browser-local" in st["ocr_location"], "OCR 在浏览器本地")
+check(st["job_only"] is True and st["pii_to_store"] is False, "仅岗位信息 / 隐私不入库")
+check(st["source_id"] == "admin_curated", "知识来源为管理员主动提供")
+check(sources.SOURCES["auto_screenshot"]["legal_status"] == "blocked", "自动截图仍永久封禁")
+check(sources.CAPTURE_POLICY["research_use"]["is_exemption"] is False, "毕设 / 非商用不构成合规豁免")
+check(len(sources.CAPTURE_POLICY["forbidden_capabilities"]) >= 5, "禁止能力清单仍在")
 
 print("=== 6. 全项目使用限制条款（USAGE-RESTRICTION-2026-11-16）===")
 import usage_policy
@@ -239,158 +230,16 @@ for item, dec in expected_decisions.items():
     check(ur.get("commercial_use") is False and ur.get("changes_gate_state") is False
           and ur.get("is_legal_exemption") is False, item + " 回执顶层写入条款")
     check(rec.get("decision") == dec, item + " 的 decision 未被条款改写", rec.get("decision"))
-adm = research_capture.admin_status()
-check(adm["policy"]["usage_restriction"]["clause_id"] == usage_policy.CLAUSE_ID,
-      "管理员策略引用统一条款")
-check(adm["policy"]["commercial_use_allowed"] is False
-      and adm["policy"]["noncommercial_exemption"] is False
-      and adm["policy"]["human_pace_simulation"] == "forbidden",
-      "禁止商用 / 非豁免 / 拒绝拟人化规避三项不变")
-check(adm["usage_restriction"]["changes_gate_state"] is False, "管理员状态带条款标记")
-check("自担风险放行" in adm["policy"]["uniform_application"]
-      and "严格限速契约" in adm["policy"]["uniform_application"],
-      "B2 放行范围与严格限速契约被明确写入策略")
 check(sources.CAPTURE_POLICY["research_use"]["claim"] == usage_policy.CLAUSE_ZH
       and sources.CAPTURE_POLICY["research_use"]["clause_id"] == usage_policy.CLAUSE_ID,
       "sources 研究口径与统一条款一致")
-rp2 = research_capture.research_policy()
-check(rp2["legal_position"]["clause_id"] == usage_policy.CLAUSE_ID, "B2 主张已条款化")
-check(rp2["legal_position"]["is_exemption"] is False, "条款化后仍非合规豁免")
-try:
-    research_capture.capture_screenshot("/")
-    denied = False
-except research_capture.CaptureDisabled:
-    denied = True
-check(denied, "自动采集执行体仍禁用，条款不构成解锁")
+check(sources.CAPTURE_POLICY["research_use"]["is_exemption"] is False,
+      "条款化后仍非合规豁免")
+check(approval_gate.state()["uniform_usage_restriction"] is True,
+      "回执台账对全部事项统一适用使用限制条款")
 
-print("=== 7. B2 自担风险放行 + 严格限速硬契约 ===")
-rel = research_capture.owner_release_state()
-check(rel["released"] is True and rel["reason"] == "OK", "B2 决策放行回执校验通过")
-check(rel["issuer"] == "项目所有者（毕设作者）" and rel["risk_bearing"] == "project_owner",
-      "出具方与风险承担方如实标注")
-check(rel["legal_opinion"] is False and rel["legal_review"] == "pending"
-      and rel["is_legal_or_site_license"] is False,
-      "不冒充法务书面结论或站点书面许可")
-b2rec = json.loads((ROOT / ".privacy" / "approvals" / "B2.json").read_text(encoding="utf-8"))
-check(b2rec["scope"]["auto_capture_default"] is False
-      and b2rec["scope"]["manual_toggle_each_time"] is True,
-      "默认不自动爬取、逐次手动开关写进回执条件")
-pc = research_capture.PACE_CONTRACT
-check(pc["concurrency_per_host"] == 1 and pc["burst"] == 1, "单域名串行 / 无突发")
-check(pc["min_interval_s"] >= 15.0 and pc["human_reading_dwell_s"] >= 12.0,
-      "每页慢速间隔 + 人类阅读静置")
-check(research_capture.effective_interval_s(30.0) == 30.0, "Crawl-delay 优先只会更慢")
-check(pc["daily_cap"] <= 60 and pc["max_pages_per_batch"] <= 10
-      and pc["batch_cooldown_s"] >= 300, "每日 / 单批次 / 冷却三层上限")
-check(pc["ua_rotation"] is False and pc["ip_rotation"] is False
-      and pc["identity_spoofing"] is False and pc["randomized_jitter_for_evasion"] is False
-      and pc["captcha_or_waf_bypass"] is False, "规避检测类参数全部禁用")
-check(pc["human_scale_pacing"] == "enforced" and pc["evasion_techniques"] == "forbidden",
-      "「模拟人类」= 人类可读低频节奏，规避式拟人化禁止")
-p5 = research_capture.enforce_pace(5)
-check(p5["ok"] is True and p5["interval_s"] >= 15.0 and p5["requests_issued"] == 0,
-      "正常批次通过准入核算且不发请求")
-for kw, label in (({"concurrency": 4}, "并发 > 1"), ({"burst": 3}, "burst > 1"),
-                  ({"ua_rotation": True}, "UA 轮换"), ({"ip_rotation": True}, "IP 轮换"),
-                  ({"evasion": True}, "规避参数")):
-    try:
-        research_capture.enforce_pace(5, **kw)
-        ok = False
-    except research_capture.PaceViolation:
-        ok = True
-    check(ok, "硬闸门拒绝：" + label)
-try:
-    research_capture.enforce_pace(11)
-    ok = False
-except research_capture.PaceViolation:
-    ok = True
-check(ok, "硬闸门拒绝：超出单批次 10 页")
-adm3 = research_capture.admin_status()
-check(adm3["gates"]["owner_risk_release"] is True
-      and adm3["gates"]["strict_pace_contract"] is True, "管理员闸门显示放行与限速契约生效")
-check(adm3["gates"]["site_written_license"] is False
-      and adm3["gates"]["legal_written_conclusion"] is False,
-      "站点许可 / 法务结论仍如实标注未回")
-check(adm3["effective"] is False and adm3["requests_issued"] == 0
-      and adm3["production_capture_unlocked"] is False,
-      "执行体存在不等于生产采集解锁：effective=false / 生产请求为零")
-check(adm3["gates"]["capture_executor_implemented"] is True
-      and adm3["auto_capture_executor"] == "test_sandbox_only",
-      "执行体作用域被硬限定为练习沙盒")
-check(adm3["decision_gate_released"] is False, "未手动开启时决策闸门未释放")
-check(len(adm3["blocked_by"]) >= 4, "剩余阻塞项逐条列出")
-t3 = research_capture.set_admin_toggle(True, True)
-check(t3["decision_gate_released"] is True, "逐次手动开启后决策闸门释放")
-check(t3["effective"] is False and t3["requests_issued"] == 0,
-      "开启后仍不执行、仍零请求")
-research_capture.set_admin_toggle(False, False)
-check(adm3["policy"]["human_pace_simulation"] == "forbidden"
-      and adm3["human_scale_pacing"] == "enforced", "两类「拟人化」概念严格区分")
-check(any("规避检测" in x for x in research_capture.PERMANENTLY_FORBIDDEN),
-      "规避检测式拟人化仍在永久禁止清单")
-
-print("=== 8. 截图测试目标白名单（只用允许爬取的测试页 / 不去招聘网站）===")
-local_ok = research_capture.is_allowed_test_target(research_capture.LOCAL_TEST_TARGETS[0])
-check(local_ok["allowed"] is True and local_ok["reason"] == "OK", "本地自建测试页允许爬取")
-check(research_capture.is_allowed_test_target(research_capture.LOCAL_TEST_TARGETS[1])["allowed"] is True,
-      "localhost 别名同样允许")
-for bad in ("https://www.zhipin.com/job_detail/", "https://www.lagou.com/wn/jobs",
-            "https://www.liepin.com/zhaopin/", "https://jobicy.com/api/v2/remote-jobs",
-            "https://remoteok.com/", "https://www.indeed.com/jobs"):
-    check(research_capture.is_allowed_test_target(bad)["allowed"] is False,
-          "招聘网站被代码层拒绝：" + urllib.parse.urlparse(bad).hostname)
-check(research_capture.is_allowed_test_target("https://example.com/")["allowed"] is False,
-      "非本地 host 即使非招聘站也拒绝（默认白名单）")
-check(research_capture.is_allowed_test_target("http://127.0.0.1:8848/index.html")["allowed"] is False,
-      "本地非白名单路径拒绝")
-check(research_capture.is_allowed_test_target("file:///etc/passwd")["allowed"] is False,
-      "非 HTTP(S) 目标拒绝")
-check("PACE TEST FIXTURE" in research_capture.LOCAL_TEST_PAGE_HTML
-      and "虚构" in research_capture.LOCAL_TEST_PAGE_HTML,
-      "测试页自述允许爬取且声明为虚构演示内容")
-tp = research_capture.pace_test_plan(3)
-check(tp["all_targets_allowed"] is True and tp["pages"] == 3, "3 页准入核算全部目标合法")
-check(tp["third_party_requests"] == 0 and tp["recruitment_sites"] == 0
-      and tp["interval_s"] >= 15.0, "零第三方请求 / 零招聘站 / 慢速间隔")
-try:
-    research_capture.pace_test_plan(11)
-    ok = False
-except research_capture.PaceViolation:
-    ok = True
-check(ok, "超出单批次上限的测试计划被拒绝")
-
-print("=== 9. 练习沙盒白名单 / 真实执行体 / Q18 出境防护 ===")
-import capture_executor
+print("=== 7. Q18 出境写入防护（爬取执行体已移除，防护闸门保留）===")
 import outbound_guard
-sites = research_capture.SANDBOX_SITES
-check("books.toscrape.com" in sites
-      and "scraping purposes" in sites["books.toscrape.com"]["evidence_quote"],
-      "练习沙盒带公开声明证据")
-check(sites["books.toscrape.com"]["is_site_written_license"] is False,
-      "公开声明如实标注不是站点书面许可函")
-for good in ("https://books.toscrape.com/", "https://books.toscrape.com/index.html",
-             "https://books.toscrape.com/catalogue/page-2.html"):
-    check(research_capture.is_allowed_test_target(good)["allowed"] is True,
-          "沙盒分页允许：" + good)
-for bad, why in (("https://books.toscrape.com/?q=1", "SANDBOX_QUERY_FORBIDDEN"),
-                 ("http://books.toscrape.com/", "SANDBOX_SCHEME_MISMATCH"),
-                 ("https://www.zhipin.com/", "RECRUITMENT_OR_REAL_SITE_FORBIDDEN"),
-                 ("https://example.com/", "NON_LOCAL_HOST_FORBIDDEN")):
-    r = research_capture.is_allowed_test_target(bad)
-    check(r["allowed"] is False and r["reason"] == why, "目标硬拒绝：" + why)
-sp = research_capture.pace_test_plan(3, research_capture.sandbox_page_urls(3))
-check(sp["all_targets_allowed"] is True and sp["interval_s"] >= 15.0,
-      "沙盒 3 页准入核算通过且间隔符合契约")
-check(capture_executor.EXECUTOR_POLICY["scope"] == "test_sandbox_only"
-      and capture_executor.EXECUTOR_POLICY["production_capture_unlocked"] is False,
-      "执行体策略限定沙盒")
-urls = research_capture.sandbox_page_urls(2)
-check(capture_executor.readiness(2, False, urls)["ok"] is False,
-      "默认闸门关闭：未确认不执行")
-check(capture_executor.readiness(2, True, ["https://www.zhipin.com/"])["ok"] is False,
-      "招聘站目标导致执行体闸门关闭")
-check(capture_executor.status()["production_capture_unlocked"] is False,
-      "执行体状态明确生产采集未解锁")
 for bad_url in ("https://evil.example.com", "http://abc.cloud.qdrant.io"):
     try:
         outbound_guard.validate_endpoint(bad_url)
@@ -399,6 +248,29 @@ for bad_url in ("https://evil.example.com", "http://abc.cloud.qdrant.io"):
         check(True, "出站端点拒绝：" + bad_url)
 check(outbound_guard.status()["api_key_never_returned"] is True,
       "防护状态不返回凭据")
+check("admin_curated" in outbound_guard.allowed_source_ids(),
+      "管理员来源在出站白名单内", outbound_guard.allowed_source_ids())
+
+print("=== 8. 管理员知识入库（文本 / 截图 OCR 文本 → 岗位信息 → Qdrant）===")
+import knowledge_ingest
+prep = knowledge_ingest.prepare("\n".join(JD_LINES), "admin_ocr",
+                                title="测试岗位", purpose_ack=True)
+check(prep["origin"] == "admin_ocr", "OCR 来源标注正确")
+check(len(prep["chunks"]) >= 1 and prep["lines_kept"] >= 1, "切出岗位片段")
+check("13812345678" not in prep["text"] and "hr@example.com" not in prep["text"],
+      "知识片段不含隐私信息")
+check("Python" in prep["text"], "岗位技能信息保留")
+try:
+    knowledge_ingest.prepare(JD, "admin_text", purpose_ack=False)
+    check(False, "未授权入库被拒")
+except knowledge_ingest.ConsentRequired:
+    check(True, "未授权入库被拒")
+try:
+    knowledge_ingest.prepare("data:image/png;base64," + "A" * 420, "admin_ocr",
+                             purpose_ack=True)
+    check(False, "图片 payload 被拒")
+except knowledge_ingest.KnowledgeRejected as e:
+    check(str(e) == "IMAGE_PAYLOAD_REJECTED", "图片 payload 被拒", str(e))
 
 print("\n=== 回执 / B1 / 管理员 单元回归：PASS %d  FAIL %d ===" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)

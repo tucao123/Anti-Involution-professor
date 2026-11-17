@@ -1318,12 +1318,12 @@ h2.display .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
         <h2>管理员设置</h2>
         <span class="meta" id="adminStamp">CHECKING</span>
       </div>
-      <p style="font-size:13px;line-height:1.9;max-width:780px;color:var(--graphite);margin-bottom:26px">本页集中管理会改变数据边界的能力：<strong>采集设置</strong>默认关闭、逐次手动开关；<strong>书面结论回执</strong>由人线下放置，代码只读、不提供自我授权入口；<strong>简历 / 岗位文件解析</strong>只在内存处理；<strong>项目性质与使用限制条款</strong>对 5 项待决事项统一适用。工程开关依据项目所有者 2026-11-16 决策，<strong>不等于法务书面结论</strong>（Q19 / Q21 / B3 仍待回），使用限制条款同样不代表逐项放行。</p>
+      <p style="font-size:13px;line-height:1.9;max-width:780px;color:var(--graphite);margin-bottom:26px">本页集中展示会改变数据边界的能力：<strong>管理员知识入库</strong>（文本 / 截图 OCR → 脱敏 → 仅岗位信息 → Qdrant，见工作台 <code>/workbench.html</code>）；<strong>书面结论回执</strong>由人线下放置，代码只读、不提供自我授权入口；<strong>简历 / 岗位文件解析</strong>只在内存处理；<strong>项目性质与使用限制条款</strong>对 5 项待决事项统一适用。自动爬取与截图执行体已整体移除，系统不访问任何第三方页面。工程开关依据项目所有者决策，<strong>不等于法务书面结论</strong>（Q19 / Q21 / B3 仍待回），使用限制条款同样不代表逐项放行。</p>
 
       <div class="panel" style="margin-bottom:28px">
         <div class="panel-title"><h3>项目性质与使用限制 · 全项目统一条款</h3><span class="meta" id="adminUsageState">CHECKING</span></div>
         <p style="font-size:13px;line-height:1.9;color:var(--graphite);margin:14px 0"><strong>本项目仅用于研究与学习，不得用于任何商业行为。</strong> 条款编号 <code>USAGE-RESTRICTION-2026-11-16</code>（2026-11-16 由项目所有者确立，替代此前「毕设 / 非商用 / 实验」的含糊表述）。对 <strong>B1 / B2 / Q18 / Q19 / Q21 / B3 及全部数据链路同理适用</strong>：禁止商业化部署、付费 / 经营性服务、转售与对外分发岗位样本 / 向量 / 研究结果，禁止把产出用于招聘筛选 / 广告投放 / 信用评估等商业决策。</p>
-        <p style="font-size:13px;line-height:1.9;color:var(--graphite);margin:0 0 14px"><strong>这条条款是收紧，不是豁免</strong>：不改变任何回执 <code>decision</code> 或双闸门状态，不替代法务书面结论 / 站点书面许可 / 商务合同 / 告知同意，也不解锁生产采集闸门与「模拟人类访问节奏」等规避手段。<strong>B2 本轮允许做</strong>的是已有的「用户手动截图 → 浏览器本地 OCR → 只留岗位信息 → 本地 RAG → AI 回答」合规替代链路，加上<strong>仅限练习沙盒</strong>的真实限速截图执行体，二者都须逐次手动开关。</p>
+        <p style="font-size:13px;line-height:1.9;color:var(--graphite);margin:0 0 14px"><strong>这条条款是收紧，不是豁免</strong>：不改变任何回执 <code>decision</code> 或双闸门状态，不替代法务书面结论 / 站点书面许可 / 商务合同 / 告知同意，也不解锁任何采集或规避手段。当前可用的是「管理员提供文本 / 截图 → 浏览器本地 OCR → PII 脱敏 + 仅岗位信息 → 向量化入库 → AI 回答」链路；原 B2 限速截图执行体已随爬取功能整体移除，不再存在。</p>
         <div id="adminUsageOut" style="font-size:12px;line-height:1.9;color:var(--graphite)">读取中…</div>
       </div>
 
@@ -1959,21 +1959,19 @@ async function ragClearAll(){
 }
 function renderResearchPolicy(p){
   const body=$('#ragPolicyBody');if(!body)return;
-  const lp=p.legal_position||{},rc=p.rate_control||{};
-  const ul=arr=>(arr||[]).length?'<ul>'+arr.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'';
-  body.innerHTML=`<span class="rag-verdict">研究采集判定：${esc(p.verdict||'pending_legal')} · 执行体仅限练习沙盒 / 生产采集未解锁</span>`
-    +`<p><b>「${esc(lp.claim||'研究、不商用')}」不是合规豁免（${lp.is_exemption===false?'已确认':'需核验'}）。</b>`
-    +'可争取的法律基础确实存在，但它是<b>一组更严格的举证条件</b>，不是解锁开关。</p>'
-    +'<p><b>为什么不是豁免：</b></p>'+ul(lp.why_not)
-    +'<p><b>可争取的基础：</b></p>'+ul(lp.possible_basis)
-    +'<p><b>附带的条件：</b></p>'+ul(lp.conditions_attached)
-    +`<p><b>「控制速度」的正确定位：</b>${esc(rc.purpose||'')}。单域名并发 ${esc(String(rc.concurrency_per_host||1))}、`
-    +`最小间隔 ${esc(String(rc.min_interval_s||10))} 秒、每日上限 ${esc(String(rc.daily_cap||120))} 页、`
-    +`UA 轮换 ${rc.ua_rotation?'开启':'关闭'}（使用真实可联络 UA）。`
-    +`按此节奏采集 100 页约需 ${esc(String((rc.example_pace||{}).seconds_if_single_session||'—'))} 秒。</p>`
-    +'<p><b>解锁需同时满足：</b></p>'+ul(p.admission_conditions)
-    +'<p><b>无论研究用途如何都永久禁止：</b></p>'+ul(p.permanently_forbidden)
-    +`<p>${esc(p.disclaimer||'')} 当前可直接使用的是「用户手动截图 → 本地 OCR → 文本入库检索」这条 C 级链路。</p>`;
+  const kb=p.admin_source||{},names=(kb.origins||[]).map(x=>x==='admin_ocr'?'截图（浏览器本地 OCR）':'直接粘贴文本');
+  body.innerHTML=`<span class="rag-verdict">知识来源判定：${esc(p.verdict||'admin_curated_only')} · 自动采集执行体已移除 / 生产采集未解锁</span>`
+    +'<p><b>系统不再访问任何第三方页面。</b>知识只由管理员主动提供：'
+    +esc(names.join(' 或 ')||'文本或截图（浏览器本地 OCR）')+'。</p>'
+    +'<p><b>「研究、不商用」不是合规豁免。</b>本项目仅用于研究与学习，不得用于任何商业行为；'
+    +'使用限制条款不改变任何回执状态，也不替代法务书面结论。</p>'
+    +'<p><b>入库前处理：</b>无论文本还是截图链路，都先做 PII 脱敏，再只保留岗位信息行，'
+    +'个人信息整行剔除；服务端自始至终只接收文本，位图不上传、不落盘。</p>'
+    +'<p><b>向量库：</b>'+esc(kb.collection||'Qdrant 云向量库')+' · 分级 '+esc(kb.grade||'D')
+    +' · 写入闸门由回执 + 配置双控制，可按 chunk id 删除。</p>'
+    +`<p><b>自动化访问：</b>并发 0 / 页间无自动化请求 / 第三方请求 ${esc(String(p.third_party_requests||0))}；`
+    +'原限速执行体与测试目标白名单随爬取功能一并移除，规避检测手段仍属永久禁止。</p>'
+    +`<p>${esc(p.note||'')} 当前可直接使用的是「管理员文本 / 截图 → 本地 OCR → 仅岗位信息 → 向量化入库检索」链路。</p>`;
 }
 async function toggleResearchPolicy(){
   const body=$('#ragPolicyBody'),btn=$('#ragPolicyToggle'),open=!body.hidden;
@@ -2043,7 +2041,7 @@ const ARCH = {
     ['02','应用服务层','FastAPI BFF · WebSocket 网关 · 异步任务 API；流式输出与面试音频双向通道'],
     ['03','Agent 编排层','LangGraph 状态机 · 工具调用 · RAG 管线；确定性流程外层 + LLM 状态转移引擎'],
     ['04','知识 / 数据层','Qdrant / pgvector · Neo4j（Phase 2）· PostgreSQL · 对象存储（原始 HTML 留存）'],
-    ['05','采集层','仅路径 C：授权 API / 公开数据 / 用户自带 JD（含手动截图本地 OCR）；规避技术措施的自动截图永久封禁，受控研究采集待法务书面结论、执行体仅限练习沙盒且生产采集未解锁；sources.py fail-closed 准入闸门 · robots 与 Crawl-delay 检查 · A/B/C/D 数据分级']
+    ['05','知识来源层','自动爬取与截图执行体已整体移除，系统不访问第三方页面；管理员文本 / 截图（浏览器本地 OCR）→ PII 脱敏 + 仅岗位信息 → 切片向量化 → Qdrant 云 RAG；knowledge_ingest.py + admin_curated（D 级）+ sources.py fail-closed 准入 + A/B/C/D 数据分级']
   ],
   decisions:[
     ['后端框架','FastAPI','异步原生，与 LLM 流式输出天然契合。'],
@@ -2076,23 +2074,20 @@ const ARCH = {
     ['Agent / LLM','LangGraph + LangChain；云端 LLM API + 本地轻量模型兜底'],
     ['RAG','Qdrant / pgvector；BGE-small-zh / bge-m3；向量 + BM25 + 图混合检索'],
     ['数据','PostgreSQL · Neo4j（Phase 2）· Redis + Celery + Celery Beat · 对象存储'],
-    ['采集 / 语音','仅路径 C：公开数据 API + 授权 API + 用户自带 JD（爬虫路径封禁）；采集设置集中在管理员视图，默认不自动爬取、逐次手动开关，开关只记录意图且四重闸门未齐备时不发起任何第三方请求；语音走浏览器 Web Speech API，逐次授权、服务端零音频上传、无音频上传端点；浏览器 ASR 可能由厂商云端完成，已在界面如实告知'],
+    ['知识来源 / 语音','自动爬取与截图执行体已整体移除，系统不访问任何第三方页面；知识只由管理员提供文本或截图（浏览器本地 OCR），经脱敏 + 仅岗位信息后入 Qdrant（见工作台 /workbench.html）；语音走浏览器 Web Speech API，逐次授权、服务端零音频上传、无音频上传端点；浏览器 ASR 可能由厂商云端完成，已在界面如实告知'],
     ['部署','Phase 1 单机 / 容器；Phase 2 服务水平扩展，语音网关独立部署'],
     ['语言模型（当前实现）','qwen / qwen-plus · DashScope OpenAI 兼容端点 · 本机实测 200 且 LLM_ENABLED=true（mode=live；把 .env 改回 false 即回到离线规则引擎）· 凭据仅存服务端进程内存 · 前端零密钥 · PII 与 C 级原文字段前置拦截 · 输出经 JSON Schema 校验 · 云端只收结构化技能字段，Q19 书面结论仍待回'],
-    ['应用服务层（当前实现）','FastAPI BFF（server.py）+ Pydantic v2 / JSON Schema 输出校验 · /api/health · /api/config · /api/llm · /api/schema · /api/market · /api/sources · /api/capture/policy · /api/research/policy · /api/insight/modes · /api/jd/* · /api/rag/* · /api/vector/* · /api/graph/* · /api/stores/status · /api/tasks/* · /api/coach/* · /api/voice/policy · /api/github/* · /api/hybrid/* · /api/phase3/status · /api/approvals/status · /api/resume/* · /api/capture/admin · /api/capture/pace · /api/capture/test-page · /api/capture/pace-test/status · /api/capture/executor/status · /api/capture/executor/run · /api/capture/production/status · /api/vector/guard · /api/vector/guard/check · /api/project/usage · /metrics · 仅绑定 127.0.0.1 · 静态白名单仅 index.html 与 demo-config.js · 无截图图片 / 音频上传端点（extra=forbid 拒绝 image / audio 字段）；B1 文件上传端点仅收 pdf / docx、纯内存解析、不落盘、不入库'],
+    ['应用服务层（当前实现）','FastAPI BFF（server.py）+ Pydantic v2 / JSON Schema 输出校验 · /api/health · /api/config · /api/llm · /api/schema · /api/market · /api/sources · /api/capture/policy · /api/research/policy · /api/insight/modes · /api/jd/* · /api/rag/* · /api/vector/* · /api/graph/* · /api/stores/status · /api/tasks/* · /api/coach/* · /api/voice/policy · /api/github/* · /api/hybrid/* · /api/phase3/status · /api/approvals/status · /api/resume/* · /api/admin/knowledge/{status,ingest,delete} · /api/vector/guard · /api/vector/guard/check · /api/project/usage · /metrics · 仅绑定 127.0.0.1 · 无截图图片 / 音频上传端点（extra=forbid 拒绝 image / audio 字段）；B1 文件上传端点仅收 pdf / docx、纯内存解析、不落盘、不入库 · 自动爬取 / 执行体端点已整体移除'],
     ['Phase 2 组件（当前实现）','Qdrant Cloud REST 适配器（只收 D 级公开样本；2026-11-16 依据回执 OWNER-2026-11-16-Q18 + 代码级双闸门开启云写入，法务书面结论仍待回）· 本地 BGE 512 维语义向量优先 / DashScope / 确定性 hash 三级 embedding · LangGraph 状态图（未安装时用同语义兼容实现）· PostgreSQL / Redis / Neo4j 适配器（缺失时降级 SQLite / 内存 TTL / 本地邻接表）· Celery（无 broker 时 eager）· Next.js 控制台 web/ · Prometheus 指标与 SLO · 任一组件缺失均不影响 7 个视图'],
     ['Phase 3 组件（当前实现）','A1 coach.py 本地多轮辅导（会话仅内存 / 原文零落盘 / 零云调用 / 可撤回 / 固定护栏）· A2 浏览器 Web Speech 语音输入与朗读（逐次授权、不支持时降级文字；服务端零音频上传，浏览器 ASR 可能由厂商云端完成）· A3 github_meta.py 公开仓库匿名只读元数据（限频 / 回链 / 不落盘 / 不构成能力评分 / 法务 Q21 待回）· A4 hybrid.py 稀疏 + 稠密双路 RRF(k=60) 融合与重排（C 级仅本地稀疏路）· GET /api/phase3/status 汇总真实状态'],
 
     ['数据采集（当前实现）','公开 API 路径：Jobicy 主 + RemoteOK 兜底（无需登录态）· 15 分钟缓存 / 5 秒限频 · 只保留聚合统计，不落盘原始 JD · 来源与抓取时间戳 · 失败回退内置演示集'],
-    ['合规闸门（当前实现）','sources.py：11 个数据源注册表 · fail-closed 准入 · robots / Crawl-delay 检查与留痕 · A/B/C/D 分级 · 法务 18 问与 BD 8 项要点经 /api/sources 暴露 · 截图判定经 /api/capture/policy 暴露 · 研究用途判定经 /api/research/policy 暴露'],
+    ['合规闸门（当前实现）','sources.py：12 个数据源注册表（含 admin_curated）· fail-closed 准入 · A/B/C/D 分级 · 法务 18 问与 BD 8 项要点经 /api/sources 暴露 · 截图判定经 /api/capture/policy 暴露 · 研究策略经 /api/research/policy 暴露（仅声明，不执行采集）'],
     ['双模式与 C 级入口（当前实现）','/api/insight/modes：技能词频参考（D 级可用）与国内市场洞察（A 级待授权，不输出任何数值）；/api/jd/analyze：用户自带 JD 确定性抽取、PII 脱敏、原文零落盘、可撤回删除；截图入口：Tesseract.js 浏览器本地 OCR，图片仅内存且用完即释放'],
     ['研究检索（当前实现）','双链路：rag_store.py 本地稀疏索引（字符 n-gram + 技能本体 TF-IDF · 仅文本入库 · PII 前置脱敏 · 片段 AES-256-GCM 加密落盘 · 默认 30 天 TTL · 单文档删除 / 整库清空 · 检索结果带 grade 与禁止结论 · 审计哈希链），供 C 级用户数据使用；vector_store.py Qdrant 云向量库只收 D 级公开岗位样本（Q18 回执 + 配置双闸门已开启云写入，legal_review=pending）；截图 / 本地 OCR 链路的隐私信息整行剔除、不入库，只保留岗位信息；个人画像由 /api/jd/analyze 本地链路提供，两条链路分离。BGE 512 维权重仍在缓存，但依赖栈未完整恢复，当前如实降级为确定性 hash（cloud_used=false）'],
-    ['研究采集护栏（当前实现）','research_capture.py：法务书面结论 + 站点书面许可 + 书面批准记录 + 注册表状态四重闸门 · 令牌桶 / Crawl-delay 优先 / 每日上限 / 真实可联络 UA · 无 UA 轮换 · 执行体仅限练习沙盒、生产采集未解锁'],
+    ['管理员知识入库（当前实现）','knowledge_ingest.py：管理员文本 / 截图 OCR 文本 → PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant 云 RAG · 无图片上传端点（位图仅浏览器本地 OCR）· 来源 admin_curated / D 级 · 按 chunk id 删除 · 原研究采集护栏与执行体已整体移除'],
     ['项目性质与使用限制（2026-11-16）','USAGE-RESTRICTION-2026-11-16：本项目仅用于研究与学习，不得用于任何商业行为 · usage_policy.py 单一事实源 · GET /api/project/usage 只读 · 对 B1 / B2 / Q18 / Q19 / Q21 / B3 同理适用 · 禁止商业化部署 / 付费服务 / 转售分发 / 商业决策用途 · is_legal_exemption=false、changes_gate_state=false · 不替代书面结论、不解锁生产采集闸门'],
-    ['B2 自担风险放行与严格限速（2026-11-16）','.privacy/approvals/B2.json 只读回执（issuer=项目所有者、risk_bearing=project_owner、legal_review=pending，不冒充法务结论 / 站点许可）· PACE_CONTRACT + enforce_pace() 代码级硬闸门：单域名串行 1 / burst 1 / 每页 ≥ max(15s, 人类阅读静置 12s, Crawl-delay) / 每日 60 / 单批次 10 / 冷却 300s / 真实 UA / 每页留痕 · GET /api/capture/pace 只读 · 「模拟人类」= 人类可读低频节奏（慢速串行），伪装身份 / 抖动躲风控 / UA 轮换 / WAF 绕过永久禁止 · 默认不自动爬取、逐次手动开关、生产 requests_issued=0'],
-    ['截图测试目标白名单（2026-11-16）','用户要求「拿允许爬取的测试网页测试，不要去招聘网站」，本轮指定 books.toscrape.com · is_allowed_test_target() 只允许本机自建测试页 GET /api/capture/test-page、显式精确白名单、以及经核实的练习沙盒公开分页路径 · SANDBOX_SITES 记录站点公开声明证据（Sandbox / scraping purposes / 随机价格评分 / 无真实个人信息），并如实标注 is_site_written_license=false · 招聘域名关键词（zhipin / lagou / liepin / jobicy / remoteok / indeed 等）与任何其他 host、query 注入、非 https 在代码层硬拒绝 · tests/zy_capture_pace_test.py 对本地页自测，tests/zy_capture_executor_test.py 对练习沙盒实跑'],
-    ['B2 生产执行体（2026-11-16 第三轮）','production_capture.py 生产能力已接入但默认不解锁 · 目标只由 .privacy/site_licenses/*.json 站点书面许可函回执驱动（第三方签发 / 人线下放置 / 工程侧只读 / 无写入 API / 自签发与过期一律 fail-closed）· 九道闸门：B2 回执 / 逐次手动开关 / operator_ack / 研究学习条款 / enforce_pace / 站点许可回执 / 法务书面结论 B2-legal.json / 注册表 approved / Chrome · GET /api/capture/production/status 只读 · 真实 UA / robots / 页间 ≥15s / 位图即弃 / 不解析文本 / 不 OCR / 不入 RAG 一格未放宽 · 当前无许可回执 + 无法律结论 + pending_legal，故 production_capture_unlocked=false、生产请求 0；不假造许可、不指向无许可招聘站、不实现规避检测'],
-    ['B2 真实执行体与练习沙盒（2026-11-16）','capture_executor.py 真实 headless 截图执行体 · 七道闸门：B2 回执 / 逐次手动开关 / operator_ack / 研究学习条款 / enforce_pace / 目标白名单 / Chrome 可用 · robots.txt best-effort（404 / 超时不视为许可）· 页间真实等待 ≥15s、串行、真实 UA、每页留痕 · 位图立即删除，不解析文本 / 不 OCR / 不入 RAG / 不产出生产数据 · GET /api/capture/executor/status · POST /api/capture/executor/run（需开关 + ack，目标由服务端生成、跑完自动关闭开关）· 实跑报告 tests/out/capture_executor_report.json · production_capture_unlocked=false'],
+    ['爬取 / 执行体（已移除）','research_capture.py / capture_executor.py / production_capture.py 与所有 /api/capture/* 执行端点已整体删除：无自动截图、无限速执行体、无生产采集、无练习沙盒白名单，系统不访问任何第三方页面。原 B2 回执与严格限速契约作为历史决策留档，但对应工程能力不存在；使用限制条款仍对全部事项统一适用。'],
     ['Q18 出境写入防护（2026-11-16）','outbound_guard.py：QDRANT-OUTBOUND-GUARD-2026-11-16 · 每次请求前锁定 https + Qdrant Cloud 官方域（非官方域 / URL 内嵌凭据 / 非白名单 host 直接拒绝发请求）· 集合名 ^zhiyin_public_[a-z0-9_]+$ · scope=public / grade=D / 已批准 D 级来源 · payload 字段白名单 + 必需键 + 逐字段 PII（命中整批拒绝）· 文本 2000 字符 / payload 8192 字节 / 单批 20 条 / 向量 4096 维上限 · 异常只回状态码，审计只写 sha256 摘要与计数，不写原文 / 向量 / URL / API key · GET /api/vector/guard · POST /api/vector/guard/check（dry-run，不联网不写入）'],
     ['趋势（当前实现）','真实快照累积，不足 2 个点不画曲线；不做插值，不编造同比或季度增长'],
     ['隐私合规（当前实现）','AES-256-GCM 字段级加密 · 展示脱敏 · 90 天过期与一键删除 · append-only 审计哈希链 · LLM 前置 PII 拦截；B1 简历上传 / 解析入口已按所有者回执开放（仅 pdf / docx、纯内存、不留存）']
@@ -3293,16 +3288,14 @@ const ADMIN={
   async refresh(){
     const stamp=$('#adminStamp');
     try{
-      const [cap,apr,res,usage,paceResp,guardResp,execResp,prodResp]=await Promise.all([
-        this.get('api/capture/admin'),this.get('api/approvals/status'),this.get('api/resume/status'),
+      // 自动爬取 / 截图执行体已整体移除：只读取现存的只读端点，不再请求任何已删端点
+      const [apr,res,usage,guardResp,kbResp]=await Promise.all([
+        this.get('api/approvals/status'),this.get('api/resume/status'),
         this.get('api/project/usage').catch(()=>({status:0,data:{}})),
-        this.get('api/capture/pace').catch(()=>({status:0,data:{}})),
         this.get('api/vector/guard').catch(()=>({status:0,data:{}})),
-        this.get('api/capture/executor/status').catch(()=>({status:0,data:{}})),
-        this.get('api/capture/production/status').catch(()=>({status:0,data:{}}))]);
-      const c=cap.data||{}, a=apr.data||{}, r=res.data||{}, u=(usage.data||{}).policy||{},
-            paceD=paceResp.data||{}, gd=guardResp.data||{}, exs=execResp.data||{},
-            pd=prodResp.data||{};
+        this.get('api/admin/knowledge/status').catch(()=>({status:0,data:{}}))]);
+      const a=apr.data||{}, r=res.data||{}, u=(usage.data||{}).policy||{},
+            gd=guardResp.data||{}, kb=kbResp.data||{};
       stamp.textContent='READY · 回执 '+(a.enabled||[]).length+'/'+Object.keys(a.items||{}).length+' 已启用';
       const usEl=$('#adminUsageState'), uoEl=$('#adminUsageOut');
       if(usEl)usEl.textContent=u.clause_id?('已生效 · '+u.clause_id):'条款不可读';
@@ -3312,93 +3305,36 @@ const ADMIN={
         ' · 改变闸门状态 = <b>'+(u.changes_gate_state===false?'否':'未确认')+'</b>'+
         ' · 逐项同理适用 = <b>'+(a.uniform_usage_restriction===true?'5 / 5':'未确认')+'</b><br>'+
         '<span style="opacity:.75">'+esc(u.legal_effect||'条款状态不可读，服务端策略未被改写。')+'</span>';
-      const toggle=$('#adminCapToggle'); if(toggle)toggle.checked=!!(c.toggle||{}).enabled;
-      $('#adminCapState').textContent=(c.toggle||{}).enabled?'意图已开启 · 实际不执行':'默认关闭';
-      const gates=(c.gates||{});
-      $('#adminGates').innerHTML='<strong>闸门 / 执行体（含本轮放行与限速契约）：</strong><br>'+
-        Object.keys(gates).map(k=>'· '+esc(k)+' = <b>'+(gates[k]?'通过':'未满足')+'</b>').join('<br>')+
-        '<br>· 生产采集请求 = <b>'+esc(c.requests_issued)+'</b> · effective = <b>'+
-        (c.effective?'是':'否')+'</b> · 生产采集解锁 = <b>'+
-        (c.production_capture_unlocked?'是':'否')+'</b>'+
-        ' · 练习沙盒测试请求累计 = <b>'+esc(c.sandbox_test_requests_total)+'</b>';
-      $('#adminCapNote').textContent=c.note||'';
-      const rel=c.owner_risk_release||{}, riskEl=$('#adminRisk');
-      if(riskEl)riskEl.innerHTML='<strong>B2 放行状态：</strong>'+
-        (rel.released?'<b>项目所有者已自担风险放行工程决策闸门</b>':'未放行')+
-        ' · decision_gate_released = <b>'+(c.decision_gate_released?'是':'否（需手动开启）')+'</b>'+
-        ' · legal_review = <b>'+esc(rel.legal_review||'pending')+'</b>'+
-        ' · 法务结论 / 站点许可 = <b>未回</b>'+
-        ' · 冒充法律结论或站点许可 = <b>'+(rel.is_legal_or_site_license===false?'否':'未确认')+'</b><br>'+
-        '<span style="opacity:.8">仍被阻塞：'+esc((c.blocked_by||[]).join(' / '))+'</span>';
-      const pc=c.active_pace_contract||{}, ex=c.strict_pace_example||{}, paceEl=$('#adminPace');
-      if(paceEl)paceEl.innerHTML='<strong>严格限速硬契约（'+esc(pc.id||'-')+'）：</strong><br>'+
-        '· 单域名并发 <b>'+esc(pc.concurrency_per_host)+'</b> · burst <b>'+esc(pc.burst)+'</b>'+
-        ' · 每页间隔 ≥ <b>'+esc(ex.interval_s||pc.min_interval_s)+'s</b>（含人类阅读静置 '+
-        esc(pc.human_reading_dwell_s)+'s，Crawl-delay 优先） · 每日上限 <b>'+esc(pc.daily_cap)+'</b>'+
-        ' · 单批次 <b>'+esc(pc.max_pages_per_batch)+'</b> 页 · 批次冷却 <b>'+esc(pc.batch_cooldown_s)+'s</b><br>'+
-        '· 5 页示例需 <b>'+esc(ex.seconds_if_single_batch)+'s</b> · 累计发出请求 <b>'+
-        esc(c.requests_issued)+'</b> · 每页留痕 <b>'+(pc.per_page_audit_log?'是':'否')+'</b><br>'+
-        '· 人类可读低频节奏 = <b>'+esc(c.human_scale_pacing||'-')+'</b>'+
-        ' · 规避检测式拟人化 = <b>'+esc((c.policy||{}).human_pace_simulation||'forbidden')+'</b>'+
-        ' · UA 轮换 / 隐身 / WAF 绕过 = <b>禁止</b>';
-      const al=paceD.test_target_allowlist||{}, alEl=$('#adminTestTarget');
-      const sand=al.sandbox_sites||{}, sandKeys=Object.keys(sand);
-      if(alEl)alEl.innerHTML='<strong>截图测试目标白名单（只用允许爬取的测试页 / 不去招聘网站）：</strong><br>'+
-        '· 默认策略 = <b>'+esc(al.default_policy||'-')+'</b>'+
-        ' · 招聘网站硬拒绝 = <b>'+(al.recruitment_sites_forbidden?'是':'未确认')+'</b>'+
-        ' · 显式允许目标 = <b>'+esc((al.extra_allowed_targets||[]).length)+'</b> 个<br>'+
-        '· 本地测试页 = <code>'+esc(al.local_test_page||'-')+'</code><br>'+
-        '· 练习沙盒 = <b>'+esc(sandKeys.join(' / ')||'未配置')+'</b>'+
-        (sandKeys.length?'（页面自述用于 scraping purposes；<b>公开声明不是站点书面许可函</b>）':'')+'<br>'+
-        '· 准入核算：目标全部合法 = <b>'+((al.sandbox_plan_example||{}).all_targets_allowed?'是':'未确认')+
-        '</b> · 第三方生产请求 = <b>0</b> · 招聘站接触 = <b>0</b><br>'+
-        '<span style="opacity:.8">位图用完即弃、不解析文本、不入 RAG、不外发；'
-        +'真实业务站点与任何其他 host 在代码层拒绝。</span>';
-      const exEl=$('#adminExecutor');
-      if(exEl)exEl.innerHTML='<strong>B2 真实截图执行体（'+esc((exs.policy||{}).id||'-')+'）：</strong><br>'+
-        '· 已接入 = <b>'+((exs.policy||{}).implemented?'是':'未确认')+'</b>'+
-        ' · 作用域 = <b>'+esc((exs.policy||{}).scope||'-')+'</b>'+
-        ' · 生产采集解锁 = <b>'+(exs.production_capture_unlocked?'是':'否')+'</b>'+
-        ' · 生产请求 = <b>'+esc(exs.requests_issued)+'</b><br>'+
-        '· 最近一次实跑 = <b>'+(exs.report_present?esc(exs.last_run_at||'-'):'尚未运行')+'</b>'+
-        ' · 结果 = <b>'+(exs.last_run_ok===true?'PASS':(exs.report_present?'FAIL / 见报告':'-'))+'</b>'+
-        ' · 实际页间隔 = <b>'+esc((exs.last_intervals_s||[]).join('s, ')||'-')+'</b>s<br>'+
-        '· 沙盒请求累计 = <b>'+esc(exs.sandbox_requests_total||0)+'</b>'+
-        ' · 位图留存 = <b>'+esc(exs.bitmap_retention||'none')+'</b>'+
-        ' · 页面文本解析 / OCR / RAG = <b>否</b><br>'+
-        '<span style="opacity:.8">运行前须先在本页逐次手动开启开关；服务端只接受白名单沙盒目标，'
-        +'跑完自动关闭开关。</span>';
-      const psEl=$('#adminProductionState'), prEl=$('#adminProduction');
-      if(psEl)psEl.textContent=pd.policy_id?('能力已接入 · 默认不解锁'):'不可读';
-      if(prEl)prEl.innerHTML='<strong>生产执行体（'+esc(pd.policy_id||'-')+'）：</strong><br>'+
-        '· 能力已接入 = <b>'+(pd.production_executor_implemented?'是':'未确认')+'</b>'+
-        ' · 持久前提条件齐备 = <b>'+(pd.production_prerequisites_met?'是':'否')+'</b>'+
-        ' · 当前解锁 = <b>'+(pd.production_capture_unlocked?'是':'否')+'</b>'+
-        ' · 生产请求 = <b>'+esc(pd.requests_issued)+'</b><br>'+
-        '· 站点书面许可回执 = <b>'+esc((pd.site_licenses||{}).valid)+'</b> 份有效 / '+
-        esc((pd.site_licenses||{}).files_seen)+' 份已扫描'+
-        ' · 法务书面结论 = <b>'+esc((pd.legal_conclusion||{}).reason||'-')+'</b>'+
-        ' · 注册表 = <b>'+esc((pd.registry||{}).legal_status||'-')+'</b><br>'+
-        '· 九道闸门：'+Object.keys(pd.gates_without_toggle||{}).map(k=>esc(k)+'=<b>'+
-          ((pd.gates_without_toggle||{})[k]?'通过':'未满足')+'</b>').join(' · ')+'<br>'+
-        '· 阻断项 = <b>'+esc((pd.blocked_by||[]).join(' / ')||'无')+'</b><br>'+
-        '<span style="opacity:.8">许可回执由第三方站点方签发、人线下放置；工程侧只读、不提供写入 API。'
-        +'未取得许可与法务结论前不会对任何真实站点发起采集，许可齐备后无需改代码即可解锁。'
-        +esc((pd.policy||{}).disclaimer||'')+'</span>';
+      // 爬取相关区块统一标注「已移除」，知识入库取代原采集控制
+      const setTxt=(id,t)=>{const e=$(id);if(e)e.textContent=t;};
+      const setHtml=(id,h)=>{const e=$(id);if(e)e.innerHTML=h;};
+      setTxt('#adminCapState','自动爬取 / 截图执行体已移除');
+      setTxt('#adminCapNote','系统不再访问任何第三方页面；知识只由管理员提供文本或截图（浏览器本地 OCR）。');
+      setHtml('#adminGates','<strong>知识入库链路（取代原采集控制）：</strong><br>'+
+        '· 来源 = <b>'+esc(kb.source_id||'admin_curated')+'</b>'+
+        ' · OCR 位置 = <b>'+esc(kb.ocr_location||'浏览器本地')+'</b><br>'+
+        '· PII 脱敏 = <b>入库前执行</b> · 仅岗位信息 = <b>'+(kb.job_only?'是':'未确认')+'</b>'+
+        ' · 隐私入库 = <b>'+(kb.pii_to_store?'是':'否')+'</b><br>'+
+        '<span style="opacity:.8">'+esc(kb.pipeline?kb.pipeline.join(' → '):'')+'</span>');
+      setHtml('#adminRisk','<strong>自动采集已移除：</strong>原 B2 放行 / 限速契约随执行体一并删除；'
+        +'使用限制条款对所有事项统一适用，不因移除而改变任何回执状态。');
+      setHtml('#adminPace','<strong>限速契约已移除：</strong>系统不再发起任何自动化页面请求，无需限速；'
+        +'知识入库为管理员主动单次提交。');
+      setHtml('#adminTestTarget','<strong>测试目标白名单已移除：</strong>不再有自动化截图目标，'
+        +'也不访问任何招聘站或第三方页面。');
+      setHtml('#adminExecutor','<strong>截图执行体已移除：</strong>本地 OCR 仍在（Tesseract.js，浏览器内），'
+        +'但只把管理员提供的截图识别成文本，服务端不接收位图。');
+      setTxt('#adminProductionState','已移除');
+      setHtml('#adminProduction','<strong>生产采集执行体已移除：</strong>不存在生产采集能力，'
+        +'无许可回执 / 无生产请求 / 无规避检测。');
       const goEl=$('#adminGuardState'), guEl=$('#adminGuardOut');
       if(goEl)goEl.textContent=gd.guard_id?('已生效 · '+gd.guard_id):'不可读';
       if(guEl)guEl.innerHTML='· 端点目标锁定 = <b>'+esc((gd.endpoint||{}).ok?'通过':'拒绝')+'</b>'+
-        ' · host = <code>'+esc(gd.endpoint_host||'-')+'</code>'+
         ' · 集合 = <b>'+esc((gd.collection||{}).collection||'-')+'</b><br>'+
         '· 允许分级 = <b>'+esc((gd.allowed_grades||[]).join('/'))+'</b>'+
-        ' · 允许来源 = <b>'+esc((gd.allowed_source_ids||[]).join(', '))+'</b>'+
-        ' · payload 字段白名单 = <b>'+esc((gd.payload_key_allowlist||[]).length)+'</b> 项<br>'+
-        '· 单条文本上限 = <b>'+esc((gd.limits||{}).max_text_chars||'-')+'</b> 字符'+
-        ' · 单批上限 = <b>'+esc((gd.limits||{}).max_batch_points||'-')+'</b> 条'+
-        ' · PII 命中 = <b>整批拒绝</b><br>'+
-        '· API key 永不返回 = <b>'+(gd.api_key_never_returned?'是':'未确认')+'</b>'+
-        ' · 审计 = <b>'+esc(gd.audit_content||'-')+'</b>'+
-        ' · 本模块联网 = <b>'+(gd.network_called_by_this_module===false?'否':'未确认')+'</b><br>'+
+        ' · 允许来源 = <b>'+esc((gd.allowed_source_ids||[]).join(', '))+'</b><br>'+
+        '· PII 命中 = <b>整批拒绝</b> · API key 永不返回 = <b>'+
+        (gd.api_key_never_returned?'是':'未确认')+'</b> · 审计 = <b>'+esc(gd.audit_content||'-')+'</b><br>'+
         '<span style="opacity:.8">dry-run：POST /api/vector/guard/check（不联网、不写入）。'
         +esc(gd.legal_review||'')+'</span>';
       const items=a.items||{};
@@ -3414,50 +3350,23 @@ const ADMIN={
         ' · 个人画像链路 = '+esc(r.profiling_path||'-')+'</span>';
     }catch(e){
       stamp.textContent='OFFLINE · 无法读取服务端状态';
-      $('#adminGates').textContent='离线模式：开关与解析不可用，服务端策略未被改写。';
+      $('#adminGates').textContent='离线模式：服务端策略未被改写。';
       $('#adminApprovals').textContent='离线模式：回执状态不可读。';
       $('#adminUsageState').textContent='OFFLINE';
       $('#adminUsageOut').textContent='离线模式：条款状态不可读，服务端策略未被改写。';
-      $('#adminRisk').textContent='离线模式：B2 放行状态不可读。';
-      $('#adminPace').textContent='离线模式：限速契约状态不可读，服务端策略未被改写。';
-      $('#adminTestTarget').textContent='离线模式：测试目标白名单不可读，服务端策略未被改写。';
-      $('#adminExecutor').textContent='离线模式：执行体状态不可读，服务端策略未被改写。';
-      $('#adminProductionState').textContent='OFFLINE';
-      $('#adminProduction').textContent='离线模式：生产执行体状态不可读，服务端闸门未被改写。';
-      $('#adminGuardState').textContent='OFFLINE';
-      $('#adminGuardOut').textContent='离线模式：出境写入防护状态不可读，服务端策略未被改写。';
     }
   },
   async runExecutor(){
     const out=$('#adminExecutorOut');
-    if(out)out.textContent='正在按 ≥15s 间隔逐页截图（约 45–60 秒），请稍候…';
-    try{
-      const r=await this.post('api/capture/executor/run',{pages:3,operator_ack:true});
-      const d=r.data||{};
-      if(r.status!==200){
-        if(out)out.textContent='已拒绝：'+esc(d.error||d.message||('HTTP '+r.status))+
-          '。请先勾选「手动开启采集意图」并应用开关；默认关闭、未确认不执行。';
-        toast('执行体未运行：闸门未通过');
-      }else{
-        if(out)out.textContent='实跑完成：'+esc(d.pages)+' 页 · 实际间隔 '+
-          esc((d.actual_intervals_s||[]).join('s, '))+'s · 沙盒请求 '+esc(d.external_sandbox_requests)+
-          ' · 招聘站接触 '+esc(d.recruitment_sites_touched)+' · 生产请求 0 · 位图留存 '+
-          esc(d.bitmap_retention)+' · '+esc(d.ok?'PASS':'FAIL');
-        toast(d.ok?'练习沙盒限速截图完成':'练习沙盒截图存在失败页，详见报告');
-      }
-      await this.refresh();
-    }catch(e){if(out)out.textContent='服务端不可达，未发起任何请求。';}
+    if(out)out.textContent='截图执行体已移除：本地 OCR 只对管理员提供的截图在工作台（/workbench.html）内识别成文本，服务端不接收位图、不访问任何第三方页面。';
+    toast('自动截图执行体已移除');
   },
   async toggle(){
-    const enabled=$('#adminCapToggle').checked;
-    try{
-      const r=await this.post('api/capture/admin/toggle',{enabled,operator_ack:enabled});
-      const d=r.data||{};
-      $('#adminCapState').textContent=(d.toggle||{}).enabled?'意图已开启 · 实际不执行':'默认关闭';
-      $('#adminCapNote').textContent=d.reason||'';
-      toast(enabled?'已记录手动开启意图；可对练习沙盒运行限速截图，生产采集仍未解锁':'采集开关已关闭');
-      await this.refresh();
-    }catch(e){toast('开关未生效：服务端不可达');}
+    // 采集开关端点已移除；管理知识入库请使用工作台 /workbench.html 的「知识入库」面板
+    const s=$('#adminCapState'), n=$('#adminCapNote');
+    if(s)s.textContent='自动爬取已移除';
+    if(n)n.textContent='请到 /workbench.html 的「知识入库」面板提供文本或截图（浏览器本地 OCR）。';
+    toast('自动爬取已移除；知识入库请前往工作台');
   },
   async parse(){
     const f=$('#adminResumeFile').files[0];

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""2026-11-16 新增端点的真实 HTTP 回归：回执台账 / B1 上传解析 /
-管理员手动开关 / Q18 状态 / 截图链路隐私不入库。
+"""新增端点的真实 HTTP 回归：回执台账 / B1 上传解析 / Q18 状态 /
+管理员知识入库 / 截图链路隐私不入库 / Q18 出境防护 / BGE 恢复。
 
-不触发真实境外写入（云写入由人工验收单独执行）。
+自动爬取 / 截图执行体已整体移除，本套件不再断言任何 /api/capture/* 写端点。
+不触发真实境外写入（云写入由人工验收单独执行；知识入库仅验证校验路径）。
 """
 import io
 import json
@@ -100,20 +101,32 @@ check("legal_review" in str(v.get("q18_approval", {})), "状态含回执闸门�
 check("待回" in v.get("cloud_write_gate", ""), "状态显著标注法务结论待回")
 check(v.get("user_data_to_cloud") is False, "C 级用户数据仍不入云")
 
-print("=== 3. 管理员手动开关 ===")
-s, a = req("/api/capture/admin")
-check(s == 200 and a.get("auto_capture_default") is False, "默认不自动爬取")
-check(a.get("toggle", {}).get("enabled") is False, "开关默认关闭")
-check(a.get("effective") is False and a.get("requests_issued") == 0, "默认零请求")
-check(a.get("policy", {}).get("noncommercial_exemption") is False, "非商用不构成豁免")
-s, t = req("/api/capture/admin/toggle", "POST", {"enabled": True})
-check(s == 403 and t.get("error") == "OPERATOR_ACK_REQUIRED", "开启需管理员显式确认")
-s, t = req("/api/capture/admin/toggle", "POST", {"enabled": True, "operator_ack": True})
-check(s == 200 and t.get("effective") is False and t.get("requests_issued") == 0,
-      "手动开启仍不发起任何第三方请求")
-req("/api/capture/admin/toggle", "POST", {"enabled": False, "operator_ack": False})
-s, a2 = req("/api/capture/admin")
-check(a2.get("toggle", {}).get("enabled") is False, "开关可复位关闭")
+print("=== 3. 管理员知识入库（自动爬取已移除，来源只由管理员提供）===")
+s, kst = req("/api/admin/knowledge/status")
+check(s == 200 and kst.get("ok"), "知识入库状态端点 200")
+check(kst.get("source_id") == "admin_curated" and kst.get("grade") == "D", "管理员来源 D 级")
+check(kst.get("image_upload_endpoint") is False, "服务端无图片上传端点")
+check("browser-local" in kst.get("ocr_location", ""), "OCR 在浏览器本地")
+check(kst.get("pii_to_store") is False and kst.get("job_only") is True, "隐私不入库 / 仅岗位信息")
+check(kst.get("cloud_writes_enabled") is True, "写入指向 Qdrant 云")
+# 校验路径：未授权 → 403；图片 payload → 400；均不产生写入
+s, noack = req("/api/admin/knowledge/ingest", "POST",
+               {"text": "\n".join(JD_LINES), "origin": "admin_text", "purpose_ack": False})
+check(s == 403 and noack.get("error") == "CONSENT_REQUIRED", "未授权入库 403", (s, noack))
+s, img = req("/api/admin/knowledge/ingest", "POST",
+             {"text": "data:image/png;base64," + "A" * 420,
+              "origin": "admin_ocr", "purpose_ack": True})
+check(s == 400 and img.get("error") == "IMAGE_PAYLOAD_REJECTED", "图片 payload 被拒 400", (s, img))
+s, badorigin = req("/api/admin/knowledge/ingest", "POST",
+                   {"text": "\n".join(JD_LINES) * 2, "origin": "public_api", "purpose_ack": True})
+check(s in (400, 422), "非法来源形态被 Schema/逻辑拒绝", (s, badorigin))
+# 路由表确认：capture 下无 POST，知识入库端点已注册
+s, spec = req("/openapi.json")
+paths = spec.get("paths", {})
+check("/api/admin/knowledge/ingest" in paths and "/api/admin/knowledge/delete" in paths,
+      "知识入库 / 删除端点已注册")
+check(not any("/capture" in p and "post" in m for p, m in paths.items()),
+      "capture 命名空间无 POST 写端点")
 
 print("=== 4. B1 文件解析（不留存 / 可撤回删除）===")
 s, r = req("/api/resume/status")
@@ -142,8 +155,7 @@ s, bad = req_upload("/api/resume/parse", "bad.txt", b"plain text")
 check(s == 400 and bad.get("error") == "FILE_TYPE_NOT_ALLOWED", "非 pdf/docx 被拒", (s, bad))
 s, bad = req_upload("/api/resume/parse", "bad.pdf", b"not a pdf")
 check(s == 400 and bad.get("error") == "FILE_MAGIC_MISMATCH", "文件头不符被拒", (s, bad))
-s, bad = req_upload("/api/resume/parse", "岗位.docx", docx,
-                    "?cloud_enrich=true")
+s, bad = req_upload("/api/resume/parse", "岗位.docx", docx, "?cloud_enrich=true")
 check(s == 403 and bad.get("error") == "SEPARATE_CONSENT_REQUIRED",
       "云端解析需单独同意", (s, bad))
 
@@ -183,91 +195,19 @@ s, apr = req("/api/approvals/status")
 check(apr.get("uniform_usage_restriction") is True, "回执状态 5/5 统一适用")
 check(apr.get("enabled") == ["B1", "Q18"] and apr.get("pending") == ["Q19", "Q21", "B3"],
       "启用状态未因条款改变", (apr.get("enabled"), apr.get("pending")))
-s, cap = req("/api/capture/admin")
-check(cap.get("usage_restriction", {}).get("changes_gate_state") is False,
-      "管理员状态带条款标记")
-check(cap.get("policy", {}).get("human_pace_simulation") == "forbidden",
-      "拟人化规避采集仍禁止")
+s, cap = req("/api/research/policy")
+check(cap.get("verdict") == "admin_curated_only", "研究策略=仅管理员提供")
+check(cap.get("third_party_requests") == 0, "零第三方请求")
 
-print("=== 8. B2 自担风险放行 + 严格限速（只读端点）===")
-s, pace = req("/api/capture/pace")
-check(s == 200 and pace.get("ok") is True, "GET /api/capture/pace 返回 200", (s, pace.get("error")))
-ct = pace.get("contract", {})
-check(ct.get("concurrency_per_host") == 1 and ct.get("burst") == 1
-      and ct.get("min_interval_s", 0) >= 15 and ct.get("daily_cap", 999) <= 60,
-      "契约：串行 / 慢速 / 每日上限")
-check(ct.get("ua_rotation") is False and ct.get("randomized_jitter_for_evasion") is False
-      and ct.get("captcha_or_waf_bypass") is False, "契约：规避检测手段禁用")
-check(pace.get("human_scale_pacing") == "enforced"
-      and pace.get("evasion_techniques") == "forbidden", "两类拟人化概念区分")
-ex = pace.get("example", {})
-check(ex.get("interval_s", 0) >= 15 and pace.get("requests_issued") == 0,
-      "5 页准入核算慢速且不发请求", (ex.get("interval_s"), pace.get("requests_issued")))
-rel = pace.get("owner_risk_release", {})
-check(rel.get("released") is True and rel.get("is_legal_or_site_license") is False
-      and rel.get("legal_review") == "pending", "放行回执如实标注非法律结论 / 非站点许可")
-s, cap2 = req("/api/capture/admin")
-check(cap2.get("gates", {}).get("owner_risk_release") is True
-      and cap2.get("gates", {}).get("strict_pace_contract") is True,
-      "管理员闸门显示放行与限速契约生效")
-check(cap2.get("gates", {}).get("site_written_license") is False
-      and cap2.get("gates", {}).get("legal_written_conclusion") is False,
-      "站点许可 / 法务结论仍未回")
-check(cap2.get("effective") is False and cap2.get("requests_issued") == 0
-      and cap2.get("production_capture_unlocked") is False,
-      "执行体存在不等于生产采集解锁：effective=false / 生产请求为零")
-check(cap2.get("gates", {}).get("capture_executor_implemented") is True
-      and cap2.get("auto_capture_executor") == "test_sandbox_only",
-      "执行体作用域被硬限定为练习沙盒")
-check(cap2.get("decision_gate_released") is False, "未手动开启时决策闸门未释放")
-check(len(cap2.get("blocked_by", [])) >= 4, "剩余阻塞项逐条列出")
-s, tog = req("/api/capture/admin/toggle", "POST", {"enabled": True, "operator_ack": True})
-check(s == 200 and tog.get("decision_gate_released") is True, "逐次手动开启后决策闸门释放")
-check(tog.get("effective") is False and tog.get("requests_issued") == 0,
-      "开启后仍不执行、仍零请求")
-req("/api/capture/admin/toggle", "POST", {"enabled": False, "operator_ack": False})
-check(cap2.get("policy", {}).get("human_pace_simulation") == "forbidden",
-      "规避检测式拟人化仍禁止")
-
-print("=== 9. 截图测试目标白名单（只用允许爬取的测试页 / 不去招聘网站）===")
-try:
-    with urllib.request.urlopen(BASE + "/api/capture/test-page", timeout=10) as x:
-        page_code, test_html = x.status, x.read().decode("utf-8", "replace")
-except Exception:
-    page_code, test_html = 0, ""
-check(page_code == 200 and "PACE TEST FIXTURE" in test_html and "虚构" in test_html,
-      "本地自建测试页返回且自述允许爬取 / 虚构内容", page_code)
-s, pace2 = req("/api/capture/pace")
-al = pace2.get("test_target_allowlist", {})
-check(al.get("default_policy") == "local_test_page_plus_verified_sandbox"
-      and al.get("recruitment_sites_forbidden") is True, "白名单为本地测试页 + 已核实练习沙盒")
-check("https://books.toscrape.com/" in al.get("extra_allowed_targets", []),
-      "所有者指定的练习沙盒已显式列入白名单")
-check("books.toscrape.com" in al.get("sandbox_sites", {})
-      and al["sandbox_sites"]["books.toscrape.com"].get("is_site_written_license") is False,
-      "练习沙盒附带证据且如实标注不是书面许可函")
-check(pace2.get("production_capture_unlocked") is False, "生产采集未解锁")
-pe = al.get("plan_example", {})
-check(pe.get("all_targets_allowed") is True and pe.get("third_party_requests") == 0
-      and pe.get("recruitment_sites") == 0, "准入核算：零第三方 / 零招聘站")
-check(any("zhipin" in k or "lagou" in k for k in al.get("forbidden_keywords", [])),
-      "招聘站点关键词硬拦截清单可读")
-s, st = req("/api/capture/pace-test/status")
-check(s == 200 and st.get("ok") is True, "本地限速测试报告状态端点 200")
-if st.get("report_present"):
-    rp = st.get("report", {})
-    check(rp.get("third_party_requests") == 0 and rp.get("recruitment_sites_touched") == 0
-          and rp.get("bitmap_retention") == "none",
-          "已有测试报告如实标注零第三方请求 / 位图无留存")
-
-print("=== 10. Q18 出境写入防护 / B2 真实执行体端点 ===")
+print("=== 8. Q18 出境写入防护 / BGE 恢复 ===")
 s, gd = req("/api/vector/guard")
 check(s == 200 and gd.get("guard_id") == "QDRANT-OUTBOUND-GUARD-2026-11-16",
       "出境防护状态端点 200")
 check(gd.get("api_key_never_returned") is True and gd.get("audit_content") == "digest_only",
       "防护状态不返回凭据、审计只写摘要")
-check("D" in gd.get("allowed_grades", []) and "user_jd" not in gd.get("allowed_source_ids", []),
-      "分级 D / 已批准来源白名单可读")
+check("D" in gd.get("allowed_grades", []) and "admin_curated" in gd.get("allowed_source_ids", [])
+      and "user_jd" not in gd.get("allowed_source_ids", []),
+      "分级 D / 管理员来源在白名单 / 用户数据不在白名单")
 check(gd.get("endpoint", {}).get("ok") is True, "当前 Qdrant 端点通过目标锁定")
 s, dry = req("/api/vector/guard/check", "POST",
              {"items": [{"id": "a", "text": "Data engineer remote Python SQL", "title": "DE"}],
@@ -280,17 +220,7 @@ s, dry2 = req("/api/vector/guard/check", "POST",
                "source_id": "jobicy", "scope": "public"})
 check(s == 200 and dry2.get("allowed") is False and dry2.get("data_written") is False,
       "dry-run 检出个人信息即拒绝，且不写入")
-s, exs = req("/api/capture/executor/status")
-check(s == 200 and exs.get("policy", {}).get("scope") == "test_sandbox_only"
-      and exs.get("production_capture_unlocked") is False,
-      "执行体状态端点：仅沙盒、生产采集未解锁")
-check(exs.get("requests_issued") == 0, "生产采集请求恒为 0")
-s, noack = req("/api/capture/executor/run", "POST", {"pages": 1, "operator_ack": False})
-check(s == 403, "未确认时执行体端点拒绝（403）")
-s, notoggle = req("/api/capture/executor/run", "POST", {"pages": 1, "operator_ack": True})
-check(s == 403, "未逐次手动开启开关时执行体端点拒绝（403）")
 
-# ---- 第四轮：Q18 维持允许 / BGE 恢复 / B2 生产执行体 ----
 s, ast = req("/api/approvals/status")
 q18 = (ast.get("items") or {}).get("Q18", {}) if s == 200 else {}
 oc = q18.get("owner_confirmation") or {}
@@ -311,23 +241,6 @@ check(str(emb.get("bge_model_source", "")).startswith("local_hub_snapshot"),
 check((emb.get("selected_backend") or {}).get("public") == "dashscope-text-embedding-v3"
       and "1024" in str(emb.get("dimension_policy", "")),
       "public 侧维持 1024 维后端，与既有 Qdrant 集合维度一致")
-s, prod = req("/api/capture/production/status")
-check(s == 200 and prod.get("production_executor_implemented") is True,
-      "B2 生产执行体能力已接入（只读状态端点可用）")
-check(prod.get("production_capture_unlocked") is False
-      and prod.get("requests_issued") == 0
-      and prod.get("unlicensed_targets_touched") == 0,
-      "生产执行体默认不解锁 / 零生产请求 / 零无许可接触")
-check((prod.get("site_licenses") or {}).get("valid") == 0
-      and (prod.get("legal_conclusion") or {}).get("received") is False
-      and (prod.get("registry") or {}).get("legal_status") == "pending_legal",
-      "站点许可 / 法务结论 / 注册表三项缺口如实上报")
-check("site_written_licenses" in (prod.get("blocked_by") or [])
-      and "legal_written_conclusion" in (prod.get("blocked_by") or []),
-      "九道闸门缺项逐项列出")
-check((prod.get("policy") or {}).get("license_writable_api") is False
-      and (prod.get("policy") or {}).get("evasion_techniques") == "forbidden",
-      "无许可写入 API、规避检测仍禁止")
 
 print("\n=== 回执 / B1 / 管理员 HTTP 回归：PASS %d  FAIL %d ===" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)

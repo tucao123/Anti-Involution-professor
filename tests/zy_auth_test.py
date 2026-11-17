@@ -139,18 +139,19 @@ try:
         check(r.status_code == 200 and r.json()["role"] == "personal", "演示扫码签发个人会话")
         check(client.get("/api/auth/session").json()["role"] == "personal", "个人会话 cookie 生效")
 
-        # required 模式：中间件按角色拦截
+        # required 模式：中间件按角色拦截（用知识入库写端点做载体，传占位 id 不产生副作用）
+        _ADMIN_WRITE = "/api/admin/knowledge/delete"
+        _ADMIN_BODY = {"ids": ["auth-probe-no-op"]}
         with patch.object(auth, "mode", return_value="required"):
             anon = TestClient(server.app)
-            resp = anon.post("/api/capture/admin/toggle", json={"enabled": False, "operator_ack": True})
+            resp = anon.post(_ADMIN_WRITE, json=_ADMIN_BODY)
             check(resp.status_code == 401 and resp.json().get("error") == "AUTH_REQUIRED",
                   "required：匿名写管理端点返回 401")
 
             personal_client = TestClient(server.app)
             st2 = personal_client.post("/api/auth/wechat/authorize", json={}).json()["state"]
             personal_client.post("/api/auth/wechat/demo/confirm", json={"state": st2})
-            resp = personal_client.post("/api/capture/admin/toggle",
-                                        json={"enabled": False, "operator_ack": True})
+            resp = personal_client.post(_ADMIN_WRITE, json=_ADMIN_BODY)
             check(resp.status_code == 403 and resp.json().get("error") == "FORBIDDEN",
                   "required：个人令牌写管理端点返回 403")
 
@@ -163,8 +164,7 @@ try:
                 lg = admin_client.post("/api/auth/admin/login", json={"password": "StrongPass2026"})
                 check(lg.status_code == 200 and lg.json()["role"] == "admin" and lg.json()["demo"] is False,
                       "required：配置哈希后管理员密码登录成功（非演示）")
-                resp = admin_client.post("/api/capture/admin/toggle",
-                                         json={"enabled": False, "operator_ack": True})
+                resp = admin_client.post(_ADMIN_WRITE, json=_ADMIN_BODY)
                 check(resp.status_code == 200, "required：管理员令牌写管理端点放行")
 
         # 登出

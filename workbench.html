@@ -409,7 +409,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
             <div class="meta" style="margin-bottom:16px">四条不动的边界</div>
             <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>样本内</b>没有授权数据就不给市场级结论；用你自己的 JD 做对比时，明确写「在你提供的样本内」。</div>
             <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不出本机</b>用户材料默认不保存；保存、外发都要单独确认；删除会说明范围——已发出的内容本地删除 ≠ 外部撤销。</div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不爬取</b>不自动爬招聘网站、不复用登录态、不绕反爬。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不爬取</b>自动爬取与自动截图执行体已移除；知识只由管理员提供文本或截图（本地 OCR），系统不访问第三方页面。</div>
             <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不制造焦虑</b>不承诺录用、不预测薪资；「先投」和「放弃」都是合法结论。</div>
           </div>
           <div class="card">
@@ -445,7 +445,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
         <div class="wrap">
           <div class="eyebrow">管理后台 / Administrator · 仅管理员</div>
           <h1>运行态与闸门，<br><span class="acid">在这里核对。</span></h1>
-          <p class="lede">下面是只读状态。所有管理写操作（采集开关、执行体、出境防护检查）在服务端按管理员角色鉴权；非管理员令牌会被拒绝。</p>
+          <p class="lede">系统已移除自动爬取与自动截图执行体，不再访问任何第三方页面。知识只由管理员主动提供：粘贴文本，或上传截图由<b>浏览器本地 OCR</b>识别成文本；位图不上传、不落盘。服务端只收文本，经脱敏与「仅岗位信息」过滤后切片、向量化并写入 Qdrant 知识库。</p>
           <div id="adminDenied" class="card dark" style="display:none">
             <div class="meta" style="color:#e0a800">权限不足</div>
             <p style="font-size:13px;line-height:1.8;color:#c9c9c3;margin-top:10px">当前身份不是管理员，无法查看管理面板。请退出后用管理员密码登录。</p>
@@ -459,16 +459,41 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
               <div class="card"><div class="meta" style="margin-bottom:12px">回执台账</div><pre id="adApprovals" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
               <div class="card"><div class="meta" style="margin-bottom:12px">Qdrant 出境防护</div><pre id="adGuard" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
             </div>
-            <div class="grid2">
-              <div class="card"><div class="meta" style="margin-bottom:12px">B2 采集设置</div><pre id="adCapture" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
-              <div class="card"><div class="meta" style="margin-bottom:12px">生产采集执行体</div><pre id="adProd" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
-            </div>
+
             <div class="card">
-              <div class="meta" style="margin-bottom:12px">采集开关（管理员写操作 · 服务端鉴权）</div>
-              <p style="font-size:12px;line-height:1.8;color:var(--gray);margin-bottom:12px">默认关闭。每次手动开启都需单独确认；开启后仍受限速契约与站点许可闸门约束。</p>
-              <label style="display:flex;gap:9px;align-items:center;font-size:13px;margin-bottom:12px"><input type="checkbox" id="adToggle"> 手动开启采集意图</label>
-              <button class="btn btn-ink geo" id="adToggleApply">应用开关 ↗</button>
-              <div class="msg" id="adToggleMsg" style="font-size:12px;color:#b00;margin-top:10px"></div>
+              <div class="meta" style="margin-bottom:14px">① 知识来源 · 文本 / 截图本地 OCR</div>
+              <div class="field">
+                <label>条目标题</label>
+                <input type="text" id="kbTitle" placeholder="例：AI 应用工程师 · 岗位知识" maxlength="80">
+              </div>
+              <div class="field">
+                <label>岗位文本（可直接粘贴；截图识别结果也写入这里）</label>
+                <textarea id="kbText" rows="8" placeholder="粘贴岗位职责 / 任职要求等岗位信息。含手机号邮箱也没关系：服务端会先脱敏，再整行剔除隐私信息，只把岗位信息切片入库。"></textarea>
+              </div>
+              <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+                <input type="file" id="kbFile" accept="image/png,image/jpeg,image/webp,image/bmp" style="font-size:12px;max-width:260px">
+                <button class="btn btn-ghost geo" id="kbOcr" type="button">本地 OCR 识别 ↗</button>
+                <span id="kbOcrNote" style="font-size:11px;color:var(--gray)">PNG/JPG/WEBP/BMP · 单张 ≤ 8MB · 图片只在浏览器内存</span>
+              </div>
+              <label style="display:flex;gap:9px;align-items:center;font-size:13px;margin-bottom:14px;line-height:1.7">
+                <input type="checkbox" id="kbAck"> 我确认该内容由我主动提供、有权使用，仅用于研究检索：个人信息先脱敏、隐私行整行剔除，不用于画像或商业行为。
+              </label>
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                <button class="btn btn-acid geo" id="kbIngest" type="button">脱敏切片 → 向量化入库 ↗</button>
+              </div>
+              <div class="msg" id="kbMsg" style="font-size:12px;color:#b00;margin-top:12px;white-space:pre-wrap"></div>
+              <pre id="kbResult" style="font-size:11px;line-height:1.7;white-space:pre-wrap;word-break:break-all;margin-top:12px"></pre>
+            </div>
+
+            <div class="grid2">
+              <div class="card"><div class="meta" style="margin-bottom:12px">② 知识库状态（只读）</div><pre id="adKnowledge" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+              <div class="card">
+                <div class="meta" style="margin-bottom:12px">③ 按 id 删除已入库条目</div>
+                <p style="font-size:12px;line-height:1.8;color:var(--gray);margin-bottom:10px">填入入库返回的 chunk id（逗号分隔）；可在浏览器端按标题检索定位。</p>
+                <div class="field"><input type="text" id="kbDelIds" placeholder="kb-xxxxxxxx-0, kb-xxxxxxxx-1"></div>
+                <button class="btn btn-ghost geo" id="kbDelete" type="button">删除这些条目 ↗</button>
+                <div class="msg" id="kbDelMsg" style="font-size:12px;color:#b00;margin-top:10px"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -753,27 +778,94 @@ async function getJson(path){try{const r=await fetch(path);return await r.json()
 async function renderAdmin(){
   if(SESSION.role!=='admin'){$('#adminBody').style.display='none';$('#adminDenied').style.display='block';return}
   $('#adminBody').style.display='block';$('#adminDenied').style.display='none';
-  const [authS,appr,guard,cap,prod]=await Promise.all([
+  const [authS,appr,guard,kb]=await Promise.all([
     getJson('/api/auth/status'),getJson('/api/approvals/status'),getJson('/api/vector/guard'),
-    getJson('/api/capture/admin'),getJson('/api/capture/production/status')]);
+    getJson('/api/admin/knowledge/status')]);
   $('#adAuth').textContent=pretty({auth_mode:authS.auth_mode,wechat:authS.wechat?.mode,
     admin_password_source:authS.admin?.password_source,secret_ephemeral:authS.secret_ephemeral});
   $('#adApprovals').textContent=pretty({enabled:appr.enabled,pending:appr.pending,
     legal_opinion_received:appr.legal_opinion_received});
   $('#adGuard').textContent=pretty({endpoint_ok:guard.endpoint_ok,ok:guard.ok,
     checks:guard.checks?Object.keys(guard.checks).length:undefined});
-  $('#adCapture').textContent=pretty({toggle:cap.toggle,admin:cap.admin?Object.keys(cap.admin):undefined});
-  $('#adProd').textContent=pretty({implemented:prod.implemented,unlocked:prod.unlocked,
-    blocked_by:prod.blocked_by});
-  if(cap.toggle)$('#adToggle').checked=!!cap.toggle.enabled;
+  $('#adKnowledge').textContent=pretty({source_id:kb.source_id,origins:kb.origins,
+    ocr_location:kb.ocr_location,image_upload_endpoint:kb.image_upload_endpoint,
+    pii_to_store:kb.pii_to_store,job_only:kb.job_only,
+    backend_in_use:kb.backend_in_use,cloud_writes_enabled:kb.cloud_writes_enabled,
+    collection:kb.collection});
 }
-$('#adToggleApply').onclick=async()=>{
-  const msg=$('#adToggleMsg');msg.style.color='#b00';
-  if(!$('#adToggle').checked){msg.textContent='请先在研究学习用途下手动勾选确认';return}
-  const r=await fetch('/api/capture/admin/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({enabled:true,operator_ack:true})});
-  const d=await r.json().catch(()=> ({}));
-  if(r.ok){msg.style.color='#0a7a00';msg.textContent='已应用采集开关（管理员写操作通过服务端鉴权）';renderAdmin()}
+
+/* ---- 管理员知识库：浏览器本地 OCR（Tesseract.js）+ 文本入库 ---- */
+const OCR_CDN='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const OCR_MAX_BYTES=8*1024*1024;
+let kbBlobUrl=null,ocrScriptEl=null,kbBusy=false;
+function kbNote(msg,warn){const el=$('#kbMsg');el.textContent=msg;el.style.color=warn?'#b00':'#0a7a00'}
+function loadOcr(){
+  if(window.Tesseract&&typeof window.Tesseract.recognize==='function')return Promise.resolve(window.Tesseract);
+  return new Promise((resolve,reject)=>{
+    if(ocrScriptEl&&ocrScriptEl.parentNode){
+      ocrScriptEl.addEventListener('load',()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR_ENGINE_INVALID')));
+      ocrScriptEl.addEventListener('error',()=>reject(new Error('OCR_CDN_FAILED')));
+      return;
+    }
+    const s=document.createElement('script');ocrScriptEl=s;s.src=OCR_CDN;s.async=true;
+    const timer=setTimeout(()=>{s.remove();reject(new Error('OCR_CDN_TIMEOUT'))},20000);
+    s.onload=()=>{clearTimeout(timer);window.Tesseract&&window.Tesseract.recognize?resolve(window.Tesseract):reject(new Error('OCR_ENGINE_INVALID'))};
+    s.onerror=()=>{clearTimeout(timer);s.remove();reject(new Error('OCR_CDN_FAILED'))};
+    document.head.appendChild(s);
+  });
+}
+$('#kbFile').onchange=e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(!/^image\/(png|jpeg|webp|bmp)$/.test(f.type)){kbNote('只支持 PNG / JPG / WEBP / BMP 图片',true);e.target.value='';return}
+  if(f.size>OCR_MAX_BYTES){kbNote('图片超过 8 MB，请裁剪或压缩后再试',true);e.target.value='';return}
+  if(kbBlobUrl)URL.revokeObjectURL(kbBlobUrl);
+  kbBlobUrl=URL.createObjectURL(f);
+  $('#kbOcrNote').textContent=f.name+' · '+Math.max(1,Math.round(f.size/1024))+' KB · 仅在浏览器内存';
+  kbNote('图片已载入，仅在当前页面内存。点「本地 OCR 识别」，结果写入下方文本框，请核对后再入库。');
+};
+$('#kbOcr').onclick=async()=>{
+  if(kbBusy||!kbBlobUrl){kbNote('请先选择一张截图',true);return}
+  kbBusy=true;$('#kbOcr').disabled=true;$('#kbOcr').textContent='本地识别中…';
+  try{
+    const T=await loadOcr();
+    const res=await T.recognize(kbBlobUrl,'chi_sim+eng');
+    const text=String(((res&&res.data)||{}).text||'').replace(/\u00a0/g,' ').replace(/[ \t]+\n/g,'\n').trim();
+    if(text.length<20){kbNote('识别文字太少，请换清晰截图或直接粘贴文本',true);return}
+    const ta=$('#kbText');ta.value=ta.value.trim()?ta.value.trim()+'\n'+text:text;
+    kbNote('识别完成 · '+text.length+' 字，已写入文本框。请核对错字，勾选授权后再入库——系统不会自动提交。');
+  }catch(err){kbNote('本地 OCR 不可用（'+(err&&err.message||'unknown')+'）：可离线或无法访问识别引擎 CDN。请直接粘贴文本；图片未被上传、未被保存。',true)}
+  finally{kbBusy=false;$('#kbOcr').disabled=false;$('#kbOcr').textContent='本地 OCR 识别 ↗'}
+};
+$('#kbIngest').onclick=async()=>{
+  const msg=$('#kbMsg');msg.style.color='#b00';
+  if(!$('#kbAck').checked){msg.textContent='请先勾选研究用途与个人信息授权确认';return}
+  const text=$('#kbText').value.trim();if(text.length<20){msg.textContent='文本至少 20 字';return}
+  const fromOcr=!!($('#kbFile').files&&$('#kbFile').files.length);
+  const payload={text,title:$('#kbTitle').value.trim()||'管理员知识条目',
+    origin:fromOcr?'admin_ocr':'admin_text',purpose_ack:true};
+  $('#kbIngest').disabled=true;
+  try{
+    const r=await fetch('/api/admin/knowledge/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){msg.textContent='失败：'+(d.message||d.error||r.status);return}
+    msg.style.color='#0a7a00';
+    msg.textContent='入库成功 · '+d.chunks+' 个切片 / '+d.batches+' 批 · 后端 '+d.backend+' · 脱敏 '+d.pii_redacted+' 处 · 仅岗位信息';
+    $('#kbResult').textContent=pretty({doc_id:d.doc_id,chunks:d.chunks,batches:d.batches,
+      backend:d.backend,collection:d.collection,pii_redacted:d.pii_redacted,
+      outbound_guard:d.outbound_guard&&{guard_id:d.outbound_guard.guard_id,points:d.outbound_guard.points}});
+    $('#kbText').value='';$('#kbTitle').value='';$('#kbFile').value='';$('#kbAck').checked=false;
+    if(kbBlobUrl){URL.revokeObjectURL(kbBlobUrl);kbBlobUrl=null}
+  }catch(err){msg.textContent='请求失败：'+String(err)}
+  finally{$('#kbIngest').disabled=false}
+};
+$('#kbDelete').onclick=async()=>{
+  const msg=$('#kbDelMsg');msg.style.color='#b00';
+  const ids=$('#kbDelIds').value.split(/[,\s]+/).map(x=>x.trim()).filter(Boolean);
+  if(!ids.length){msg.textContent='请填写至少一个 chunk id';return}
+  const r=await fetch('/api/admin/knowledge/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids})});
+  const d=await r.json().catch(()=>({}));
+  if(r.ok){msg.style.color='#0a7a00';msg.textContent='已删除：本地 '+d.deleted_local+' / 云端 '+d.deleted_cloud;$('#kbDelIds').value=''}
   else{msg.textContent='失败：'+(d.message||d.error||r.status)}
 };
 

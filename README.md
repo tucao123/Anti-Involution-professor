@@ -3,6 +3,14 @@
 给「急着面试却不知道投哪儿」的应届生，一份**能照着做决定的证据清单**。
 主入口是 **JTBD v2.0 决策工作台**：找方向 → 做核对 → 定行动 → 过追问 → 记看板。
 
+> **知识来源变更（最新）**：自动爬取与截图执行体已**整体移除**——`research_capture.py` /
+> `capture_executor.py` / `production_capture.py` 及所有 `/api/capture/*` 执行端点全部删除，
+> 系统不再访问任何第三方页面。知识只由**管理员主动提供**：在 `workbench.html` 的「知识入库」
+> 面板粘贴文本，或上传截图由 **Tesseract.js 浏览器本地 OCR** 识别成文本；位图只在浏览器内存
+> 处理、**不上传不落盘**，服务端自始只收文本。入库链路固定为
+> **PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant 云 RAG**（经 `outbound_guard` + Q18 双闸门），
+> 可按入库返回的 chunk id 删除。下方 2026-11-16 B2 决策段落为**历史留档**，其执行体均已移除。
+
 > **2026-11-16 前端重设计**：JTBD 决策工作台位于 `http://127.0.0.1:8848/workbench.html`
 > （HOMETRY 极简等距视觉，左侧步骤轨道 + 右侧工作区 + 底部操作条），按 `JTBD需求文档.md` v2.0
 > 实现三态对照（有证据 / 待核实 / 明确缺口 / 未知）、硬条件单独阻断、无百分比总分、
@@ -65,7 +73,8 @@ python server.py
 | 技能词频参考（Jobicy / RemoteOK） | D · 全球远程岗 | 可用 | 技能出现率、学习方向；**非国内市场、非同比** |
 | 国内市场洞察 | A · 境内授权数据 | **待授权** | 零数值、零图表、零排序，绝不拿海外样本顶替 |
 | 用户自带 JD / 手动截图 OCR | C · 用户自带 | 可用 | 仅这一份 JD 的能力差距，不产生市场级统计 |
-| 受控研究采集 | B | 待法务书面结论 | 执行体仅限练习沙盒、生产采集未解锁，`gate_ready=false` |
+| 管理员提供的岗位文本 / 截图 OCR 文本 | D · 脱敏后入库 | 可用 | 岗位知识检索参考；经 PII 脱敏 + 仅岗位信息 + Qdrant 云 RAG |
+| 受控研究采集（历史登记） | B | 执行体已移除 | 来源仍登记为待法务以留档，但不再有任何采集执行能力 |
 | 隐身浏览器 / 登录态复用 / 规避技术措施的自动截图 | B | **永久封禁** | 不实施 |
 
 **新增云组件的边界**：
@@ -190,7 +199,10 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 新增端点：`/api/coach/*`、`/api/voice/policy`、`/api/github/*`、`/api/hybrid/*`、`/api/phase3/status`。
 配置写在项目根 `.env`（已被 `.gitignore` 忽略）；`.env.example` 只保留空占位模板，**不要把真实密钥填进模板**。
 
-## 2026-11-16 决策落地（回执闸门 / B1 / 管理员采集设置）
+## 决策落地（回执闸门 / B1 / 管理员知识入库）
+
+> 下表 B2 采集相关条目为 **2026-11-16 历史决策留档**，其执行体已随爬取功能整体移除；
+> 当前知识来源见文首「知识来源变更」与下方「管理员知识入库」行。
 
 | 项 | 实现 | 状态 |
 |---|---|---|
@@ -199,17 +211,18 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 | 岗位信息抽取 | `job_info.py`：不解析个人信息、只保留岗位方向 / 技能方向 / 级别词；截图 / `local_ocr` 入库时个人信息行整行剔除、不入库 | 已做 |
 | 个人画像 | 由用户主动提供 JD / 简历的本地 `/api/jd/analyze` 链路提供（覆盖率 / 技能差距），与截图入库链路分离 | 保留 |
 | Q18 云写入 | `QDRANT_ALLOW_WRITE=true` + `Q18.json` 回执 + 双闸门；实测真实写入成功 | 已做（法务结论待回） |
-| B2 采集设置 | 独立管理员视图 + `/api/capture/admin`：默认不自动爬取、逐次手动开关；开关只记录意图，四重闸门未齐备时不发起任何第三方请求 | 已做 |
+| **管理员知识入库** | `knowledge_ingest.py` + `/api/admin/knowledge/{status,ingest,delete}`（管理员角色鉴权）：文本 / 截图 OCR 文本 → PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant；无图片上传端点；可按 chunk id 删除 | 已做（`admin_curated` / D 级 / 浏览器本地 OCR） |
+| ~~B2 采集设置~~ | ~~`/api/capture/admin` 默认不自动爬取、逐次手动开关~~ | **已移除**（端点删除） |
 | Q19 / Q21 材料 | `数据出境与公开元数据条款清单.md`：GitHub ToS §H / AUP §5·§6 等需核对条款、单独告知同意模板、DPA 条款清单 | 已做（结论待回） |
 | **全项目使用限制条款** | `usage_policy.py` + `GET /api/project/usage`：条款 `USAGE-RESTRICTION-2026-11-16`，5 份回执顶层 / 状态端点 / 文档 / 界面统一标注；`changes_gate_state=false` | 已做（B1 / Q18 仍启用，Q19 / Q21 / B3 仍 CLOSED） |
-| **B2 自担风险放行 + 严格限速** | `.privacy/approvals/B2.json`（`issuer=项目所有者`、`risk_bearing=project_owner`、`legal_review=pending`，不冒充法务结论 / 站点许可）；`PACE_CONTRACT` + `enforce_pace()` 代码级硬闸门；`GET /api/capture/pace` | 已做（决策闸门放行；生产 `effective=false`、`requests_issued=0`） |
+| ~~**B2 自担风险放行 + 严格限速**~~ | ~~`B2.json` + `PACE_CONTRACT` + `enforce_pace()` + `GET /api/capture/pace`~~ | **已移除**（执行体与限速契约删除；B2.json 回执留档，条款仍统一适用） |
 | **Q18 出境写入防护** | `outbound_guard.py`：端点官方域 / 集合 / 分级 D / 已批准来源 / payload 字段白名单 / 逐字段 PII / 体积批量上限；凭据与原文不回显，审计只写 digest；`GET /api/vector/guard`、dry-run `POST /api/vector/guard/check` | 已做（不产生新的境外写入） |
-| **B2 真实执行体 + 练习沙盒** | `capture_executor.py`：七道闸门 + 严格限速 + 真实 UA + 每页留痕 + 位图即弃；白名单仅本地测试页与 `books.toscrape.com`（公开声明 Sandbox / scraping purposes）；`GET /api/capture/executor/status`、`POST /api/capture/executor/run` | 已做并实跑（仅沙盒；`production_capture_unlocked=false`） |
+| ~~**B2 真实执行体 + 练习沙盒**~~ | ~~`capture_executor.py` 七道闸门 + 严格限速；`GET/POST /api/capture/executor/*`~~ | **已移除**（执行体与练习沙盒白名单删除；本地 OCR 保留，仅浏览器内识别管理员截图） |
 | **Q18 维持允许（不回滚）** | `Q18.json` 新增 `owner_confirmation`：所有者明确维持 `QDRANT_ALLOW_WRITE=true`、不回滚已发生写入、不关闭双闸门；`approval_gate` 把确认摘要暴露到 `/api/approvals/status` | 已做（`legal_review=pending`，出站防护一格未放宽，数据出境评估仍待回） |
 | **BGE 恢复** | `.bge_env/` 独立依赖目录 + `embedding.py` 的 `sys.path` 前置；不修补被污染的主环境 | 已做并实测（`selected_backend.user=bge`、512 维零云调用；`public` 维持 1024 维 DashScope 以匹配既有集合；`ensure_collection()` 增维度冲突硬拒绝） |
-| **B2 生产执行体** | `production_capture.py`：生产能力 + 九道闸门，目标只由第三方签发的站点书面许可函回执 `.privacy/site_licenses/*.json` 驱动，并须法务书面结论 `B2-legal.json` + 注册表 `approved`；`GET /api/capture/production/status` 只读 | 已接入能力，**默认不解锁**（两份材料未回、`pending_legal`、`production_capture_unlocked=false`、生产请求 0）；工程侧无许可写入 API、不假造许可、不指向无许可招聘站 |
+| ~~**B2 生产执行体**~~ | ~~`production_capture.py` 九道闸门 + 站点书面许可函回执驱动；`GET /api/capture/production/status`~~ | **已移除**（生产采集能力整体删除，不存在生产请求） |
 
-新增端点：`/api/project/usage`、`/api/approvals/status`、`/api/resume/{status,consent,parse,withdraw,delete}`、`/api/capture/admin`、`/api/capture/admin/toggle`、`/api/capture/pace`、`/api/vector/guard`、`/api/vector/guard/check`、`/api/capture/executor/{status,run}`、`/api/capture/production/status`。
+相关端点：`/api/project/usage`、`/api/approvals/status`、`/api/resume/{status,consent,parse,withdraw,delete}`、`/api/admin/knowledge/{status,ingest,delete}`、`/api/vector/guard`、`/api/vector/guard/check`；只读策略端点 `/api/capture/policy`、`/api/research/policy` 保留（仅声明策略、不执行采集）。原 `/api/capture/{admin,toggle,pace,executor/*,production/*,test-page}` 执行端点均已删除。
 
 **B2 口径**：所有者「自担风险直接放行，但截图不能太快、必须严格控制速度模拟人类」，本轮追加
 「截图爬取测试网站 https://books.toscrape.com/」「接入 B2 真实执行体」。放行的是**工程决策
@@ -226,44 +239,26 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 payload 8192 字节 / 单批 20 条 / 向量 4096 维上限。异常只回状态码，审计只写 sha256 摘要与
 计数。`POST /api/vector/guard/check` 是 dry-run，**不联网、不产生境外写入**。
 
-**截图测试目标白名单**：`is_allowed_test_target()` 只允许本地自建测试页
-`GET /api/capture/test-page`、显式精确白名单、以及 `SANDBOX_SITES` 中经核实的练习沙盒
-`books.toscrape.com` 公开分页路径（页面自述 Sandbox / scraping purposes、随机价格评分、
-无真实个人信息；`is_site_written_license=false`，公开声明**不是**书面许可函）。
-招聘域名关键词、任何其他 host、query 注入、非 https 在代码层硬拒绝。
+**管理员知识入库链路**（取代原截图采集 / 执行体）：`knowledge_ingest.py` 提供
+`prepare()`（纯本地加工：用途授权 → 来源形态 → 图片 payload 拦截 → PII 脱敏 → 仅岗位信息过滤
+→ 切片 → 标题脱敏）与 `ingest()`（分批 `vector_store.ingest(scope=public, source_id=admin_curated)`）。
+截图由 **Tesseract.js 在浏览器本地 OCR** 成文本后再提交（`origin=admin_ocr`），位图不上传、
+不落盘；服务端只有 `/api/admin/knowledge/ingest` 收文本，`extra=forbid` 拒绝任何 image 字段。
+两种来源统一经相同脱敏与岗位过滤，写入前仍过 `outbound_guard` 与 Q18 双闸门；入库返回
+`chunk_ids`，可经 `/api/admin/knowledge/delete` 按 id 删除。D 级知识只作研究参考，
+不产出市场级或个人画像结论。
 
 ```bash
-python server.py                                    # 本地 BFF
-python tests/zy_capture_pace_test.py --pages 3       # 本地测试页限速自测，约 30s+
-python tests/zy_capture_executor_test.py --pages 3   # 真实执行体对练习沙盒实跑，约 45s+
+python server.py                          # 本地 BFF
+python tests/zy_knowledge_test.py         # 知识入库单元（加工链 / 闸门 / 口径）
+python tests/zy_knowledge_http.py         # 知识入库 HTTP 端到端（入库 → 向量化 → 删除）
+python tests/run_all.py                   # 全套回归
 ```
 
-2026-11-16 实跑结果：3 页截图、实际页间隔 `[22.67, 25.72]s`（≥15s 契约）、
-`robots.txt` 返回 404（未视为许可）、外部沙盒请求 4、第三方生产请求 0、招聘站接触 0、
-位图留存 `none`、页面文本未解析、未入 RAG、未产出生产数据。报告在
-`tests/out/capture_executor_report.json`（gitignored）。
-
-**B2 生产执行体（第三轮）**：`production_capture.py` 已接入生产能力与九道闸门
-（B2 回执 / 逐次手动开关 / `operator_ack` / 研究学习条款 / `enforce_pace` / 站点书面许可回执 /
-法务书面结论 / 注册表 `approved` / Chrome）。许可回执由**站点方签发、人线下放置**到
-`.privacy/site_licenses/*.json`（gitignored、工程侧只读、无写入 API），校验 `license_ref` /
-`issuer` / `signed_by` / 有效期 / `self_issued=false` / `decision=approved` / `conditions_met` /
-`legal_opinion=false` / `scope.allowed_hosts` + `allowed_path_prefixes` + 仅 D 级；
-自签发、过期、格式错误一律 fail-closed。法务结论另需 `.privacy/approvals/B2-legal.json`
-（`legal_opinion=true`、`legal_review=received`、范围含 `production_capture`）。
-`production_run()` 只在九道闸门全过后发起请求，目标必须被许可的 host + path 覆盖，
-执行期沿用真实 UA / robots / 页间 ≥15s / 每页留痕 / 位图即弃 / 不解析文本 / 不 OCR / 不入 RAG。
-`tests/zy_production_capture_test.py`（43 项，已接入 `run_all.py`）用临时目录校验许可与闸门，
-**不真的联网**。
-
-**仍如实标注 / 拒绝实现**：站点书面许可函与法务书面结论仍未回，注册表仍为
-`pending_legal`，故 `production_capture_unlocked=false`、生产 `requests_issued=0`、
-`effective=false`；实际沙盒请求另以 `sandbox_test_requests_total` 如实记录。
-**能力已接入 ≠ 已解锁**：练习沙盒公开声明、所有者自担风险、研究学习条款都不替代两份第三方
-书面材料；许可齐备后无需改代码即可解锁。伪装真人身份、按「刚好不被发现」调参、随机抖动
-躲风控、UA / IP 轮换、隐身、绕过验证码 / WAF / Cloudflare、登录墙 / 字体反爬一律永久禁止；
-「研究学习 / 非商用」仍不构成合规豁免，也不据此放行其余待书面结论事项。
-Q18 已按所有者确认维持允许、不回滚，`outbound_guard.py` 六道出站校验一格未放宽，
+**仍如实标注 / 拒绝实现**：自动爬取与所有截图执行体已删除，系统不访问任何第三方页面、
+不再有生产采集请求；原 `books.toscrape.com` 练习沙盒与 B2 限速契约随执行体一起移除。
+「研究学习 / 非商用」不构成合规豁免，也不据此放行其余待书面结论事项。
+Q18 已按所有者确认维持允许、不回滚，`outbound_guard.py` 出站校验一格未放宽，
 `legal_review=pending`、数据出境评估仍待回。
 
 ## 测试
@@ -298,13 +293,11 @@ github_meta.py        A3 GitHub 公开仓库匿名只读元数据（限频 / 回
 web/                  Next.js 控制台（public/legacy 托管既有单页）
 deploy/               SQL / Cypher 初始化、prometheus.yml、alerts.yml、slo.yaml
 Dockerfile            docker-compose.yml  SLO.md
-sources.py            11 源注册表 · fail-closed 闸门 · 分级 · 截图判定
+sources.py            12 源注册表（含 admin_curated）· fail-closed 闸门 · 分级 · 只读策略
 market.py             公开远程岗 D 级适配（确定性统计 + 快照）
 user_jd.py            C 级用户自带 JD：技能抽取 / PII 脱敏 / 原文零落盘
 rag_store.py          本地研究检索：稀疏 TF-IDF / 加密片段 / TTL / 删除
-research_capture.py   受控采集护栏：限速 / robots / 四重闸门 / 练习沙盒白名单
-capture_executor.py   B2 真实截图执行体：七道闸门 / 严格限速 / 位图即弃（仅练习沙盒）
-production_capture.py B2 生产执行体：九道闸门 / 站点书面许可回执驱动 / 默认不解锁
+knowledge_ingest.py   管理员知识入库：文本 / 截图 OCR 文本 → PII 脱敏 → 仅岗位信息 → 切片 → Qdrant
 outbound_guard.py     Q18 出境写入防护：目标 / 集合 / 分级 / 字段 / PII / 体积锁定
 privacy.py            AES-256-GCM / 脱敏 / 一键删除 / 审计哈希链
 tests/                自包含回归套件
@@ -335,6 +328,6 @@ tests/                自包含回归套件
 - Docker Desktop 启动被本机安全策略拦截（`wsl.exe` 黑名单），未重试或绕行；Redis / Neo4j 服务端未运行，继续走本地降级。
 - Chrome 的 CDP 远程调试端口在本环境不监听，交互 E2E 用例优雅 SKIP；DOM 静态审计与渲染后 DOM 检查仍通过。
 - **Python 环境会被应用升级重置**：`python` 指向 WorkBuddy 内置解释器（`3.13.12` 是软链，实际 3.13.14）。2026-11-16 升级后 `site-packages` 被清空，BFF 因缺 `cryptography` 无法启动。恢复方式：先 `python -m pip install -r requirements.txt`（核心可一次装），再对 `requirements-optional.txt` 中的包**逐个**执行 `python -m pip install --no-clean "<包名>"`——一次装多个、或让 pip 清理临时目录，都会触发沙箱的 `SAFE_DELETE_BULK_GUARD_ERROR`。BGE 权重在 `~/.cache/huggingface`、干净依赖栈在项目内 `.bge_env/`，两者都不受应用升级影响。彻底隔离建议改用项目级 venv，**尚未实施**。
-- **B2 生产执行体默认不解锁**：`production_capture.py` 能力已接入，但 `.privacy/site_licenses/` 无第三方站点书面许可函、`B2-legal.json` 法务结论未回、注册表仍 `pending_legal`，故 `GET /api/capture/production/status` 返回 `production_capture_unlocked=false`、生产请求 0。这是**设计内状态，不是待修 bug**；工程侧不提供许可写入 API、不假造许可、不指向无许可招聘站。两份书面材料由人线下放置后无需改代码即可解锁。
+- **爬取功能已整体移除**：`research_capture.py` / `capture_executor.py` / `production_capture.py` 及所有 `/api/capture/*` 执行端点已删除，不存在生产采集请求、站点书面许可回执驱动或限速契约。原 B2 回执留档但不再有对应执行能力；知识来源改为管理员文本 / 截图 OCR 文本。这是**当前设计状态，不是待修 bug**。
 
 本项目文档中的合规判断均为工程侧过程控制，**不构成法律意见**，最终边界以法务书面结论为准。

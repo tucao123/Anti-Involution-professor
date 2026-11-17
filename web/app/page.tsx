@@ -21,8 +21,7 @@ type Card = { title: string; value: string; note: string; warn?: boolean };
 
 export default async function Page() {
   const [health, stores, tasks, vector, embed, llm, graph, config, phase3,
-         approvals, resumeSt, captureAdmin, usage, pace, guard, executor,
-         production] = await Promise.all([
+         approvals, resumeSt, knowledge, usage, guard] = await Promise.all([
     safeGet('/api/health'),
     safeGet('/api/stores/status'),
     safeGet('/api/tasks/status'),
@@ -34,12 +33,9 @@ export default async function Page() {
     safeGet('/api/phase3/status'),
     safeGet('/api/approvals/status'),
     safeGet('/api/resume/status'),
-    safeGet('/api/capture/admin'),
+    safeGet('/api/admin/knowledge/status'),
     safeGet('/api/project/usage'),
-    safeGet('/api/capture/pace'),
     safeGet('/api/vector/guard'),
-    safeGet('/api/capture/executor/status'),
-    safeGet('/api/capture/production/status'),
   ]);
 
   const bffOnline = Boolean(health?.ok);
@@ -160,34 +156,20 @@ export default async function Page() {
       warn: !resumeSt?.resume_parse_open,
     },
     {
-      title: '管理员采集设置',
-      value: captureAdmin?.auto_capture_default === false ? '默认关闭 · 手动开关' : '未连接',
-      note: `不默认自动爬取 · 站点许可 / 法务结论仍未回、生产采集未解锁 · 生产请求 ${captureAdmin?.requests_issued ?? 0} · 练习沙盒测试请求累计 ${captureAdmin?.sandbox_test_requests_total ?? 0}`,
-      warn: !captureAdmin,
+      title: '管理员知识入库',
+      value: knowledge?.ok ? `${knowledge.source_id || 'admin_curated'} · ${knowledge.grade || 'D'} 级` : '未连接',
+      note: knowledge
+        ? `自动爬取 / 截图执行体已移除，系统不访问任何第三方页面 · 知识只由管理员提供文本或截图（${knowledge.ocr_location || '浏览器本地 OCR'}）· PII 脱敏 + 仅岗位信息 · 服务端只收文本、位图不上传`
+        : '未连接到 /api/admin/knowledge/status',
+      warn: !knowledge,
     },
     {
-      title: 'B2 真实截图执行体',
-      value: executor?.policy?.scope === 'test_sandbox_only' ? '已接入 · 仅练习沙盒' : '未连接',
-      note: executor
-        ? `七道闸门 + 页间 ≥15s · 目标仅本地测试页与 books.toscrape.com · 招聘站代码层拒绝 · 生产采集解锁 ${executor.production_capture_unlocked ? '是' : '否'} · 最近实跑 ${executor.report_present ? (executor.last_run_ok ? 'PASS' : 'FAIL') : '尚未运行'} · 位图留存 ${executor.bitmap_retention || 'none'}`
-        : '未连接到 /api/capture/executor/status',
-      warn: !executor,
-    },
-    {
-      title: 'B2 生产采集执行体',
-      value: production?.production_executor_implemented
-        ? (production.production_capture_unlocked ? '已解锁（需持续满足九道闸门）' : '能力已接入 · 默认不解锁')
-        : '未连接',
-      note: production
-        ? `九道闸门 · 站点书面许可回执 ${production.site_licenses?.valid ?? 0} 份有效 / ${production.site_licenses?.files_seen ?? 0} 份扫描 · 法务结论 ${production.legal_conclusion?.reason || '-'} · 注册表 ${production.registry?.legal_status || '-'} · 生产请求 ${production.requests_issued} · 阻断项 ${(production.blocked_by || []).join(' / ') || '无'} · 不假造许可 / 不指向无许可招聘站 / 禁止规避检测`
-        : '未连接到 /api/capture/production/status',
-      warn: !production,
-    },
-    {
-      title: 'B2 放行与严格限速',
-      value: pace?.owner_risk_release?.released ? '所有者自担风险放行' : '未放行 / 未连接',
-      note: `工程决策闸门（legal_review=pending，非法务结论 / 非站点许可）· 决策闸门${captureAdmin?.decision_gate_released ? '已' : '待手动'}开启 · 每页 ≥ ${pace?.example?.interval_s ?? 15}s · 串行 1 / 每日 ${pace?.contract?.daily_cap ?? 60} · 「模拟人类」= 慢速串行，规避检测式拟人化仍禁止 · 目标白名单：本地测试页 + books.toscrape.com 练习沙盒，不去招聘网站`,
-      warn: !pace?.ok,
+      title: '知识向量库（Qdrant）',
+      value: knowledge?.cloud_writes_enabled ? '云写入开启 · 可按 id 删除' : '云写入关闭 / 未连接',
+      note: knowledge
+        ? `集合 ${knowledge.collection || '-'} · 向量后端 ${knowledge.backend_in_use || '-'} · 出站防护按目标/集合/分级/来源/PII 逐字段锁定 · D 级知识只作研究参考`
+        : '未连接到 /api/admin/knowledge/status',
+      warn: !knowledge,
     },
   ];
 
@@ -197,8 +179,9 @@ export default async function Page() {
         <div className="eyebrow">ZHIYIN / PHASE 3 + DECISIONS CONSOLE</div>
         <h1>职引者 · 组件控制台</h1>
         <p className="sub">
-          这一页只做状态观测，包含 Phase 3 的 A1–A4 与 2026-11-16 决策落地（回执闸门 / B1 文件解析 /
-          管理员采集设置 / 项目性质与使用限制条款 / B2 真实执行体与严格限速 / B2 生产执行体 / Q18 出境写入防护 / BGE 恢复）。
+          这一页只做状态观测，包含 Phase 3 的 A1–A4 与决策落地（回执闸门 / B1 文件解析 /
+          管理员知识入库 / 项目性质与使用限制条款 / Q18 出境写入防护 / BGE 恢复）。
+          自动爬取与截图执行体已整体移除，知识只由管理员提供文本或截图（浏览器本地 OCR）。
           面向用户的主入口是 <b>JTBD v2.0 决策工作台</b>（方向 → 核对 → 行动 → 演练 → 看板）；既有 8 视图单页保留为 legacy，仅供历史回放与 E2E 契约，二者共用同一个 FastAPI BFF。
         </p>
         <p className="meta">
@@ -234,10 +217,9 @@ export default async function Page() {
           <li>云向量库只收 D 级公开岗位样本；Q18 写入依据项目所有者回执开启（<code>legal_review=pending</code>），叠加配置 + 回执双闸门与 <code>outbound_guard.py</code> 出站硬校验：端点官方域 / 集合名 / 分级 D / 已批准来源 / 字段白名单 / 逐字段 PII / 体积批量上限，凭据与原文不回显。</li>
           <li>D 级样本为全球远程岗，<b>不代表中国境内招聘市场</b>；国内市场洞察仍为 pending_license、零数值。</li>
           <li><b>全项目条款：本项目仅用于研究与学习，不得用于任何商业行为。</b>对 B1 / B2 / Q18 / Q19 / Q21 / B3 同理适用，禁止商业化、对外分发与商业决策用途；该条款只收紧用途，不构成合规豁免、不改变任何回执闸门状态，也不减少待回的书面结论。</li>
-          <li><b>B2 本轮由项目所有者自担风险放行工程决策闸门，并接入真实截图执行体</b>（B2.json，<code>legal_review=pending</code>，不冒充法务结论 / 站点书面许可）；执行体作用域硬限定为练习沙盒，站点许可与法务结论仍未回，<code>production_capture_unlocked=false</code>、<code>effective=false</code>、生产 <code>requests_issued=0</code>，默认仍不自动爬取、逐次手动开关。</li>
-          <li><b>「截图不能太快」已升级为代码级硬契约</b>：单域名串行 1 / 每页间隔 ≥ max(15s, 人类阅读静置 12s, Crawl-delay) / 每日 60 / 单批次 10 页 / 冷却 300s / 真实 UA / 每页留痕。「模拟人类」只指<b>人类可读的低频节奏</b>（慢速串行、可核查），<b>不是</b>伪装真人身份或躲风控；UA / IP 轮换、随机抖动规避检测、绕过验证码 / WAF / Cloudflare 一律永久禁止。</li>
-          <li><b>截图测试目标白名单</b>：本地自建测试页（<code>/api/capture/test-page</code>，虚构演示文本）与经核实的练习沙盒 <code>books.toscrape.com</code>（页面自述 Sandbox / scraping purposes、随机价格评分、无真实个人信息，公开声明<b>不是站点书面许可函</b>）；招聘网站与任何其他 host 在代码层硬拒绝。实跑步页间真实等待 ≥15s、位图用完即弃、不解析文本 / 不 OCR / 不入 RAG，<b>不去招聘网站</b>。</li>
-          <li><b>第三轮已接入 B2 生产执行体能力</b>（<code>production_capture.py</code>，九道闸门），但目标只由第三方站点方签发的<b>站点书面许可函回执</b> <code>.privacy/site_licenses/*.json</code> 驱动，并须法务书面结论 <code>B2-legal.json</code> 与注册表 <code>approved</code>；工程侧只读、无许可写入 API，自签发 / 过期 / 格式错误一律 fail-closed。当前两份材料未回、<code>pending_legal</code>，故 <code>production_capture_unlocked=false</code>、生产请求 0，<b>不假造许可、不指向无许可招聘站</b>。真实 UA / robots / 页间 ≥15s / 位图即弃与禁止规避检测一格未放宽。B2 同时保留「手动截图 → 本地 OCR → 仅岗位信息 → 本地 RAG → AI」合规替代链路。</li>
+          <li><b>自动爬取与截图执行体已整体移除</b>：<code>research_capture.py</code> / <code>capture_executor.py</code> / <code>production_capture.py</code> 与所有 <code>/api/capture/*</code> 执行端点全部删除，系统不再访问任何第三方页面、不再有生产采集请求。原 B2 放行 / 限速契约 / 测试目标白名单随执行体一并移除；使用限制条款仍对全部事项统一适用，不因移除而改变任何回执状态。</li>
+          <li><b>知识只由管理员提供</b>：在决策工作台 <code>/workbench.html</code> 的「知识入库」面板粘贴文本，或上传截图由 <b>Tesseract.js 浏览器本地 OCR</b> 识别成文本；位图只在浏览器内存处理，<b>不上传、不落盘</b>，服务端自始至终只接收文本。<code>/api/admin/knowledge/*</code> 按管理员角色鉴权。</li>
+          <li><b>入库链路固定为「PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant」</b>：无论文本还是 OCR 链路都先脱敏再按岗位语境过滤，个人信息整行剔除；写入经 <code>outbound_guard</code> 逐字段 PII / 分级 D / 来源白名单硬校验，可按入库返回的 chunk id 删除。D 级知识只作研究参考，不产出市场级或个人画像结论。数据出境评估与法务书面结论仍待回。</li>
           <li>qwen 已启用（mode=live）但 <code>ALLOW_CLOUD_FOR_USER_DATA=false</code>：云端只收结构化技能字段，C 级原文前置拦截；Q19 / Q21 书面结论仍待回。Q18 所有者已明确<b>维持境外写入允许、不回滚</b>（回执 <code>owner_confirmation</code>，<code>legal_review=pending</code>），出站防护一格未放宽，数据出境评估仍待回。<b>BGE 本地语义向量已恢复</b>：独立依赖目录 <code>.bge_env</code>（transformers 4.49.0 / ST 3.4.1）避开主环境混合损坏并按官方 modules.json 加载 CLS pooling；user 侧为 512 维本地语义向量、零云端调用，public 侧为与既有 1024 维 Qdrant 集合保持一致仍优先 DashScope（集合维度不符时明确拒绝写入，不静默降级）。</li>
           <li>语音：服务端零音频上传、无音频上传端点；<b>浏览器 ASR 可能由厂商云端完成</b>，音频可能离开设备，不承诺「音频不出设备」。</li>
         </ul>
