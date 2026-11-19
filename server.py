@@ -534,6 +534,11 @@ async def guard(request: Request, call_next):
             length = 0
         if length > limit:
             return fail(413, "BAD_BODY_SIZE")
+        # chunked 请求没有 Content-Length，可绕过上面的限额。本项目所有正常客户端
+        # 都带 Content-Length，故对 chunked 直接拒绝（不消费流，避免影响下游解析）。
+        transfer = (request.headers.get("transfer-encoding") or "").lower()
+        if "chunked" in transfer:
+            return fail(413, "BAD_BODY_SIZE")
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -591,9 +596,14 @@ def _page_needs_login(path: str) -> bool:
 # 令牌只存 httpOnly cookie；响应体不返回令牌本身，避免被 JS/XSS 读取。
 # ---------------------------------------------------------------------------
 def _set_session_cookie(response: JSONResponse, token: str) -> None:
+    # 传输属性按环境配置：本地 http 默认 secure=false；正式 https 部署须设 AUTH_COOKIE_SECURE=true
+    samesite = (secure_config.cfg.get("AUTH_COOKIE_SAMESITE", "lax") or "lax").strip().lower()
+    if samesite not in ("lax", "strict", "none"):
+        samesite = "lax"
     response.set_cookie(
-        key=auth.COOKIE_NAME, value=token, httponly=True, samesite="lax",
-        max_age=cfg_session_ttl(), path="/", secure=False,  # 本地 http；正式部署应由反代终止 TLS 后置 secure
+        key=auth.COOKIE_NAME, value=token, httponly=True, samesite=samesite,
+        max_age=cfg_session_ttl(), path="/",
+        secure=secure_config.cfg.flag("AUTH_COOKIE_SECURE", False),
     )
 
 
@@ -1941,6 +1951,13 @@ def main():
     if not secure_config.secret("ZHIYIN_PII_KEY"):
         print("持久密钥警告: 未设置 ZHIYIN_PII_KEY —— PII 保险库密钥为进程内随机，"
               "服务重启后旧密文将无法解密；正式部署请在 .env 配置固定强随机值")
+    # 写端点鉴权强度：optional 下未带令牌的请求会被放行，避免部署者误以为已受保护
+    if auth.mode() != "required":
+        print("鉴权模式警告: AUTH_MODE=%s —— 写端点对匿名请求放行（仅页面级强制登录生效）；"
+              "正式部署请设 AUTH_MODE=required" % auth.mode())
+    if not secure_config.cfg.flag("AUTH_COOKIE_SECURE", False):
+        print("Cookie 提示  : AUTH_COOKIE_SECURE=false —— 会话 cookie 未标记 Secure，"
+              "https 正式部署请设为 true")
     print("凭据状态   : 来源 %s · 密钥仅在本进程内存，不会下发或打印" % ls["credential_source"])
     print("按 Ctrl+C 停止")
     uvicorn.run(app, host=args.host, port=args.port, access_log=False, log_level="warning")

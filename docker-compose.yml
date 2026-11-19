@@ -28,6 +28,9 @@ services:
       # 一旦设置不可更改，否则旧账号 / 旧密文将永久无法解开。未设置时服务启动会打印警告。
       AUTH_SECRET: ${AUTH_SECRET:-}
       ZHIYIN_PII_KEY: ${ZHIYIN_PII_KEY:-}
+      AUTH_MODE: ${AUTH_MODE:-optional}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
       LLM_PROVIDER: qwen
       LLM_ENABLED: ${LLM_ENABLED:-false}
       QWEN_API_KEY: ${QWEN_API_KEY:-}

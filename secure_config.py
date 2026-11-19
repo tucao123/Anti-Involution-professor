@@ -88,6 +88,9 @@ DEFAULTS: dict[str, str] = {
     "AUTH_DEMO_ENABLED": "true",   # 未配置真实微信/GitHub 凭据时开放标注清楚的演示快捷登录
     "AUTH_REQUIRE_LOGIN": "true",  # 页面级强制登录：未登录访问工作台自动跳转登录页
     "AUTH_LOCAL_ACCOUNTS": "true", # 本地账号注册/登录/改密（用户名或邮箱 + 密码）
+    # 会话 cookie 传输属性：本地 http 保持 secure=false；正式 https 部署须置 true。
+    "AUTH_COOKIE_SECURE": "false",
+    "AUTH_COOKIE_SAMESITE": "lax", # 跨站部署 + https 时可改为 none（须同时 secure=true）
 }
 
 SECRET_KEYS = frozenset({

@@ -124,9 +124,26 @@ def _decrypt(blob: str, slot: str) -> dict[str, Any] | None:
         return None
 
 
+# 过期条目清理节流：避免每次登录都全量扫描，最多每 60 秒清一次
+_LAST_PRUNE = 0.0
+
+
+def _prune_fails(now: float) -> None:
+    global _LAST_PRUNE
+    if now - _LAST_PRUNE < 60:
+        return
+    _LAST_PRUNE = now
+    for key, (_cnt, until) in list(_FAILS.items()):
+        # 锁定已过期且距最后尝试很久的项直接丢弃，防止字典无界增长
+        if until and until <= now:
+            _FAILS.pop(key, None)
+
+
 def _guard(slot: str) -> None:
+    now = time.time()
+    _prune_fails(now)
     cnt, until = _FAILS.get(slot, (0, 0.0))
-    if until > time.time():
+    if until > now:
         raise AccountError("TOO_MANY_ATTEMPTS", "尝试次数过多，请稍后再试", 429)
 
 
