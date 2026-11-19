@@ -676,6 +676,25 @@ const LS={board:'zhiyin.jtbd.board',mat:'zhiyin.jtbd.materials',learn:'zhiyin.jt
 function toast(msg){const t=$('#toast');t.innerHTML=msg;t.classList.add('show');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+/* 校验"用户确实填写了"：拒绝空值 / 与输入框示例(placeholder)雷同的内容。
+   目的：框里那句灰色示例文字不能被当成回答提交。规范化时去掉空白与常见标点，
+   既能挡住原样复制，也能挡住只改了标点的变体；不做模糊语义判断，避免误伤正常回答。 */
+function normSample(s){return String(s||'').replace(/[\s，,。.、；;：:！!？?（）()「」“”"']/g,'')}
+function isSampleCopy(el){
+  if(!el)return false;
+  const raw=(el.value||'').trim();
+  if(!raw)return false;
+  const ph=(el.getAttribute('placeholder')||'').trim();
+  return !!(ph&&normSample(raw)===normSample(ph));
+}
+function typedAnswer(el,minLen){
+  if(!el)return {ok:false,msg:'请先填写你的回答'};
+  const raw=(el.value||'').trim();
+  if(!raw)return {ok:false,msg:'请先在输入框写下你的真实回答'};
+  if(isSampleCopy(el))return {ok:false,msg:'输入框里是示例提示，请删掉后填写你自己的回答'};
+  if(minLen&&raw.length<minLen)return {ok:false,msg:'请至少写 '+minLen+' 个字的具体回答'};
+  return {ok:true,val:raw};
+}
 const tags=o=>Object.entries(o||{}).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>
   '<span class="tag"><b>'+esc(k)+'</b> '+esc(typeof v==='object'?(Array.isArray(v)?v.join(' / '):Object.keys(v).join(' / ')):v)+'</span>').join('');
 /* 把样本热度转成「这个岗位该补什么」，不再解释工具和人的分工 */
@@ -1079,6 +1098,7 @@ $$('.iv-mode').forEach(b=>b.onclick=()=>{
 });
 $('#ivStart').onclick=async()=>{
   if(!$('#ivAck').checked){toast('请先勾选用途确认');return}
+  if(isSampleCopy($('#ivProj'))){toast('"你的真实项目"里是示例文字，请换成你自己的项目再开始');return}
   const role=$('#ivRole').value.trim()||'目标岗位', proj=$('#ivProj').value.trim();
   // 上一轮洞察对齐提炼出的补学缺口：带进面试，让项目追问/压力面围绕短板发问
   IV.gaps=((INSIGHT&&INSIGHT.gaps)||[]).slice(0,8).map(x=>String(x||'').trim()).filter(Boolean).map(x=>x.slice(0,80));
@@ -1128,14 +1148,16 @@ async function drawIvQuestion(role,proj){
     '<div class="field" style="margin-top:18px"><label style="color:#c9c9c3">你的回答（引用自己的话，不用编）</label>'+
     '<textarea id="ivAns" rows="4" placeholder="说清：做了什么、为什么、结果如何。"></textarea></div>'+
     '<button class="btn btn-acid geo" id="ivSubmit">提交这一题 ↗</button></div>';
-  const sBtn=$('#ivSubmit');
-  sBtn.onclick=()=>submitIv(q,$('#ivAns').value,sBtn);
+  const sBtn=$('#ivSubmit'), ansEl=$('#ivAns');
+  sBtn.onclick=()=>submitIv(q,ansEl.value,sBtn,ansEl);
   // 生成题目后自动滚到新题，避免用户找不到作答位置
   sBtn.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-async function submitIv(q,ans,sBtn){
+async function submitIv(q,ans,sBtn,ansEl){
   if(IV.submitting)return;                       // 防连点：上一题反馈未加载完，直接忽略再次点击
-  if((ans||'').trim().length<8){toast('请至少写 8 个字的具体回答');return}
+  const chk=typedAnswer(ansEl||$('#ivAns'),8);   // 必须用户真实填写：拒绝空值 + 拒绝照抄示例文字
+  if(!chk.ok){toast(chk.msg);return}
+  ans=chk.val;
   IV.submitting=true;                            // 立刻上锁，整段流程只跑一次
   const btn=sBtn||$('#ivSubmit');
   if(btn){btn.disabled=true;btn.textContent='提交中…'}   // 即时反馈：一次点击机会 + 加载态
