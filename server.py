@@ -97,6 +97,7 @@ try:
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
     from pydantic import BaseModel, ConfigDict, Field, ValidationError
+    from starlette.concurrency import run_in_threadpool
     import uvicorn
 except ImportError as exc:  # pragma: no cover
     print("缺少依赖：%s" % exc)
@@ -481,6 +482,7 @@ _WRITE_PERSONAL = [
     "/api/vector/search",
     "/api/resume/parse", "/api/resume/parse-text", "/api/resume/withdraw", "/api/resume/delete",
     "/api/me/llm/save", "/api/me/llm/delete", "/api/me/llm/test",
+    "/api/privacy/store", "/api/privacy/delete",
 ]
 _WRITE_ADMIN = [
     "/api/admin/knowledge/ingest", "/api/admin/knowledge/delete",
@@ -559,6 +561,16 @@ async def auth_error(_request: Request, exc: auth.AuthError):
 async def account_error(_request: Request, exc: local_accounts.AccountError):
     """账号层错误：只回显稳定错误码 + 提示，绝不回显账号 / 密码 / 哈希。"""
     return fail(exc.status, exc.code, exc.message)
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(_request: Request, exc: Exception):
+    """兜底：任何未捕获异常都返回统一 JSON，避免前端 r.json() 解析 HTML 抛 Unexpected token。
+
+    内部异常细节只写 stderr 供排查，不回显给客户端（不泄露源码 / 路径 / 凭据）。
+    """
+    sys.stderr.write("  UNHANDLED %s: %s\n" % (type(exc).__name__, exc))
+    return fail(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试")
 
 
 # 页面级强制登录：仅保护应用页面，放行登录页 / API / 静态资源 / 指标端点。
@@ -1112,37 +1124,71 @@ def jtbd_review(req: JtbdReviewRequest):
 # ---------------------------------------------------------------------------
 # 隐私基础设施
 # ---------------------------------------------------------------------------
+def _privacy_identity(request: Request) -> dict[str, Any]:
+    """PII 端点统一身份闸门：fail-closed，与 AUTH_MODE 无关。
+
+    auth.authorize() 在 optional 模式下匿名会放行，保险库不能依赖它；
+    这里直接校验会话，匿名一律 401，避免 PII 明文被匿名读取或写入。
+    """
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    if not ident:
+        raise auth.AuthError("AUTH_REQUIRED", "请先登录后再访问隐私保险库", 401)
+    return ident
+
+
+def _privacy_owns(rec: dict[str, Any] | None, ident: dict[str, Any]) -> bool:
+    """记录归属校验：meta._owner 必须匹配当前 sub；管理员可越过（审计需要）。"""
+    if not rec:
+        return False
+    if ident.get("role") == auth.ROLE_ADMIN:
+        return True
+    return str((rec.get("meta") or {}).get("_owner") or "") == str(ident.get("sub") or "")
+
+
 @app.get("/api/privacy/status")
 def privacy_status():
     return privacy.status()
 
 
 @app.post("/api/privacy/store")
-def privacy_store(req: StoreRequest):
+def privacy_store(req: StoreRequest, request: Request):
+    ident = _privacy_identity(request)
+    meta = dict(req.meta or {})
+    meta["_owner"] = ident.get("sub", "")
     try:
-        result = privacy.store_record(req.fields, req.meta)
+        result = privacy.store_record(req.fields, meta)
     except ValueError:
         return fail(400, "NO_PII_FIELD", "未包含可加密的 PII 字段")
     return {"ok": True, **result}
 
 
 @app.get("/api/privacy/record/{rid}")
-def privacy_read(rid: str, reveal: bool = False):
-    rec = privacy.read_record(rid[:64], reveal)
+def privacy_read(rid: str, request: Request, reveal: bool = False):
+    ident = _privacy_identity(request)
+    rid = rid[:64]
+    # 先用脱敏视图做归属校验，避免匿名/他人凭 id 触发明文解密与审计
+    owned = _privacy_owns(privacy.read_record(rid, False), ident)
+    if not owned:
+        return fail(404, "NOT_FOUND")
+    rec = privacy.read_record(rid, reveal)
     if not rec:
         return fail(404, "NOT_FOUND")
     return {"ok": True, "record": rec}
 
 
 @app.post("/api/privacy/delete")
-def privacy_delete(req: DeleteRequest):
+def privacy_delete(req: DeleteRequest, request: Request):
+    ident = _privacy_identity(request)
+    if not _privacy_owns(privacy.read_record(req.id[:64], False), ident):
+        return fail(404, "NOT_FOUND")
     if not privacy.delete_record(req.id):
         return fail(404, "NOT_FOUND")
     return {"ok": True, "deleted": req.id}
 
 
 @app.get("/api/privacy/audit")
-def privacy_audit():
+def privacy_audit(request: Request):
+    _privacy_identity(request)
     ok, count, first_bad = privacy.verify_chain()
     return {"ok": True, "entries": count, "chain_ok": ok, "first_bad_seq": first_bad}
 
@@ -1543,9 +1589,11 @@ async def resume_parse_endpoint(file: UploadFile = File(...), cloud_enrich: bool
                                 third_party_notice_ack: bool = False):
     """B1：只返回粗粒度岗位信息；文件与原文不落盘、不留存。"""
     data = await file.read()
+    filename = file.filename or ""
     try:
-        return resume_parse.parse(file.filename or "", data, cloud_ack,
-                                  third_party_notice_ack, cloud_enrich)
+        # 解析含同步文件解码 / 可选云端 enrich，放线程池避免阻塞事件循环
+        return await run_in_threadpool(resume_parse.parse, filename, data, cloud_ack,
+                                       third_party_notice_ack, cloud_enrich)
     except resume_parse.ResumeRejected as exc:
         code = str(exc)
         if code.startswith("APPROVAL_GATE_CLOSED"):
@@ -1886,6 +1934,13 @@ def main():
           rag_store.DEFAULT_RETENTION)
     print("采集状态   : 自动爬取 / 自动截图执行体已移除 · 系统不访问任何第三方页面")
     print("出境防护   : /api/vector/guard · 目标/集合/分级/字段/PII/体积锁定 · 凭据与原文不回显")
+    # 持久密钥缺失会静默导致「重启后账号不可读 / PII 密文不可解」，启动时明确告警
+    if not secure_config.secret("AUTH_SECRET"):
+        print("持久密钥警告: 未设置 AUTH_SECRET —— 账号加密密钥为进程内随机，"
+              "服务重启后已注册账号将无法解密；正式部署请在 .env 配置固定强随机值")
+    if not secure_config.secret("ZHIYIN_PII_KEY"):
+        print("持久密钥警告: 未设置 ZHIYIN_PII_KEY —— PII 保险库密钥为进程内随机，"
+              "服务重启后旧密文将无法解密；正式部署请在 .env 配置固定强随机值")
     print("凭据状态   : 来源 %s · 密钥仅在本进程内存，不会下发或打印" % ls["credential_source"])
     print("按 Ctrl+C 停止")
     uvicorn.run(app, host=args.host, port=args.port, access_log=False, log_level="warning")

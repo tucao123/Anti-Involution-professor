@@ -24,6 +24,10 @@ services:
     command: ["python", "server.py", "--host", "0.0.0.0", "--port", "8848"]
     environment: &api-env
       ZHIYIN_HOST: 0.0.0.0
+      # 持久密钥：容器重建后账号仍可解密、PII 密文仍可读。务必在 .env 中设置为固定强随机值，
+      # 一旦设置不可更改，否则旧账号 / 旧密文将永久无法解开。未设置时服务启动会打印警告。
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      ZHIYIN_PII_KEY: ${ZHIYIN_PII_KEY:-}
       LLM_PROVIDER: qwen
       LLM_ENABLED: ${LLM_ENABLED:-false}
       QWEN_API_KEY: ${QWEN_API_KEY:-}

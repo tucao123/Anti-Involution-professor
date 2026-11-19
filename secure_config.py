@@ -96,7 +96,7 @@ SECRET_KEYS = frozenset({
     # 认证密钥：微信应用密钥 / 会话签名密钥 / 管理员密码哈希，一律不回显浏览器。
     "WECHAT_APPID", "WECHAT_APPSECRET", "WECHAT_REDIRECT_URI",
     "GITHUB_CLIENT_ID", "GITHUB_SECRET", "GITHUB_REDIRECT_URI",
-    "AUTH_SECRET", "ADMIN_PASSWORD_HASH",
+    "AUTH_SECRET", "ADMIN_PASSWORD_HASH", "ZHIYIN_PII_KEY",
 })
 
 # 笔记式标签 → 内部键名。只登记本项目会用到的，其余 provider 一律跳过。

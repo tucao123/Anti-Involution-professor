@@ -48,8 +48,15 @@ PII_PATTERNS = {
 
 
 def _load_key() -> tuple[bytes, str]:
-    """密钥来源：环境变量（hex 32 字节 / 任意口令派生）或进程内随机；两者都不落盘。"""
-    raw = os.environ.get("ZHIYIN_PII_KEY")
+    """密钥来源：统一配置（进程环境变量 > .env，hex 32 字节 / 任意口令派生）或进程内随机；都不落盘。"""
+    raw = ""
+    try:
+        import secure_config
+        raw = secure_config.secret("ZHIYIN_PII_KEY") or ""
+    except Exception:
+        pass
+    if not raw:
+        raw = os.environ.get("ZHIYIN_PII_KEY")
     if raw:
         try:
             decoded = bytes.fromhex(raw)
