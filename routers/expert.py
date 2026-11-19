@@ -65,7 +65,8 @@ def expert_context(req: ExpertContextRequest, request: Request):
     try:
         if req.agent == "interview":
             result = mod.for_interview(payload, top_k=req.top_k,
-                                       focus=req.focus, stage=req.stage)
+                                       focus=req.focus, stage=req.stage,
+                                       gaps=req.gaps)
             scene = "interview"
         else:
             result = mod.for_expert(payload, top_k=req.top_k, focus=req.focus,

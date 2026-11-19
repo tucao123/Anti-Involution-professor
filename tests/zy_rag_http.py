@@ -157,8 +157,20 @@ s, j = req("/api/jd/analyze", "POST", {"jd_text": JD, "purpose_ack": True})
 check(s == 200 and j["ok"] and j["grade"] == "C", "JD 解析回归", (s, j.get("error")))
 s, j = req("/api/privacy/status")
 check(s == 200 and j["audit"]["chain_ok"], "隐私状态与审计链回归")
+# 安全加固后 /api/privacy/audit 强制登录：匿名必须 401，登录后才返回审计链
 s, j = req("/api/privacy/audit")
-check(s == 200 and j["chain_ok"], "审计接口回归")
+check(s == 401 and j.get("error") == "AUTH_REQUIRED", "审计接口匿名拒绝 401")
+# 带演示会话访问：验证审计链完整
+import urllib.request as _ur
+from http.cookiejar import CookieJar
+_cj = CookieJar()
+_op = _ur.build_opener(_ur.HTTPCookieProcessor(_cj))
+_st = json.loads(_op.open(_ur.Request(BASE + "/api/auth/wechat/authorize",
+    data=b"{}", headers={"Content-Type": "application/json"}), timeout=15).read())["state"]
+_op.open(_ur.Request(BASE + "/api/auth/wechat/demo/confirm",
+    data=json.dumps({"state": _st}).encode(), headers={"Content-Type": "application/json"}), timeout=15)
+_ch = _op.open(BASE + "/api/privacy/audit", timeout=15).read().decode()
+check(json.loads(_ch).get("chain_ok") is True, "审计接口登录后链完整")
 
 print("\n%s: %d passed, %d failed" % ("ALL RAG HTTP CHECKS PASSED" if FAIL == 0 else "RAG HTTP FAILED", PASS, FAIL))
 raise SystemExit(1 if FAIL else 0)

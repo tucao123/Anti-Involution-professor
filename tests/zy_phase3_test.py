@@ -155,9 +155,13 @@ civ = HB.for_interview(_empty)
 check(civ.get("ok") and civ.get("agent") == "interview_expert" and
       "job_materials" in civ and "talk_materials" in civ,
       "面试专家入口返回岗位 + 话术双路结构")
-# 服务端与前端接线标记
-check('"/api/expert/context"' in srv, "服务端注册统一专家 context 端点")
-check("coach" in srv.split("class LLMRequest", 1)[1].split("class", 1)[0],
+# 服务端与前端接线标记（架构拆分后路由在 routers/，LLMRequest 在 routers/common.py）
+routers_src = "\n".join(
+    p.read_text(encoding="utf-8", errors="ignore")
+    for p in (ROOT / "routers").glob("*.py"))
+common_src = (ROOT / "routers" / "common.py").read_text(encoding="utf-8", errors="ignore")
+check('"/api/expert/context"' in srv + routers_src, "服务端注册统一专家 context 端点")
+check("coach" in common_src.split("class LLMRequest", 1)[1].split("class", 1)[0],
       "LLM 请求白名单接受 coach 任务")
 wb = (ROOT / "workbench.html").read_text(encoding="utf-8", errors="ignore")
 mirror = (ROOT / "web" / "public" / "workbench.html").read_text(encoding="utf-8", errors="ignore")

@@ -227,7 +227,8 @@ def _query_terms(text: str) -> set[str]:
 
 
 def _intent_queries(payload: dict[str, Any], focus: str = "",
-                    stage: str = "", hint: str = "") -> list[str]:
+                    stage: str = "", hint: str = "",
+                    gaps: list[str] | None = None) -> list[str]:
     """把结构化字段拼成单条检索意图。
 
     focus/stage 只来自结构化意图标签或用户岗位技能，不是用户原文；
@@ -242,9 +243,19 @@ def _intent_queries(payload: dict[str, Any], focus: str = "",
 
     skills_txt = " ".join(str(s).strip()[:24] for s in skills if str(s).strip())[:100]
     head = " ".join(x for x in (role, major) if x)
+    gap_txt = " ".join(str(g).strip()[:40] for g in (gaps or []) if str(g).strip())[:120]
     scene = " ".join(x for x in (exp[:90], *(str(j).strip()[:80] for j in jds[:1])) if x)
     intent = " ".join(str(x).strip()[:80] for x in (hint, stage, focus) if str(x).strip())[:120]
-    query = " ".join(x for x in (head, skills_txt, scene, intent) if x).strip()
+    # 岗位信息索引与面试话术索引是两条独立子索引（靠 material_kind 区分），因此查询也要分开：
+    # 岗位字段（head/skills/scene）语义强，若混进话术查询会把向量召回整体带向岗位信息，
+    # 导致话术路命中被 material_kind 过滤成 0。话术路（hint 非空）只用意图词检索通用面试话术
+    # （常见问法 / 应答结构 / 追问 / 压力面）；岗位路（hint 为空）拼装顺序不变。
+    # 洞察缺口 gap_txt 只进岗位路（用于围绕用户待补能力发问），绝不进话术路，
+    # 否则技术词会稀释话术意图、重演话术召回为 0 的老问题。
+    if hint:
+        query = intent
+    else:
+        query = " ".join(x for x in (head, skills_txt, scene, gap_txt, intent) if x).strip()
     return [query[:200]] if len(query) >= 2 else []
 
 
@@ -280,10 +291,11 @@ def _rerank_rows(rows: list[dict[str, Any]], all_terms: set[str],
 
 def _retrieve(payload: dict[str, Any], top_k: int, scene: str,
               kind: str, weights: dict[str, float], rerank_note: str,
-              focus: str = "", stage: str = "", hint: str = "") -> dict[str, Any]:
+              focus: str = "", stage: str = "", hint: str = "",
+              gaps: list[str] | None = None) -> dict[str, Any]:
     """岗位信息 / 面试话术共用的检索与重排骨架，避免两套重复实现。"""
     k = max(1, min(MAX_TOP_K, int(top_k or 6)))
-    queries = _intent_queries(payload, focus=focus, stage=stage, hint=hint)
+    queries = _intent_queries(payload, focus=focus, stage=stage, hint=hint, gaps=gaps)
     if not queries:
         return _empty_context(scene, "无可用检索意图（字段为空）", hint)
 
@@ -389,11 +401,16 @@ def for_insight(payload: dict[str, Any], top_k: int = 6) -> dict[str, Any]:
 
 
 def for_interview(payload: dict[str, Any], top_k: int = 6, focus: str = "",
-                  stage: str = "") -> dict[str, Any]:
-    """面试专家 RAG：岗位信息索引 + 面试话术索引，两路各自召回重排后合并为上下文。"""
+                  stage: str = "", gaps: list[str] | None = None) -> dict[str, Any]:
+    """面试专家 RAG：岗位信息索引 + 面试话术索引，两路各自召回重排后合并为上下文。
+
+    gaps 为洞察对齐产出的补学缺口短句：只参与岗位信息路检索（围绕待补能力找岗位证据），
+    不进话术路，避免技术词稀释话术意图。缺口同时随返回值上送前端展示"围绕哪些缺口在问"。
+    """
+    gap_list = [str(g).strip()[:80] for g in (gaps or []) if str(g).strip()][:8]
     job_ctx = _retrieve(payload, top_k, "interview_expert/job", JOB_KIND,
                         JOB_RERANK_WEIGHTS, JOB_RERANK_NOTE,
-                        focus=focus, stage=stage)
+                        focus=focus, stage=stage, gaps=gap_list)
     talk_ctx = _retrieve(payload, top_k, "interview_expert/talk", TALK_KIND,
                          TALK_RERANK_WEIGHTS, TALK_RERANK_NOTE,
                          focus=focus, stage=stage,
@@ -407,8 +424,10 @@ def for_interview(payload: dict[str, Any], top_k: int = 6, focus: str = "",
         "job_materials": job_ctx["materials"],
         "talk_materials": talk_ctx["materials"],
         "count": len(materials),
+        "gaps": gap_list,
         "trace": {
             "scene": "interview",
+            "gaps_in_job_query": bool(gap_list),
             "queries": queries,
             "rerank": "岗位信息：" + JOB_RERANK_NOTE + "；面试话术：" + TALK_RERANK_NOTE,
             "retrieval": "岗位信息索引 + 面试话术索引，双路检索重排后合并给面试专家",

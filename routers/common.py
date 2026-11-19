@@ -241,6 +241,9 @@ class ExpertContextRequest(BaseModel):
     jds: list[str] = Field(default_factory=list, max_length=5)
     focus: str = Field(default="", max_length=120)
     stage: str = Field(default="", max_length=60)
+    # 洞察对齐产出的补学缺口（本地提炼的短句），面试专家用来对齐发问/反馈/报告方向。
+    # 只作检索与提示词约束，不入库不落盘；每条限长，避免把大段用户原文外发。
+    gaps: list[Annotated[str, Field(max_length=80)]] = Field(default_factory=list, max_length=8)
     top_k: int = Field(default=6, ge=1, le=10)
 
 class JtbdJdItem(BaseModel):

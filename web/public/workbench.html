@@ -1068,7 +1068,7 @@ $('#lrGen').onclick=async()=>{
 };
 
 /* ---- 03 模拟面试（四阶段 · 面试专家 agent：岗位索引 + 话术索引双路重排） ---- */
-let IV={mode:'standard',stage:0,stages:['自我介绍','项目追问','压力面','反问'],sid:null,qa:[],ack:false,materials:[],jobMats:[],talkMats:[],ivCtx:null};
+let IV={mode:'standard',stage:0,stages:['自我介绍','项目追问','压力面','反问'],sid:null,qa:[],ack:false,materials:[],jobMats:[],talkMats:[],ivCtx:null,gaps:[],submitting:false};
 const STAGE_Q={
   standard:['请用一分钟做自我介绍，重点讲与目标岗位相关的经历。','说说你简历里最相关的项目，你具体负责什么？','如果重来，你会怎么改进这个项目？','你还有什么想问我们的？'],
   pressure:['你凭什么觉得自己适合这个岗位？','你项目里的数据结果有什么证据？别泛泛而谈。','你的方案失败了怎么办？你承担什么责任？','最后，你有什么问题？']
@@ -1080,27 +1080,35 @@ $$('.iv-mode').forEach(b=>b.onclick=()=>{
 $('#ivStart').onclick=async()=>{
   if(!$('#ivAck').checked){toast('请先勾选用途确认');return}
   const role=$('#ivRole').value.trim()||'目标岗位', proj=$('#ivProj').value.trim();
+  // 上一轮洞察对齐提炼出的补学缺口：带进面试，让项目追问/压力面围绕短板发问
+  IV.gaps=((INSIGHT&&INSIGHT.gaps)||[]).slice(0,8).map(x=>String(x||'').trim()).filter(Boolean).map(x=>x.slice(0,80));
   IV.stage=0;IV.qa=[];IV.sid=null;IV.ack=true;IV.materials=[];IV.jobMats=[];IV.talkMats=[];IV.ivCtx=null;
   $('#ivResult').innerHTML='';
-  const btn=$('#ivStart');btn.disabled=true;
+  if(IV.submitting)return;                       // 防连点：上一轮面试尚未就绪
+  IV.submitting=true;
+  const btn=$('#ivStart');btn.disabled=true;btn.textContent='生成首题中…';
   try{
     // 面试专家 RAG：岗位信息索引 + 面试话术索引，各自召回重排后合并给面试 agent
+    // gaps 只参与岗位信息路检索（围绕待补能力找证据），不进话术路
     const ctx=await api('/api/expert/context',{
       agent:'interview', target_role:role,
       major:$('#insMajor').value.trim(),
       skills:parsedSkillNames(),
       experience:(proj||expertContextFromInputs()).slice(0,600),
-      focus:proj||role, stage:IV.stages[0], top_k:4});
+      focus:proj||role, stage:IV.stages[0], gaps:IV.gaps, top_k:4});
     IV.ivCtx=ctx;
     IV.jobMats=(ctx.job_materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score,source_id:m.source}));
     IV.talkMats=(ctx.talk_materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score,source_id:m.source}));
     IV.materials=(ctx.materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score,source_id:m.source}));
     $('#ivResult').insertAdjacentHTML('afterbegin','<div class="card" style="font-size:11px;color:var(--gray)">面试专家检索 · 岗位 '+IV.jobMats.length+' 条 / 话术 '+IV.talkMats.length+' 条'+
       (IV.materials.length?'<br>岗位：'+esc(IV.jobMats.map(m=>m.title||m.source_id).join(' / ')||'无')+
-        '<br>话术：'+esc(IV.talkMats.map(m=>m.title||m.source_id).join(' / ')||'无'):'（无命中，按固定题追问）')+'</div>');
+        '<br>话术：'+esc(IV.talkMats.map(m=>m.title||m.source_id).join(' / ')||'无'):'（无命中，按固定题追问）')+
+      (IV.gaps.length?'<br><span style="color:var(--acid)">带入洞察缺口 '+IV.gaps.length+' 条 · 项目追问/压力面将围绕短板发问</span>'+
+        '<br>'+esc(IV.gaps.map((g,i)=>(i+1)+'. '+g).join('；')):'<br>（未做洞察对齐，本轮按岗位方向与项目发问）')+'</div>');
+    // 首题与 RAG 同在锁内生成，期间按钮保持禁用，连点不会起多轮面试
+    await drawIvQuestion(role,proj);
   }catch(e){}
-  finally{btn.disabled=false}
-  await drawIvQuestion(role,proj);
+  finally{btn.disabled=false;btn.textContent='开始面试 ↗';IV.submitting=false}
 };
 async function drawIvQuestion(role,proj){
   const stageName=IV.stages[IV.stage];
@@ -1111,7 +1119,7 @@ async function drawIvQuestion(role,proj){
     const d=await api('/api/llm',{task:'interview_question',payload:{
       stage:stageName, mode:IV.mode==='pressure'?'pressure':'standard', role:role.slice(0,40),
       last_answer:IV.qa.length?IV.qa[IV.qa.length-1].a.slice(0,200):'',
-      materials:IV.materials}});
+      gaps:IV.gaps, materials:IV.materials}});
     if(d&&d.data&&d.data.question)q=d.data.question;
   }catch(e){}
   $('#ivResult').innerHTML+='<div class="card dark" id="ivQ"><div class="meta">'+(IV.stage+1)+' / 4 · '+esc(stageName)+' · '+esc(IV.mode==='standard'?'标准面':'压力面')+'</div>'+
@@ -1120,28 +1128,50 @@ async function drawIvQuestion(role,proj){
     '<div class="field" style="margin-top:18px"><label style="color:#c9c9c3">你的回答（引用自己的话，不用编）</label>'+
     '<textarea id="ivAns" rows="4" placeholder="说清：做了什么、为什么、结果如何。"></textarea></div>'+
     '<button class="btn btn-acid geo" id="ivSubmit">提交这一题 ↗</button></div>';
-  $('#ivSubmit').onclick=()=>submitIv(q,$('#ivAns').value);
+  const sBtn=$('#ivSubmit');
+  sBtn.onclick=()=>submitIv(q,$('#ivAns').value,sBtn);
+  // 生成题目后自动滚到新题，避免用户找不到作答位置
+  sBtn.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-async function submitIv(q,ans){
+async function submitIv(q,ans,sBtn){
+  if(IV.submitting)return;                       // 防连点：上一题反馈未加载完，直接忽略再次点击
   if((ans||'').trim().length<8){toast('请至少写 8 个字的具体回答');return}
+  IV.submitting=true;                            // 立刻上锁，整段流程只跑一次
+  const btn=sBtn||$('#ivSubmit');
+  if(btn){btn.disabled=true;btn.textContent='提交中…'}   // 即时反馈：一次点击机会 + 加载态
   let fb=null;
-  try{fb=await api('/api/llm',{task:'answer_feedback',payload:{question:q.slice(0,200),answer:ans.slice(0,400),mode:IV.mode,materials:IV.materials}})}catch(e){fb=null}
-  const feedback=fb&&fb.data?fb.data.feedback:'已记录。建议按「背景 → 动作 → 结果」补一句可核对的产出。';
-  const tip=fb&&fb.data?fb.data.tip:'下一题试着说清你当时的判断依据。';
-  IV.qa.push({q,a:ans,feedback,tip});
-  $('#ivQ').insertAdjacentHTML('afterend','<div class="card"><div class="meta" style="margin-bottom:10px">逐题反馈 · 只引用你的原话</div>'+
-    '<div class="quote">“'+esc(ans.slice(0,120))+'”</div>'+
-    '<div class="dim"><b>反馈</b>'+esc(feedback)+'</div><div class="dim"><b>下一步</b>'+esc(tip)+'</div></div>');
-  if(IV.stage<3){IV.stage++;await drawIvQuestion($('#ivRole').value.trim()||'目标岗位',$('#ivProj').value.trim())}
-  else await finishIv();
+  try{
+    try{
+      fb=await api('/api/llm',{task:'answer_feedback',payload:{question:q.slice(0,200),answer:ans.slice(0,400),mode:IV.mode,gaps:IV.gaps,materials:IV.materials}});
+    }catch(e){fb=null}
+    const feedback=fb&&fb.data?fb.data.feedback:'已记录。建议按「背景 → 动作 → 结果」补一句可核对的产出。';
+    const tip=fb&&fb.data?fb.data.tip:'下一题试着说清你当时的判断依据。';
+    IV.qa.push({q,a:ans,feedback,tip});
+    const qCard=$('#ivQ');
+    qCard.insertAdjacentHTML('afterend','<div class="card"><div class="meta" style="margin-bottom:10px">逐题反馈 · 只引用你的原话</div>'+
+      '<div class="quote">“'+esc(ans.slice(0,120))+'”</div>'+
+      '<div class="dim"><b>反馈</b>'+esc(feedback)+'</div><div class="dim"><b>下一步</b>'+esc(tip)+'</div></div>');
+    // 自动下滑到刚生成的反馈内容（afterend 插入，紧邻的下一个兄弟即新反馈卡）
+    const fbEl=qCard.nextElementSibling;
+    if(fbEl&&fbEl.scrollIntoView)fbEl.scrollIntoView({behavior:'smooth',block:'center'});
+    if(IV.stage<3){
+      IV.stage++;
+      await drawIvQuestion($('#ivRole').value.trim()||'目标岗位',$('#ivProj').value.trim());
+    }else{
+      await finishIv();
+    }
+  }finally{
+    IV.submitting=false;                         // 无论成败都解锁，避免异常导致永久卡死
+  }
 }
 async function finishIv(){
   let report=null;
-  try{report=await api('/api/llm',{task:'report',payload:{role:($('#ivRole').value.trim()||'目标岗位').slice(0,80),turns:IV.qa.length,mode:IV.mode,materials:IV.materials}})}catch(e){report=null}
+  try{report=await api('/api/llm',{task:'report',payload:{role:($('#ivRole').value.trim()||'目标岗位').slice(0,80),turns:IV.qa.length,mode:IV.mode,gaps:IV.gaps,materials:IV.materials}})}catch(e){report=null}
   const advice=report&&report.data?report.data.advice:['结构：每题按背景→动作→结果三段讲。','证据：给一个可核对的产出或指标。','复盘：准备一条你主动收敛范围的判断。'];
   const anchors=report&&report.data?report.data.anchors:['把「负责数据分析」改成「用 SQL 汇总三个月订单，输出区域看板」。'];
   const bars=IV.qa.map((x,i)=>'<div class="dim"><b>第 '+(i+1)+' 题</b>结构 '+Math.min(5,3+(x.a.length>60?1:0))+'/5 · 证据 '+Math.min(5,2+(/\d|%|结果|提升|完成/.test(x.a)?2:0))+'/5</div>').join('');
   $('#ivResult').insertAdjacentHTML('beforeend','<div class="card"><div class="meta" style="margin-bottom:16px">面试报告 · 能力雷达 / 改进建议 / 简历锚点</div>'+
+    (IV.gaps.length?'<div class="dim" style="color:var(--acid);border-color:var(--acid)">对照洞察缺口：'+esc(IV.gaps.join('；'))+'</div>':'')+
     bars+'<div class="verdict" style="font-size:18px;margin-top:18px">改进建议</div>'+
     advice.map(x=>'<div class="dim"><b>·</b>'+esc(x)+'</div>').join('')+
     '<div class="verdict" style="font-size:18px;margin-top:18px">简历优化锚点</div>'+
