@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="职引者 ZHIYIN · 登录。个人微信扫码，管理员密码登录。">
-<title>登录 · 职引者 ZHIYIN</title>
+<meta name="description" content="职引者 ZHIYIN · 登录 / 注册。账号密码、微信、GitHub 快捷登录，管理员独立密码入口。">
+<title>登录 / 注册 · 职引者 ZHIYIN</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,8 +24,8 @@ button{cursor:pointer}
 ::selection{background:var(--acid);color:var(--acid-ink)}
 :focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 
-.wrap{width:100%;max-width:960px}
-.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:38px}
+.wrap{width:100%;max-width:1040px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px}
 .brand{display:flex;align-items:center;gap:12px}
 .brand-mark{width:26px;height:26px;position:relative;flex-shrink:0}
 .brand-mark::before,.brand-mark::after{content:'';position:absolute;background:var(--acid)}
@@ -36,34 +36,48 @@ button{cursor:pointer}
 .back{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--gray);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:3px}
 .back:hover{color:var(--ink);border-color:var(--ink)}
 
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--ink);background:#fff}
-.panel{padding:clamp(26px,3.4vw,48px)}
-.panel+.panel{border-left:1px solid var(--ink)}
-.eyebrow{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:var(--gray);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.grid{display:grid;grid-template-columns:.85fr 1.15fr;border:1px solid var(--ink);background:#fff;min-height:620px}
+/* 左：品牌陈述 */
+.aside{background:var(--void);color:#f5f5f1;padding:clamp(28px,3vw,46px);display:flex;flex-direction:column;position:relative;overflow:hidden}
+.aside::after{content:'';position:absolute;right:-40px;bottom:-40px;width:220px;height:220px;opacity:.07;
+  background-image:linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px);background-size:22px 22px;transform:rotate(12deg)}
+.eyebrow{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:#8d8d88;margin-bottom:18px;display:flex;align-items:center;gap:12px}
 .eyebrow::before{content:'';width:22px;height:1px;background:var(--acid)}
-.tag{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.14em;padding:5px 9px;border:1px solid var(--ink);margin-bottom:14px}
-.tag.dark{background:var(--void);color:var(--acid);border-color:var(--void)}
-h1{font-size:clamp(30px,3.4vw,46px);font-weight:900;line-height:1.05;letter-spacing:-.05em;margin-bottom:12px}
-h1 .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
-.lede{font-size:13px;line-height:1.75;color:var(--gray);margin-bottom:26px}
+.aside h1{font-size:clamp(38px,4vw,58px);font-weight:900;line-height:1.03;letter-spacing:-.06em;margin-bottom:18px}
+.aside h1 .acid{color:var(--acid)}
+.aside .lede{font-size:13px;line-height:1.85;color:#b8b8b2;max-width:340px}
+.pts{margin-top:auto;display:flex;flex-direction:column;gap:14px;padding-top:34px}
+.pt{display:flex;gap:12px;align-items:flex-start;border-top:1px solid #2a2a2a;padding-top:14px}
+.pt b{font-size:11px;color:var(--acid);letter-spacing:.08em;min-width:22px}
+.pt span{font-size:12px;line-height:1.6;color:#d5d5cf}
+.aside .foot{margin-top:26px;font-size:10px;line-height:1.7;color:#777}
 
-/* 二维码区 */
-.qr-box{position:relative;background:var(--void);aspect-ratio:1/1;max-width:230px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.qr-box::before{content:'';position:absolute;inset:0;opacity:.14;pointer-events:none;
-  background-image:linear-gradient(#444 1px,transparent 1px),linear-gradient(90deg,#444 1px,transparent 1px);background-size:20px 20px}
-.qr{width:170px;height:170px;image-rendering:pixelated;position:relative;z-index:2;background:#fff;padding:8px}
-.qr canvas{display:block;width:100%;height:100%}
-.qr-overlay{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;background:rgba(10,10,10,.82);color:var(--acid);font-size:11px;font-weight:900;letter-spacing:.16em;text-align:center;padding:20px;display:none}
-.qr-box.scanning .qr-overlay{display:flex}
-.corner{position:absolute;width:18px;height:18px;border:2px solid var(--acid);z-index:4}
-.corner.tl{top:10px;left:10px;border-right:0;border-bottom:0}
-.corner.tr{top:10px;right:10px;border-left:0;border-bottom:0}
-.corner.bl{bottom:10px;left:10px;border-right:0;border-top:0}
-.corner.br{bottom:10px;right:10px;border-left:0;border-top:0}
+/* 右：表单区 */
+.panel{padding:clamp(24px,3vw,42px)}
+.tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:24px}
+.tab{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;padding:0 0 12px;margin-right:26px;
+  font-size:12px;font-weight:900;letter-spacing:.06em;color:#999;transition:color .2s,border-color .2s}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-color:var(--acid)}
+.tab.admin{margin-left:auto;color:#a06a00}
+.tab.admin.on{color:#a06a00;border-color:#a06a00}
+.pane{display:none}
+.pane.on{display:block;animation:fade .35s var(--ease)}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h2{font-size:clamp(24px,2.6vw,34px);font-weight:900;letter-spacing:-.05em;line-height:1.1;margin-bottom:8px}
+.sub{font-size:12px;line-height:1.7;color:var(--gray);margin-bottom:22px}
 
-.btn{border:none;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:15px 22px;width:100%;transition:transform .25s var(--ease),background .25s,color .25s}
+.field{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.field label{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gray)}
+.field input{border:1px solid var(--line);padding:13px 14px;font-size:14px;background:#fff;color:var(--ink);transition:border-color .2s}
+.field input:focus{outline:none;border-color:var(--ink)}
+.field .row{display:flex;gap:8px;align-items:center}
+.link{font-size:11px;font-weight:800;color:var(--gray);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:2px;white-space:nowrap}
+.link:hover{color:var(--ink);border-color:var(--ink)}
+
+.btn{border:none;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:14px 20px;width:100%;transition:transform .25s var(--ease),background .25s,color .25s}
 .btn:hover{transform:translateY(-2px)}
-.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .geo{clip-path:polygon(0 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%)}
 .btn-acid{background:var(--acid);color:var(--acid-ink)}
 .btn-acid:hover{background:var(--ink);color:var(--acid)}
@@ -71,22 +85,43 @@ h1 .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
 .btn-ink:hover{background:var(--acid);color:var(--acid-ink)}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)}
 .btn-ghost:hover{background:var(--ink);color:#fff}
+.btn-warn{background:#a06a00;color:#fff}
+.btn-warn:hover{background:var(--ink);color:var(--acid)}
 
-.field{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-.field label{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gray)}
-.field input{border:1px solid var(--line);padding:14px 15px;font-size:14px;background:#fff;color:var(--ink);transition:border-color .2s}
-.field input:focus{outline:none;border-color:var(--ink)}
+.divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:#bbb;font-size:9px;font-weight:900;letter-spacing:.16em}
+.divider::before,.divider::after{content:'';height:1px;background:var(--line);flex:1}
+.social{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sbtn{display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--ink);background:#fff;padding:12px;font-size:12px;font-weight:800;transition:background .2s,color .2s}
+.sbtn:hover{background:var(--ink);color:#fff}
+.sbtn svg{width:17px;height:17px;fill:currentColor}
+.sbtn.wx:hover{background:#07c160;border-color:#07c160;color:#fff}
+
+.msg{font-size:12px;font-weight:700;min-height:18px;margin-top:10px;color:#b00;line-height:1.5}
+.msg.ok{color:#0a7a00}
 .notice{font-size:11px;line-height:1.65;padding:11px 13px;margin-top:14px;border-left:3px solid var(--acid);background:#f6f7ee;color:#555}
 .notice.warn{border-left-color:#e0a800;background:#fff9e8}
-.msg{font-size:12px;font-weight:700;min-height:18px;margin-top:10px;color:#b00}
-.msg.ok{color:#0a7a00}
 .hint{font-size:10px;color:#999;margin-top:12px;line-height:1.6}
-.divider{display:flex;align-items:center;gap:12px;margin:4px 0 20px;color:#bbb;font-size:9px;font-weight:900;letter-spacing:.2em}
-.divider::before,.divider::after{content:'';height:1px;background:var(--line);flex:1}
 
-@media(max-width:720px){
+/* 二维码弹层 */
+.qr-modal{position:fixed;inset:0;background:rgba(10,10,10,.6);z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
+.qr-modal.on{display:flex}
+.qr-card{background:#fff;border:1px solid var(--ink);padding:28px;max-width:340px;width:100%;text-align:center;position:relative}
+.qr-card h3{font-size:16px;font-weight:900;margin-bottom:6px}
+.qr-card p{font-size:11px;color:var(--gray);line-height:1.6;margin-bottom:18px}
+.qr-box{position:relative;background:var(--void);aspect-ratio:1/1;max-width:220px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.qr{width:160px;height:160px;image-rendering:pixelated;position:relative;z-index:2;background:#fff;padding:8px}
+.qr canvas{display:block;width:100%;height:100%}
+.corner{position:absolute;width:18px;height:18px;border:2px solid var(--acid);z-index:4}
+.corner.tl{top:10px;left:10px;border-right:0;border-bottom:0}
+.corner.tr{top:10px;right:10px;border-left:0;border-bottom:0}
+.corner.bl{bottom:10px;left:10px;border-right:0;border-top:0}
+.corner.br{bottom:10px;right:10px;border-left:0;border-top:0}
+.qr-close{position:absolute;top:10px;right:12px;background:transparent;border:0;font-size:20px;color:var(--gray);line-height:1}
+.qr-close:hover{color:var(--ink)}
+
+@media(max-width:760px){
   .grid{grid-template-columns:1fr}
-  .panel+.panel{border-left:0;border-top:1px solid var(--ink)}
+  .aside{display:none}
 }
 </style>
 </head>
@@ -95,82 +130,207 @@ h1 .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
   <div class="top">
     <div class="brand">
       <div class="brand-mark"></div>
-      <div class="brand-name">职引者 ZHIYIN<em>SIGN IN</em></div>
+      <div class="brand-name">职引者 ZHIYIN<em>SIGN IN / REGISTER</em></div>
     </div>
     <a class="back" href="/workbench.html">← 返回工作台</a>
   </div>
 
   <div class="grid">
-    <!-- 个人：微信扫码 -->
-    <section class="panel">
-      <div class="eyebrow">个人入口 / Personal</div>
-      <span class="tag" id="wxModeTag">扫码方式检测中</span>
-      <h1>微信扫码<br><span class="acid">登录。</span></h1>
-      <p class="lede" id="wxLede">用微信扫一扫，进入你的决策工作台。个人数据只在本机处理，默认不保存、不外发。</p>
+    <!-- 左：品牌陈述 -->
+    <aside class="aside">
+      <div class="eyebrow">ZHIYIN / 职引者</div>
+      <h1>先看清自己，<br>再<span class="acid">走进岗位。</span></h1>
+      <p class="lede">洞察对齐 → 定向学习 → 模拟面试。用国内岗位样本看清技能缺口，把每一步都走扎实。</p>
+      <div class="pts">
+        <div class="pt"><b>01</b><span>登陆后进入决策工作台，随时用右下角 AI 辅导追问。</span></div>
+        <div class="pt"><b>02</b><span>看板、材料、学习进度只存本机；账号仅用于鉴权，不做画像。</span></div>
+        <div class="pt"><b>03</b><span>本项目仅限研究与学习，不得用于任何商业行为。</span></div>
+      </div>
+      <div class="foot">账号体系：用户名 / 邮箱 + 密码 · 微信扫码 · GitHub 授权 · 管理员独立密码入口</div>
+    </aside>
 
-      <div class="qr-box" id="qrBox">
-        <span class="corner tl"></span><span class="corner tr"></span>
-        <span class="corner bl"></span><span class="corner br"></span>
-        <div class="qr"><canvas id="qrCanvas" width="154" height="154"></canvas></div>
-        <div class="qr-overlay" id="qrOverlay">已生成<br>等待扫码确认</div>
+    <!-- 右：表单 -->
+    <section class="panel">
+      <div class="tabs">
+        <button class="tab on" data-pane="paneLogin">登录</button>
+        <button class="tab" data-pane="paneReg">注册</button>
+        <button class="tab admin" data-pane="paneAdmin">管理员</button>
       </div>
 
-      <button class="btn btn-acid geo" id="wxBtn">生成登录二维码</button>
-      <div class="msg" id="wxMsg"></div>
-      <div class="notice" id="wxNotice" style="display:none"></div>
-    </section>
-
-    <!-- 管理员：密码 -->
-    <section class="panel">
-      <div class="eyebrow">管理入口 / Administrator</div>
-      <span class="tag dark">仅密码登录</span>
-      <h2 style="font-size:clamp(26px,3vw,38px);font-weight:900;letter-spacing:-.04em;margin-bottom:12px">管理者<br>登录。</h2>
-      <p class="lede">管理后台仅支持密码登录，不可用扫码。登录后可读采集设置、出境防护、回执台账等管理面板。</p>
-
-      <form id="adminForm" autocomplete="off">
-        <div class="field">
-          <label>管理员密码</label>
-          <input type="password" id="adminPw" placeholder="请输入管理员密码" required>
+      <!-- 登录 -->
+      <div class="pane on" id="paneLogin">
+        <h2>欢迎回来。</h2>
+        <p class="sub">用账号密码，或用微信 / GitHub 快捷登录。</p>
+        <div class="social">
+          <button class="sbtn wx" id="wxLogin"><svg viewBox="0 0 24 24"><path d="M8.7 3C4.9 3 1.8 5.7 1.8 9.1c0 1.9 1.1 3.6 2.8 4.7l-.7 2.1 2.4-1.2c.7.2 1.5.3 2.4.3h.6a5.5 5.5 0 0 1-.2-1.5c0-3.3 3-6 6.8-6h.5C15.6 5 12.5 3 8.7 3ZM6.5 7.6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm4.4 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>微信登录</button>
+          <button class="sbtn" id="ghLogin"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.58 2 12.23c0 4.51 2.87 8.34 6.84 9.69.5.09.68-.22.68-.49v-1.9c-2.78.62-3.37-1.2-3.37-1.2-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.4 9.4 0 0 1 12 6.9c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9v2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z"/></svg>GitHub 登录</button>
         </div>
-        <button class="btn btn-ink geo" type="submit" id="adminBtn">进入管理后台</button>
-        <div class="msg" id="adminMsg"></div>
-      </form>
-      <div class="notice warn" id="adminNotice" style="display:none"></div>
-      <div class="divider">数据边界</div>
-      <div class="hint">管理凭据只在服务端内存校验，前端不存储密码。所有管理写操作在服务端按角色鉴权；本项目仅限研究与学习，不得用于任何商业行为。</div>
+        <div class="divider">或使用账号密码</div>
+        <form id="loginForm" autocomplete="off">
+          <div class="field"><label>用户名 / 邮箱</label><input type="text" id="loginId" placeholder="请输入用户名或邮箱" required></div>
+          <div class="field"><label>密码</label>
+            <div class="row"><input type="password" id="loginPw" placeholder="密码（至少 8 位）" required>
+            <a class="link" href="#" id="toChange">改密码</a></div>
+          </div>
+          <button class="btn btn-acid geo" type="submit" id="loginBtn">登录 ↗</button>
+          <div class="msg" id="loginMsg"></div>
+        </form>
+        <div class="hint">还没有账号？点上方「注册」创建。首次登录无需邮箱验证（研究学习原型）。</div>
+      </div>
+
+      <!-- 注册 -->
+      <div class="pane" id="paneReg">
+        <h2>创建账号。</h2>
+        <p class="sub">用户名或邮箱 + 密码，注册后自动登录。</p>
+        <form id="regForm" autocomplete="off">
+          <div class="field"><label>用户名或邮箱</label><input type="text" id="regId" placeholder="用户名（3-32 位字母数字下划线）或邮箱" required></div>
+          <div class="field"><label>昵称（选填）</label><input type="text" id="regName" placeholder="页面显示名称" maxlength="40"></div>
+          <div class="field"><label>密码</label><input type="password" id="regPw" placeholder="至少 8 位" required></div>
+          <div class="field"><label>确认密码</label><input type="password" id="regPw2" placeholder="再输入一次" required></div>
+          <button class="btn btn-ink geo" type="submit" id="regBtn">注册并登录 ↗</button>
+          <div class="msg" id="regMsg"></div>
+        </form>
+        <div class="hint">账号只用于登录鉴权，不做用户画像；昵称与邮箱加密存储，密码以 PBKDF2 哈希保存。</div>
+      </div>
+
+      <!-- 改密 -->
+      <div class="pane" id="paneChange">
+        <h2>修改密码。</h2>
+        <p class="sub">需先登录本地账号。第三方快捷登录用户请返回登录页使用对应方式。</p>
+        <form id="changeForm" autocomplete="off">
+          <div class="field"><label>当前密码</label><input type="password" id="oldPw" placeholder="当前密码" required></div>
+          <div class="field"><label>新密码</label><input type="password" id="newPw" placeholder="至少 8 位" required></div>
+          <div class="field"><label>确认新密码</label><input type="password" id="newPw2" placeholder="再输入一次" required></div>
+          <button class="btn btn-ghost geo" type="submit" id="changeBtn">确认修改 ↗</button>
+          <div class="msg" id="changeMsg"></div>
+        </form>
+        <div class="hint" id="changeHint"></div>
+      </div>
+
+      <!-- 管理员：独立密码 -->
+      <div class="pane" id="paneAdmin">
+        <h2 style="color:#a06a00">管理者登录。</h2>
+        <p class="sub">管理后台仅支持独立密码登录，不可用扫码或第三方授权。</p>
+        <form id="adminForm" autocomplete="off">
+          <div class="field"><label>管理员密码</label><input type="password" id="adminPw" placeholder="请输入管理员密码" required></div>
+          <button class="btn btn-warn geo" type="submit" id="adminBtn">进入管理后台 ↗</button>
+          <div class="msg" id="adminMsg"></div>
+        </form>
+        <div class="notice warn" id="adminNotice" style="display:none"></div>
+        <div class="hint">管理凭据只在服务端内存校验，前端不存储密码。所有管理写操作按角色鉴权；本项目仅限研究与学习。</div>
+      </div>
     </section>
+  </div>
+</div>
+
+<!-- 扫码弹层 -->
+<div class="qr-modal" id="qrModal">
+  <div class="qr-card">
+    <button class="qr-close" id="qrClose">×</button>
+    <h3 id="qrTitle">微信扫码登录</h3>
+    <p id="qrDesc">生成二维码…</p>
+    <div class="qr-box" id="qrBox">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <div class="qr"><canvas id="qrCanvas" width="154" height="154"></canvas></div>
+    </div>
+    <button class="btn btn-acid geo" id="qrConfirm" style="display:none">模拟扫码并确认（演示）</button>
+    <div class="msg" id="qrMsg"></div>
   </div>
 </div>
 
 <script>
 const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
 const api=async(path,body)=>{
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
   let d={};try{d=await r.json()}catch(e){}
   return {ok:r.ok,status:r.status,data:d};
 };
+const nextUrl=()=>{
+  const p=new URLSearchParams(location.search).get('next');
+  return (p&&p.startsWith('/')&&!p.startsWith('//'))?p:'/workbench.html';
+};
+const enter=()=>location.href=nextUrl();
 
-let authState=null;
+// Tab 切换
+function showPane(id){
+  $$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.pane===id));
+  $$('.pane').forEach(p=>p.classList.toggle('on',p.id===id));
+  if(id==='paneChange')checkSession();
+}
+$$('.tab').forEach(t=>t.onclick=()=>showPane(t.dataset.pane));
+
+// 已登录则给出改密入口提示
+async function checkSession(){
+  try{
+    const d=await (await fetch('/api/auth/session')).json();
+    if(d.logged_in&&d.has_local_password){
+      $('#changeHint').textContent='当前已登录本地账号：'+(d.name||'')+'。可直接修改密码。';
+    }else if(d.logged_in){
+      $('#changeHint').textContent='当前为第三方 / 演示身份，无本地密码；请返回对应快捷登录方式。';
+    }else{
+      $('#changeHint').textContent='尚未登录，请先登录本地账号后再改密。';
+    }
+  }catch(e){}
+}
+
+// 登录方式形态
 (async()=>{
   try{
-    const r=await fetch('/api/auth/status');authState=await r.json();
-    const real=authState.wechat?.real_oauth_ready;
-    $('#wxModeTag').textContent=real?'真实微信扫码':'演示扫码 · 非真实微信';
-    $('#wxModeTag').className='tag'+(real?' dark':'');
-    if(!real){
-      $('#wxNotice').style.display='block';
-      $('#wxNotice').innerHTML='<b>演示模式：</b>'+(authState.wechat?.reason||'未配置微信开放平台凭据')+
-        '。点击生成后可用模拟二维码走通登录流程，登录身份会明确标注为演示。';
-    }
-    if(authState.admin?.demo_credential){
-      $('#adminNotice').style.display='block';
-      $('#adminNotice').innerHTML='<b>本机演示凭据：</b>未配置 ADMIN_PASSWORD_HASH，当前仅本机可用演示密码。'+
-        '正式部署须在 .env 配置 pbkdf2 密码哈希（见 README / 技术文档）。';
-    }
-  }catch(e){$('#wxModeTag').textContent='服务未连接'}
+    const p=(await (await fetch('/api/auth/providers')).json()).providers;
+    if(p.admin?.demo){$('#adminNotice').style.display='block';
+      $('#adminNotice').innerHTML='<b>本机演示凭据：</b>未配置 ADMIN_PASSWORD_HASH，仅本机可用演示管理员密码；正式部署须配置哈希。';}
+    if(p.wechat?.mode==='demo'){$('#wxLogin').title='演示模式：非真实微信登录';}
+    if(p.github?.mode==='demo'){$('#ghLogin').title='演示模式：非真实 GitHub 登录';}
+  }catch(e){}
 })();
 
-// 生成一个自包含的伪二维码点阵（确定性，仅视觉占位，不编码任何真实票据）
+// 账号密码登录
+$('#loginForm').onsubmit=async e=>{
+  e.preventDefault();
+  const b=$('#loginBtn'),m=$('#loginMsg');m.className='msg';m.textContent='';b.disabled=true;b.textContent='登录中…';
+  const r=await api('/api/auth/password/login',{identifier:$('#loginId').value.trim(),password:$('#loginPw').value});
+  if(!r.ok){m.textContent='登录失败：'+(r.data.message||r.data.error||r.status);b.disabled=false;b.textContent='登录 ↗';return}
+  m.className='msg ok';m.textContent='登录成功，正在进入…';enter();
+};
+
+// 注册
+$('#regForm').onsubmit=async e=>{
+  e.preventDefault();
+  const b=$('#regBtn'),m=$('#regMsg');m.className='msg';m.textContent='';
+  const pw=$('#regPw').value,pw2=$('#regPw2').value;
+  if(pw!==pw2){m.textContent='两次密码输入不一致';return}
+  b.disabled=true;b.textContent='注册中…';
+  const r=await api('/api/auth/register',{identifier:$('#regId').value.trim(),password:pw,name:$('#regName').value.trim()});
+  if(!r.ok){m.textContent='注册失败：'+(r.data.message||r.data.error||r.status);b.disabled=false;b.textContent='注册并登录 ↗';return}
+  m.className='msg ok';m.textContent='注册成功，正在进入…';enter();
+};
+
+// 改密
+$('#toChange').onclick=e=>{e.preventDefault();showPane('paneChange')};
+$('#changeForm').onsubmit=async e=>{
+  e.preventDefault();
+  const b=$('#changeBtn'),m=$('#changeMsg');m.className='msg';m.textContent='';
+  const nw=$('#newPw').value,nw2=$('#newPw2').value;
+  if(nw!==nw2){m.textContent='两次新密码输入不一致';return}
+  b.disabled=true;b.textContent='提交中…';
+  const r=await api('/api/auth/password/change',{old_password:$('#oldPw').value,new_password:nw});
+  if(!r.ok){m.textContent='修改失败：'+(r.data.message||r.data.error||r.status);b.disabled=false;b.textContent='确认修改 ↗';return}
+  m.className='msg ok';m.textContent='密码已修改，请用新密码重新登录。';
+  setTimeout(()=>{showPane('paneLogin');$('#loginId').value='';$('#loginPw').value=''},1200);
+};
+
+// 管理员独立密码
+$('#adminForm').onsubmit=async e=>{
+  e.preventDefault();
+  const b=$('#adminBtn'),m=$('#adminMsg');m.className='msg';m.textContent='';b.disabled=true;b.textContent='验证中…';
+  const r=await api('/api/auth/admin/login',{password:$('#adminPw').value});
+  if(!r.ok){m.textContent='登录失败：'+(r.data.message||r.data.error||r.status);b.disabled=false;b.textContent='进入管理后台 ↗';return}
+  m.className='msg ok';m.textContent='登录成功，正在进入管理后台…';location.href='/workbench.html#admin';
+};
+
+// ---- 快捷登录：微信 / GitHub（真实授权跳转 or 演示扫码） ----
 function drawQr(seed){
   const c=$('#qrCanvas'),ctx=c.getContext('2d'),N=21,cell=c.width/N;
   ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
@@ -182,46 +342,40 @@ function drawQr(seed){
     if(finder)continue;
     if(rnd()>0.52)ctx.fillRect(x*cell,y*cell,Math.ceil(cell),Math.ceil(cell));
   }
-  // 三个定位角
   const corner=(ox,oy)=>{ctx.fillRect(ox*cell,oy*cell,7*cell,7*cell);ctx.fillStyle='#fff';ctx.fillRect((ox+1)*cell,(oy+1)*cell,5*cell,5*cell);ctx.fillStyle='#0a0a0a';ctx.fillRect((ox+2)*cell,(oy+2)*cell,3*cell,3*cell)};
   corner(0,0);corner(N-7,0);corner(0,N-7);
 }
+function openQr(){ $('#qrModal').classList.add('on'); }
+function closeQr(){ $('#qrModal').classList.remove('on'); $('#qrMsg').textContent=''; }
+$('#qrClose').onclick=closeQr;
+$('#qrModal').onclick=e=>{if(e.target===$('#qrModal'))closeQr()};
 
-$('#wxBtn').addEventListener('click',async()=>{
-  const b=$('#wxBtn'),m=$('#wxMsg');m.className='msg';m.textContent='';b.disabled=true;b.textContent='生成中…';
-  const r=await api('/api/auth/wechat/authorize',{});
-  if(!r.ok){m.textContent='生成失败：'+(r.data.message||r.data.error||r.status);b.disabled=false;b.textContent='重新生成二维码';return}
+async function quickLogin(kind){
+  const m=$('#qrMsg');m.className='msg';m.textContent='';
+  const path=kind==='wx'?'/api/auth/wechat/authorize':'/api/auth/github/authorize';
+  const r=await api(path,{});
+  if(!r.ok){m.textContent='生成失败：'+(r.data.message||r.data.error||r.status);openQr();return}
   const d=r.data;
-  if(d.mode==='real'){
-    // 真实模式：跳转到微信开放平台扫码页
-    location.href=d.authorize_url;return;
-  }
-  // 演示模式：画伪二维码 + 显示「确认扫码」
-  drawQr('zhiyin-demo-'+d.state);
-  $('#qrBox').classList.remove('scanning');
-  b.textContent='模拟扫码并确认（演示）';
-  b.onclick=async()=>{
-    b.disabled=true;b.textContent='确认中…';
-    const c=await api('/api/auth/wechat/demo/confirm',{state:d.state});
-    if(!c.ok){m.textContent='确认失败：'+(c.data.message||c.data.error);b.disabled=false;b.textContent='重新确认';return}
-    m.className='msg ok';m.textContent='演示登录成功，正在进入工作台…';
-    location.href='/workbench.html';
+  if(d.mode==='real'){location.href=d.authorize_url;return}
+  // 演示：画伪二维码 + 确认按钮
+  $('#qrTitle').textContent=(kind==='wx'?'微信':'GitHub')+'演示授权';
+  $('#qrDesc').textContent='演示模式（非真实'+(kind==='wx'?'微信':'GitHub')+'登录）：点击下方按钮模拟扫码确认。';
+  drawQr('zhiyin-'+kind+'-'+d.state);
+  $('#qrConfirm').style.display='block';
+  openQr();
+  $('#qrConfirm').onclick=async()=>{
+    const b=$('#qrConfirm');b.disabled=true;b.textContent='确认中…';
+    const confirmPath=kind==='wx'?'/api/auth/wechat/demo/confirm':'/api/auth/github/demo/confirm';
+    const c=await api(confirmPath,{state:d.state});
+    if(!c.ok){m.textContent='确认失败：'+(c.data.message||c.data.error);b.disabled=false;b.textContent='模拟扫码并确认（演示）';return}
+    m.className='msg ok';m.textContent='演示登录成功，正在进入…';enter();
   };
-  b.disabled=false;
-});
+}
+$('#wxLogin').onclick=()=>quickLogin('wx');
+$('#ghLogin').onclick=()=>quickLogin('gh');
 
-$('#adminForm').addEventListener('submit',async(e)=>{
-  e.preventDefault();
-  const b=$('#adminBtn'),m=$('#adminMsg'),pw=$('#adminPw').value;
-  m.className='msg';m.textContent='';b.disabled=true;b.textContent='验证中…';
-  const r=await api('/api/auth/admin/login',{password:pw});
-  if(!r.ok){
-    m.textContent='登录失败：'+(r.data.message||r.data.error||r.status);
-    b.disabled=false;b.textContent='进入管理后台';return;
-  }
-  m.className='msg ok';m.textContent='登录成功，正在进入管理后台…';
-  location.href='/workbench.html#admin';
-});
+// 从个人中心「修改密码」跳转而来：自动切到改密面板
+if(new URLSearchParams(location.search).get('change')==='1')showPane('paneChange');
 </script>
 </body>
 </html>

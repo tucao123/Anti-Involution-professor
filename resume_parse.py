@@ -9,8 +9,12 @@
 - 不留存：文件只在内存 BytesIO 中解析，**不写任何临时文件、不写 vault、不写 RAG、
   不写审计原文**；原文解析完立即 del；只留一份短 TTL 的粗粒度岗位信息供用户核对。
 - 只要岗位信息 / 不要个人信息 / 不做用户画像：统一走 `job_info.to_coarse_job_profile()`，
-  输出仅含岗位方向、技能方向、级别词、一句概括；不含姓名、联系方式、学校、公司、
-  原文、证据句，也不含匹配度 / 覆盖率 / 能力评分 / 录用预测等画像类字段。
+  输出含求职意向、薪资意向、专业、学历、证书（同义归一去重）、荣誉、技能方向、级别词、
+  一句概括与本次专家上下文——这些是用户主动提供的岗位颗粒度有效信息，用于洞察对齐；
+  个人信息＝姓名 / 手机 / 邮箱 / 证件号 / 出生地 / 住址 / 性别 / 联系方式等身份标识，
+  一律剔除；不含学校、公司、原文、证据句，也不含匹配度 / 覆盖率 / 能力评分 / 薪资预测 /
+  录用预测等画像类字段。岗位字段不写向量库、不长期留存；解析结果在前端以可读卡片展示，
+  不回显 JSON schema。
 - 允许云端解析，但实现为**逐次单独告知同意**：需 `cloud_ack` + `third_party_notice_ack`
   同时为真，且只把已去标识化的粗粒度岗位字段交给云端叙述层，绝不上传原始文件或原文。
   默认关闭；Q19 法务结论若为否定，关掉这个子开关即可，本地解析不受影响。
@@ -146,6 +150,7 @@ def parse(filename: str, data: bytes, cloud_ack: bool = False,
         outbound = {
             "reading": profile["coarse_summary"],
             "focus": [s["name"] for s in profile["skill_areas"][:5]],
+            "career_context": profile.get("expert_context", ""),
         }
         llm.assert_outbound_safe(outbound)
         try:
@@ -185,6 +190,37 @@ def parse(filename: str, data: bytes, cloud_ack: bool = False,
         "note": "文件解析只提供大致岗位信息、不入库个人信息；如需个人画像请走"
                 "用户主动提供 JD / 简历的本地能力对齐链路 /api/jd/analyze。"
                 "云端解析依据项目所有者决策，法务书面结论（Q19）仍未回。",
+    }
+
+
+def parse_text(text: str, purpose: str = "resume") -> dict[str, Any]:
+    """解析浏览器 OCR / 用户粘贴文本 → 只返回结构化岗位字段。
+
+    与 parse() 共用 job_info 的字段闸门和去重归一；不接收文件、不存原文、
+    不写向量库，也不生成用户画像。供截图 OCR 和手动粘贴的「按解析结果刷新」入口使用。
+    """
+    raw = (text or "")[:20000]
+    if not raw.strip():
+        raise ResumeRejected("NO_TEXT_EXTRACTED")
+    digest = hashlib.sha256(raw.encode("utf-8", "ignore")).hexdigest()[:16]
+    try:
+        profile = job_info.to_coarse_job_profile(raw)
+    except job_info.JobInfoRejected:
+        raise ResumeRejected("OUTPUT_CONTAINS_PERSONAL_OR_PROFILING_DATA")
+    finally:
+        raw = ""
+    privacy.audit("resume_text_parsed_job_only", digest,
+                  "purpose=%s vectorized=false raw_retained=false" % (purpose[:20] or "resume"))
+    return {
+        "ok": True,
+        "session_id": "",
+        "job_profile": profile,
+        "data_minimization": job_info.POLICY,
+        "retention": {"raw_text": "none", "file": "none", "derived_profile_ttl_s": 0},
+        "cloud_used": False,
+        "cloud_detail": "仅提取结构化岗位字段；未上传原文，未写入向量库",
+        "note": "岗位相关字段可在下次生成洞察时作为本次专家解读上下文；"
+                "姓名 / 手机 / 邮箱 / 出生地 / 性别等身份信息已剔除。",
     }
 
 

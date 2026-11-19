@@ -40,19 +40,28 @@ DEFAULTS: dict[str, str] = {
     "LLM_ENABLED": "false",
     "QWEN_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "QWEN_MODEL": "qwen-plus",
-    "QWEN_EMBED_MODEL": "text-embedding-v3",
     "QWEN_TIMEOUT": "30",
+    # ---- 本地多模态模型（Ollama / Qwen3-VL，图片不出机） ----
+    "LOCAL_VLM_BASE_URL": "http://127.0.0.1:11434",
+    "LOCAL_VLM_API_STYLE": "ollama",   # ollama 原生 /api/chat（默认，think 控制可靠）| openai /v1/chat/completions
+    "LOCAL_VLM_MODEL": "qwen3-vl:4b-instruct",
+    "LOCAL_VLM_TIMEOUT": "120",
+    "LOCAL_VLM_MAX_TOKENS": "4096",
+    # 模型目录留空：优先用 OLLAMA_MODELS 环境变量，否则走 Ollama 默认目录。
+    # 仅影响 status() 里"模型目录"的展示，不影响解析调用（解析走 Ollama HTTP API）。
+    # 本机若放在自定义目录，请在 .env 配 LOCAL_VLM_MODELS_DIR 或设 OLLAMA_MODELS。
+    "LOCAL_VLM_MODELS_DIR": "",
     # ---- 向量库（Qdrant Cloud） ----
-    "QDRANT_COLLECTION": "zhiyin_public_d",
+    "QDRANT_COLLECTION": "zhiyin_public_d_bge",
     "QDRANT_TIMEOUT": "8",
     "QDRANT_ALLOW_WRITE": "false",
-    # ---- Embedding（BGE 优先，DashScope 次之，hash 兜底） ----
-    "EMBED_BACKEND": "auto",          # auto | bge | dashscope | hash
+    # ---- Embedding（服务端固定本地 BGE，hash 兜底；不向用户开放选择） ----
+    "EMBED_BACKEND": "bge",           # 服务端固定：bge（本地）→ hash（确定性投影）
     "BGE_MODEL": "BAAI/bge-small-zh-v1.5",
     "BGE_DIM": "512",
-    # 默认不自动加载权重：避免 /api/health 或首次检索被数百 MB 的模型下载拖住。
-    # 权重已下载并验证后，把 .env 中该项改为 true 即可让 auto 优先使用本地 BGE。
-    "BGE_AUTOLOAD": "false",
+    # 服务器固定本地 embedding：权重已随镜像 / .bge_env 预置时自动加载。
+    # 仅离线冒烟测试可改为 false（将降级为本地 hash 投影，不冒充语义向量）。
+    "BGE_AUTOLOAD": "true",
     "EMBED_DIM": "512",
     # ---- 三库 ----
     "POSTGRES_HOST": "127.0.0.1",
@@ -76,7 +85,9 @@ DEFAULTS: dict[str, str] = {
     # required：所有受保护写端点必须带有效令牌且角色匹配。正式部署应设 required。
     "AUTH_MODE": "optional",
     "AUTH_SESSION_TTL": "86400",
-    "AUTH_DEMO_ENABLED": "true",   # 未配置真实微信凭据时开放标注清楚的演示扫码
+    "AUTH_DEMO_ENABLED": "true",   # 未配置真实微信/GitHub 凭据时开放标注清楚的演示快捷登录
+    "AUTH_REQUIRE_LOGIN": "true",  # 页面级强制登录：未登录访问工作台自动跳转登录页
+    "AUTH_LOCAL_ACCOUNTS": "true", # 本地账号注册/登录/改密（用户名或邮箱 + 密码）
 }
 
 SECRET_KEYS = frozenset({
@@ -84,6 +95,7 @@ SECRET_KEYS = frozenset({
     "NEO4J_PASSWORD", "DEEPSEEK_API_KEY", "REDIS_URL",
     # 认证密钥：微信应用密钥 / 会话签名密钥 / 管理员密码哈希，一律不回显浏览器。
     "WECHAT_APPID", "WECHAT_APPSECRET", "WECHAT_REDIRECT_URI",
+    "GITHUB_CLIENT_ID", "GITHUB_SECRET", "GITHUB_REDIRECT_URI",
     "AUTH_SECRET", "ADMIN_PASSWORD_HASH",
 })
 

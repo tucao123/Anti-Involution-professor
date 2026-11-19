@@ -1,88 +1,102 @@
 # 职引者 ZHIYIN
 
 给「急着面试却不知道投哪儿」的应届生，一份**能照着做决定的证据清单**。
-主入口是 **决策工作台**（`http://127.0.0.1:8848/workbench.html`），按 `功能以及实现流程.md` 的七大功能重组为左侧 7 模块轨道，
-视觉沿用 HOMETRY 极简等距风不变。
+主入口是 **决策工作台**（`http://127.0.0.1:8848/workbench.html`），左侧 3 步主流程（洞察对齐 → 定向学习 → 模拟面试），
+AI 辅导改为右下角常驻按钮召唤的功能侧栏、任何视图都能随时对话；隐私合规并入个人中心的「用户须知」。
+输入解析已并入「洞察对齐」，解析结果自动带入洞察与面试字段；视觉沿用 HOMETRY 极简等距风不变。
+前端洞察统一以**国内样本**口径呈现，已移除原「样本口径」字段与冗长免责文字，只保留必要讲解。
 
-> **前端按文档 7 模块重组（最新）**：左侧轨道为 ①洞察对齐 ②输入解析 ③定向学习 ④模拟面试
-> ⑤AI 辅导 ⑥材料检索 ⑦隐私合规；投递看板 / 说明 / 个人中心 / 管理后台为辅助入口。
+> **前端模块归属（最新）**：左侧主步骤为 ①洞察对齐（含输入解析）②定向学习 ③模拟面试；
+> AI 辅导是常驻侧栏（右下按钮召唤，不占主视图）；隐私合规并入个人中心「用户须知」；
+> 投递看板 / 说明 / 个人中心 / 管理后台为辅助入口。
+> **定向学习不靠用户自己猜**：要补的技能由「洞察对齐」结果自动带入——优先取 JD 与经历对比得出的
+> `to_add` 缺口，无个人 JD 时用国内样本「低自动化可行性 × 高需求」技能作方向性参考；手改字段不被覆盖。
+> **输入自动流转**：在洞察页粘贴文本，或把简历 图片 / PDF / DOCX 拖到「解析」按钮上（也可点击选文件），
+> 由**本机 Qwen3-VL 视觉模型**抽取求职意向、薪资意向、专业、学历、证书、荣誉、技能方向（含具体技术栈）与项目/实习经历；
+> 解析字段作为方向约束进入 RAG 检索与专家解读。用户手工改过的字段不会被覆盖；姓名、手机、邮箱、证件、
+> 住址、性别等身份信息不读取、不留存、不写入向量库。
+> **材料检索 / 入库只给管理员**：从右上角个人菜单进入「管理后台」，在该页完成向量库检索、知识入库与按 id 删除；用户侧不暴露该入口。
 > 全部功能复用既有 BFF 端点：洞察走 `/api/market` + `/api/jtbd/*` + `/api/llm`（行业专家 agent 解读），
-> 输入走本地 OCR + `/api/resume/parse`，学习路径可勾选（仅本机），面试走 `/api/llm` 四阶段 + `/api/hybrid/search`
-> 素材支撑，辅导走 `/api/coach/chat`，检索走 `/api/hybrid/search`（**稠密路走 Qdrant，本地仅降级**），
-> 隐私走 `/api/privacy/*`。管理页「知识入库」新增 **CSV 解析**（浏览器本地解析成文本）与
-> **模拟面试素材入库**（`job_only=false`，脱敏后保留 STAR 案例全文），两种模式都切片向量化写入 Qdrant。
-> 服务端新增可选字段 `origin=admin_csv|interview_material` 与 `job_only`（默认 true，不影响既有行为）。
+> 输入解析走 `/api/local-vlm/extract`（本机视觉模型，图片不出机），专家上下文走 `/api/insight/context` 与
+> `/api/expert/context`（岗位材料 + 面试话术双索引），学习路径可勾选（仅本机）。
+> **模拟面试深化接入向量库**：开局走 `/api/hybrid/search`（稠密路 Qdrant、本地降级）取脱敏岗位片段，
+> 素材参与三环节——`interview_question` 动态出题、`answer_feedback` 逐题反馈、`report` 最终报告；
+> LLM 不可用时回退固定四阶段题，仍展示素材。只传向量库 D 级脱敏片段 + 岗位/阶段元数据，
+> 用户项目 / 回答原文不作为用户数据字段外发。辅导走 `/api/coach/chat`，
+> 隐私走 `/api/privacy/*`。管理员页新增 **CSV 解析**（浏览器本地解析成文本）与
+> **模拟面试素材入库**（`job_only=false`，脱敏后保留 STAR 案例全文），两种模式都切片向量化写入 Qdrant；
+> 管理员页检索走 `/api/hybrid/search`（**稠密路走 Qdrant，本地仅降级**）。
+> 服务端保留可选字段 `origin=admin_csv|interview_material` 与 `job_only`（默认 true，不影响既有行为）。
 
 
 > **知识来源变更（最新）**：自动爬取与截图执行体已**整体移除**——`research_capture.py` /
 > `capture_executor.py` / `production_capture.py` 及所有 `/api/capture/*` 执行端点全部删除，
-> 系统不再访问任何第三方页面。知识只由**管理员主动提供**：在 `workbench.html` 的「知识入库」
-> 面板粘贴文本，或上传截图由 **Tesseract.js 浏览器本地 OCR** 识别成文本；位图只在浏览器内存
-> 处理、**不上传不落盘**，服务端自始只收文本。入库链路固定为
-> **PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant 云 RAG**（经 `outbound_guard` + Q18 双闸门），
-> 可按入库返回的 chunk id 删除。下方 2026-11-16 B2 决策段落为**历史留档**，其执行体均已移除。
+> 系统不再访问任何第三方页面。知识只由**管理员主动提供**：在管理后台「知识入库」面板粘贴文本 /
+> 上传截图 OCR / 导入 CSV / 导入模拟面试话术。入库链路固定为
+> **PII 脱敏 → 仅岗位信息 → 切片 → 本地 BGE 向量化 → Qdrant 云 RAG**（经 `outbound_guard` + Q18 双闸门），
+> 可按入库返回的 chunk id 删除。用户侧简历解析则走独立的 `/api/local-vlm/extract`（本机视觉模型），
+> 与管理员入库互不影响。下方 2026-11-16 B2 决策段落为**历史留档**，其执行体均已移除。
 
 > **2026-11-16 前端重设计**：JTBD 决策工作台位于 `http://127.0.0.1:8848/workbench.html`
-> （HOMETRY 极简等距视觉，左侧步骤轨道 + 右侧工作区 + 底部操作条），按 `JTBD需求文档.md` v2.0
+> （HOMETRY 极简等距视觉，左侧步骤轨道 + 右侧工作区 + 底部操作条），
 > 实现三态对照（有证据 / 待核实 / 明确缺口 / 未知）、硬条件单独阻断、无百分比总分、
 > 按差距类型分流、针对单个缺口的追问演练与投递看板。
 > 根路径 `/` 与 `/index.html`、`/legacy/index.html` 保留既有 8 视图单页，仅供历史回放与 E2E 契约；
 > 二者共用同一 BFF，不是两套并行产品。详细设计见 `技术文档.md` 的 JTBD 章节。
 
-> **当前状态（Phase 2）**：可运行的产品原型 + 本地 FastAPI BFF + 合规闸门 + 全套可选组件的适配器层。
-> Qdrant / BGE / LangGraph / PostgreSQL / Redis / Neo4j / Celery / Next.js / Prometheus SLO 均已接入，
-> **但全部是「真服务可用则用、不可用则本地降级」**，降级状态会在 `/api/*` 与 `/metrics` 如实标注。
-> 国内市场洞察（A 级）、简历 PDF 解析、语音面试**尚未实现**；请勿把架构页的目标设计误读为运行清单。
+> **当前状态**：可运行的产品原型 + 本地 FastAPI BFF + 合规闸门 + 可选组件适配层。
+> 简历解析已由**本机 Qwen3-VL 视觉模型**承担（图片 / PDF / DOCX 不出机），洞察 / 辅导 / 面试走
+> 用户自带 LLM 的专家 agent + RAG 混合检索；市场洞察只呈现国内样本口径，不预测薪资、不下岗位判决。
+> Qdrant / BGE / PostgreSQL 等外部组件「真服务可用则用、不可用则本地降级」，状态在 `/api/*` 与 `/metrics` 如实标注。
+> 下方带日期的历史决策段落（B1/B2/Q18 等）为**留档**，其采集执行体均已移除。
 
-## 快速启动（零外部依赖，全降级可跑）
+## 快速启动与配置须知
 
-Windows 双击 `start.bat`，或在项目根目录执行：
+### 1. 环境与一行启动
+
+- Python 3.10+；核心依赖仅 4 个：`fastapi / uvicorn / pydantic / cryptography`（见 `requirements.txt`）。
+- Windows 双击 `start.bat`（自动检查并安装依赖），或在项目根目录执行：
 
 ```bash
 python -m pip install -r requirements.txt
 python server.py
 ```
 
-打开 **<http://127.0.0.1:8848/workbench.html>** 进入 JTBD 决策工作台；
-旧版 8 视图单页在 <http://127.0.0.1:8848/>。指定端口：`python server.py --port 8849`；
-容器内用 `python server.py --host 0.0.0.0 --port 8848`（宿主机仍只映射 127.0.0.1）。
-核心依赖只有 4 个：`fastapi / uvicorn / pydantic / cryptography`。
+- 访问 **<http://127.0.0.1:8848/workbench.html>** 进入主入口「决策工作台」；旧版 8 视图单页在 `/`。
+- 端口 / 地址：`python server.py --port 8849` 改端口；容器内 `--host 0.0.0.0 --port 8848`。
+- **先登录再用**：登录页支持「微信扫码演示」与「管理员密码」。未配 `ADMIN_PASSWORD_HASH` 时使用页面标注的本机演示密码（仅 127.0.0.1/::1 可用）。用户 LLM 在「个人中心」自带；知识入库 / 向量检索仅管理员可见。
+- `start.bat` 不复制、不生成、不打印任何密钥。
 
-`start.bat` 会检查 Python 与运行依赖（缺失时自动安装），并提示配置状态。**它不会复制、生成或打印任何密钥。**
+### 2. 配置清单（全部可选，留空走默认值）
 
-### 语言模型：qwen（可选，默认关闭）
+配置来源优先级：进程环境变量 > `--env-file` / `ZHIYIN_ENV_FILE` > 项目根 `.env` > `.zhiyin_key_path` 指向的外部文件。
+复制 `.env.example` 为 `.env` 即可开始；`.env` 已被 gitignore，绝不入库。完整键名与注释见 `.env.example`。
 
-未配置 / 未启用时前端自动降级为规则引擎与内置叙述，7 个视图照常可用。启用步骤：
+| 配置 | 用途 | 默认值 / 说明 |
+|---|---|---|
+| **本地视觉模型（解析必需）** | 简历截图 / PDF / DOCX 在本机识别岗位字段；图片与原文不出本机 | 需本机安装 Ollama 并执行 `ollama pull qwen3-vl:4b-instruct`；`LOCAL_VLM_*` 见 `.env.example`。服务未启动时解析会报错，可直接手写下方字段 |
+| **用户自带 LLM（专家 agent）** | 洞察 / 辅导 / 面试的云端解读，按登录身份隔离 | 个人中心选厂商、端点、模型、API key；key 经 AES-256-GCM 加密写入 `.privacy/user_llm.json`（gitignored），页面看不到完整密钥 |
+| 服务端兜底 LLM | 未自带 key 时的可选后端 | 复制 `.env.example` → `.env`，填 `QWEN_API_KEY` 并设 `LLM_ENABLED=true`（默认 false）；也可 `--env-file` 指定 |
+| 向量库 Qdrant Cloud | 只放 D 级公开岗位样本 / 脱敏技能标签 | `QDRANT_*`；云端写入需 `QDRANT_ALLOW_WRITE=true` **且** `.privacy/approvals/Q18.json` 回执双闸门；只读探测始终允许 |
+| Embedding | RAG 检索与入库向量化 | 服务端固定本地 BGE（`BAAI/bge-small-zh-v1.5`，512 维），用户不可覆盖；`EMBED_BACKEND=bge` |
+| 会话签名 / 账号加密 | 跨重启保持登录与账号可读 | `AUTH_SECRET`（强烈建议配置）；不配则每次启动随机，重启后需重新登录 |
+| 管理员密码哈希 | 管理员密码登录入口 | `python -c "import auth;print(auth.make_admin_hash('你的强密码'))"` 生成后填 `ADMIN_PASSWORD_HASH` |
+| 研究索引跨重启留存 | 加密片段密钥 | 默认最小留存、重启清空；需保留则设 `ZHIYIN_PII_KEY`（32 字节 base64），丢失不可恢复，片段默认 30 天 TTL |
 
-1. 复制 `.env.example` 为 `.env`（已被 `.gitignore` 排除，绝不入库）；
-2. 填入 `QWEN_API_KEY=<DashScope 官方 key>`；若你用的是第三方兼容端点，
-   同时填 `QWEN_BASE_URL=<你的端点>`；
-3. 设 `LLM_ENABLED=true`，重启服务。
+补充约束：
 
-也可用 `ZHIYIN_ENV_FILE` 指向任意位置的 key 文件，或 `python server.py --env-file <路径>` 显式指定。
-配置层支持标准 `KEY=value` 与「标签行 + 下一行才是值」的笔记式文件；只加载本项目需要的键，
-其他 provider 的行一律跳过。`GET /api/config` 只返回「是否配置 / 来源类别 / 形态」，
-**不返回任何密钥值，URL 形态会隐藏云实例主机名**。
-
-> 当前 `key.env` 的 qwen 段是一串 `sk-ws-…` 形态的 key，与 DashScope 官方 `sk-<32hex>` 不符，
-> 因此 `qwen_gate()` 判定端点不可信、默认不外发。填入官方 key 或补全 `QWEN_BASE_URL` 即可解锁。
-> DeepSeek 的 key 仍在兼容读取范围内，但本版默认 provider 已是 qwen。
-
-### 组件凭据
-
-`.env.example` 含全部配置模板。Qdrant Cloud 的 endpoint 与 API key、PostgreSQL 密码已从外部
-`key.env` 读到内存；云端写入由 `QDRANT_ALLOW_WRITE` **与 `.privacy/approvals/Q18.json` 回执双闸门**共同控制（本机已按项目所有者 2026-11-16 决策开启，法务书面结论仍待回）。只读连通性探测始终允许。
-
-### 研究索引的跨重启保留（可选）
-
-默认刻意采用最小留存：密钥只在进程内存，服务重启研究索引自动清空。若确需保留，显式设置 `ZHIYIN_PII_KEY`（32 字节 base64）。密钥必须自行妥善保管并保持不变；丢失后已加密片段不可恢复。片段默认 30 天 TTL，可单文档删除或整库清空。
+- 用户 LLM 端点只允许 https（本地开发可 http 回环），拒绝 URL 内账号 / 查询串、私网与元数据地址；`assert_outbound_safe()` 仍拦截 PII 与 C 级原文，不因自带密钥而放宽。
+- `GET /api/config` 只返回「是否配置 / 来源类别 / 形态」，**不返回任何密钥值**；`credential_boundary` 明示 LLM 用户可选、embedding 服务端固定。
+- 本机视觉模型职责边界：**只解析岗位字段 → 进 RAG 检索增强 → 交云端专家模型生成内容**；embedding 固定服务端本地 BGE，旧 `QWEN_EMBED_MODEL`（text-embedding-v3）已移除。
+- 状态自检端点：`/api/local-vlm/status`（本机模型是否就绪）、`/api/config`（配置形态）、`/api/approvals/status`（回执闸门）。
+- 本地数据都在 gitignored 目录：`.privacy/`（账号、审计、用户 LLM key、审批回执）、`.rag/`、`.stores/`、`.env`、`.ollama-models/`；仓库不含真实密钥或个人数据。
 
 ## 数据与合规口径（不因架构升级而放宽）
 
 | 模式 / 来源 | 分级 | 状态 | 能得出的结论 |
 |---|---|---|---|
-| 技能词频参考（Jobicy / RemoteOK） | D · 全球远程岗 | 可用 | 技能出现率、学习方向；**非国内市场、非同比** |
-| 国内市场洞察 | A · 境内授权数据 | **待授权** | 零数值、零图表、零排序，绝不拿海外样本顶替 |
+| 国内岗位样本（中国公共招聘网计算机类精选 3000，采集时已 PII 清洗） | D · 国内样本 | 可用 | 技能出现率、学习方向；**仅国内样本，不做市场级推断** |
+| 国内市场洞察（市场级统计 / 薪资） | A · 境内授权数据 | **未开放** | 零数值、零图表、零排序，不预测薪资、不下岗位判决 |
 | 用户自带 JD / 手动截图 OCR | C · 用户自带 | 可用 | 仅这一份 JD 的能力差距，不产生市场级统计 |
 | 管理员提供的岗位文本 / 截图 OCR 文本 | D · 脱敏后入库 | 可用 | 岗位知识检索参考；经 PII 脱敏 + 仅岗位信息 + Qdrant 云 RAG |
 | 受控研究采集（历史登记） | B | 执行体已移除 | 来源仍登记为待法务以留档，但不再有任何采集执行能力 |
@@ -91,9 +105,11 @@ python server.py
 **新增云组件的边界**：
 
 - C 级用户自带数据（JD / 简历 / 本地 OCR）**默认不出本机**：`ALLOW_CLOUD_FOR_USER_DATA=false`。
-- Qdrant Cloud 集合 `zhiyin_public_d` **只收 D 级公开岗位样本**；逐条过来源闸门与 PII 扫描，
-  命中即整批拒绝；云端写入开关默认关闭，关闭或不可达时降级本地进程内索引（不落盘、重启清空）。
-- 云端 qwen 只收结构化技能字段；JD 原文、证据短句、简历原文一律前置拦截。
+- Qdrant Cloud 集合 `zhiyin_public_d_bge`（**BGE 本地 512 维**）**只收 D 级公开岗位样本**；
+  逐条过来源闸门与 PII 扫描，命中即整批拒绝；关闭或不可达时降级本地进程内索引（不落盘、重启清空）。
+  旧集合 `zhiyin_public_d`（1024 维，云端模型）保留只读、不再写入，勿与新集合混写。
+- 向量化统一走**本地 BGE**（`EMBED_BACKEND=bge`）：入库与检索同模型同维度，不依赖云端 embedding，
+  无「云端超时导致维度漂移」风险。C 级用户原文仍前置拦截，不外发。
 - BGE 本地语义模型未安装时降级为确定性字符 n-gram 投影，状态如实标注「非语义向量」，**不冒充 BGE**。
 
 ### 项目性质与使用限制（2026-11-16 全项目条款）
@@ -134,7 +150,8 @@ python server.py
 本机已装并生效：`psycopg[binary]`（PostgreSQL 18.7 已连接）、`langgraph`（真 `StateGraph` 接管编排）、`celery`（无 broker 时 eager）；`redis` 客户端与 `neo4j` 驱动已就绪，但服务端未运行仍降级。**「不需要 API / 密钥」的完整清单见 `ROADMAP.md`**。所有可选依赖都在 `requirements-optional.txt`，缺失不影响启动。
 
 新增端点：`/api/config`、`/api/llm/status`、`/api/embedding/status`、`/api/vector/{status,probe,ingest,search,delete,clear-local}`、
-`/api/graph/{status,run}`、`/api/stores/status`、`/api/tasks/{status,dispatch}`、`/api/slo`、`/metrics`。
+`/api/graph/{status,run}`、`/api/stores/status`、`/api/tasks/{status,dispatch}`、`/api/slo`、`/metrics`、
+`/api/resume/parse-text`（OCR / 粘贴文本的岗位字段抽取，不写原文与向量库）。
 原有 `/api/*` 契约全部保留。
 
 ### Next.js 控制台（可选）
@@ -179,21 +196,29 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 不落盘、不外发、不进 RAG / 向量库；「没提供」一律标未知、不编造经历、不输出市场级结论。
 `tests/zy_jtbd_test.py`（38 项）已接入全套回归。
 
-## 登录与分角色（2026-11-16，研究学习原型）
+## 登录与分角色（研究学习原型）
 
-入口 `http://127.0.0.1:8848/login.html`；工作台右上角有「个人按钮」，点开可见个人中心 / 管理后台 / 登录 / 退出。
+**必须先登录才能操作**：未登录访问工作台会被服务端 302 到登录页（前端另有兜底跳转），登录成功按 `next` 回跳；旧版首页 `/` 与 `/index.html` 仅为 E2E 契约与历史回放，不纳入强制登录。入口 `http://127.0.0.1:8848/login.html`，Tab 式界面：登录 / 注册 / 管理员，另有「改密码」入口。工作台右上角个人按钮进个人中心 / 管理后台 / 退出。个人中心可配置自己的大模型 API（厂商 / 端点 / 模型 / key），embedding 仍为服务器固定本地 BGE。
 
-- **个人：微信扫码**。`auth.py` 按微信开放平台标准 OAuth2（`qrconnect` → `code` → `access_token` → `userinfo`）实现。
-  配齐 `WECHAT_APPID` / `WECHAT_APPSECRET` / `WECHAT_REDIRECT_URI`（https 公网回调）即走真实扫码；
-  **未配置时自动降级为本地演示扫码**，页面与登录态都明确标注「演示 / 非真实微信」。openid 只留截断哈希，不落盘、不进画像。
-  > 本地 `127.0.0.1` 无法真实扫码：微信要求已备案的公网回调域名与开放平台应用。这是平台约束，不是实现缺陷。
-- **管理员：仅密码登录**，不提供扫码。密码用 `ADMIN_PASSWORD_HASH`（pbkdf2_sha256）校验，前端不存明文。
-  生成：`python -c "import auth;print(auth.make_admin_hash('你的强密码'))"`。未配置时用本机演示密码（仅 `127.0.0.1/::1` 可用，管理页明确标注）。
+- **个人 · 账号密码**（`local_accounts.py`）：用户名（3-32 位字母数字下划线）或邮箱 + 密码（8-128 位）注册 / 登录 / 改密。
+  密码用标准库 `pbkdf2_hmac`（18 万次、逐账号随机盐）哈希；标识与昵称 AES-GCM 加密落 `.privacy/accounts.json`（gitignored），
+  磁盘上只有不可逆查找索引，无明文账号 / 密码。连续失败 5 次锁定 60 秒。**注册恒为 personal，无任何自我提权到 admin 的路径。**
+  账号只用于鉴权，不产出用户画像、不入向量库 / RAG、不外发，符合「不提取隐私 / 不做用户画像」的边界。
+- **个人 · 微信扫码快捷登录**：`auth.py` 按开放平台标准 OAuth2（`qrconnect` → `code` → `access_token` → `userinfo`）。
+  配齐 `WECHAT_APPID` / `WECHAT_APPSECRET` / `WECHAT_REDIRECT_URI`（https 公网回调）走真实扫码；
+  **未配置时降级为本地演示扫码**，页面与登录态都标注「演示 / 非真实微信」。openid 只留截断哈希。
+- **个人 · GitHub 快捷登录**：标准 OAuth2 授权码流程（`/login/oauth/authorize` → `code` → `/login/oauth/access_token` → `/user`）。
+  配齐 `GITHUB_CLIENT_ID` / `GITHUB_SECRET` / `GITHUB_REDIRECT_URI`（https 回调）走真实授权，scope 仅 `read:user user:email`；
+  **未配置时降级为本地演示授权并明确标注**。GitHub id 只留截断哈希，不落盘。
+  > 本地 `127.0.0.1` 无法走真实第三方登录：微信 / GitHub 都要求已备案的公网回调域名。这是平台约束，不是实现缺陷。
+- **管理员：独立密码登录**，Tab 独立入口，不提供扫码 / 第三方授权。密码用 `ADMIN_PASSWORD_HASH`（pbkdf2 sha256）校验，前端不存明文。
+  生成：`python -c "import auth;print(auth.make_admin_hash('你的强密码'))"`。未配置时用本机演示密码（仅 `127.0.0.1/::1` 可用，页面标注演示）。
 - **会话与鉴权**：HMAC 签名令牌存 httpOnly cookie（JS 读不到）；state 防 CSRF、一次性；登出即进程内撤销。
-  `AUTH_MODE`：`off` 不校验 / `optional`（默认，本地回归）带令牌才校验角色 / `required`（正式部署）所有受保护写端点强制校验。
-  管理员是个人能力的超集。写端点角色映射集中在 `server.py` 的 `_ROLE_FOR_WRITE`，不散落到各端点。
-- 真实凭证 / 密钥只在本进程内存，不写文件、不回显浏览器；`AUTH_SECRET` 不配则每次启动随机（重启即掉登录）。
-- `tests/zy_auth_test.py`（36 项，含 TestClient 分角色 HTTP 用例）已接入全套回归。
+  `AUTH_REQUIRE_LOGIN`（默认 true）控制**页面级**强制登录；`AUTH_MODE`：`off` 不校验 / `optional`（默认，本地回归）带令牌才校验角色 /
+  `required`（正式部署）所有受保护写端点强制校验。管理员是个人能力的超集。写端点角色映射集中在 `server.py` 的 `_ROLE_FOR_WRITE`。
+- 真实凭证 / 密钥只在本进程内存，不写文件、不回显浏览器；`AUTH_SECRET` 不配则每次启动随机（重启即掉登录、本地账号不可读）。
+  正式部署请配置 `AUTH_SECRET` + `AUTH_MODE=required` + 各第三方 OAuth 凭据。
+- `tests/zy_auth_test.py`（36 项，含 TestClient 分角色 HTTP 用例）、`tests/zy_local_accounts_test.py`、`tests/zy_login_flow_test.py` 已接入回归。
 
 ## Phase 3 新增能力（2026-11-15，零密钥）
 
@@ -219,10 +244,11 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 |---|---|---|
 | 代码级回执闸门 | `approval_gate.py`：编号 / 出具方 / 有效期 / 范围 + 注册表或配置双闸门；只读、无自我授权入口；`/api/approvals/status` | 已做 |
 | B1 文件解析 | `resume_parse.py` + `/api/resume/*`：仅 pdf / docx、文件与原文只在内存、解析完即释放、只输出大致岗位信息、有撤回与删除入口；云端解析需逐次单独同意且只发去标识化岗位字段 | 已做（`legal_review=pending`） |
-| 岗位信息抽取 | `job_info.py`：不解析个人信息、只保留岗位方向 / 技能方向 / 级别词；截图 / `local_ocr` 入库时个人信息行整行剔除、不入库 | 已做 |
+| 岗位信息抽取 | `job_info.py`：个人信息＝姓名 / 手机 / 邮箱 / 证件号 / 住址 / 联系方式等身份标识；求职岗位 / 专业 / 证书属于岗位颗粒度信息，**简历解析会读取**并带入洞察对齐，输出这些字段与技能方向 / 级别词；截图 / `local_ocr` 入库链路仍严格剔除个人信息行、不入库；解析结果在前端以可读卡片展示，不暴露 JSON schema | 已做 |
 | 个人画像 | 由用户主动提供 JD / 简历的本地 `/api/jd/analyze` 链路提供（覆盖率 / 技能差距），与截图入库链路分离 | 保留 |
 | Q18 云写入 | `QDRANT_ALLOW_WRITE=true` + `Q18.json` 回执 + 双闸门；实测真实写入成功 | 已做（法务结论待回） |
 | **管理员知识入库** | `knowledge_ingest.py` + `/api/admin/knowledge/{status,ingest,delete}`（管理员角色鉴权）：文本 / 截图 OCR 文本 → PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant；无图片上传端点；可按 chunk id 删除 | 已做（`admin_curated` / D 级 / 浏览器本地 OCR） |
+| **种子数据切片入库** | `ingest_seed_data.py`：读国内岗位精选3000（拆长句走 `job_only=True`）+ 面试话术库.md / 通用话术.csv / 质询流程.csv（`job_only=False`），复用 `knowledge_ingest` 的脱敏 / 过滤 / 闸门，批量写本地 BGE 512 维集合 `zhiyin_public_d_bge`；带 `--dry-run` / `--resume` / `--only` / `--limit`，断点只记稳定 key 不记原文 | 已入库：岗位 2022 条 + 话术 84 条，共 2280 chunk，0 失败 |
 | ~~B2 采集设置~~ | ~~`/api/capture/admin` 默认不自动爬取、逐次手动开关~~ | **已移除**（端点删除） |
 | Q19 / Q21 材料 | `数据出境与公开元数据条款清单.md`：GitHub ToS §H / AUP §5·§6 等需核对条款、单独告知同意模板、DPA 条款清单 | 已做（结论待回） |
 | **全项目使用限制条款** | `usage_policy.py` + `GET /api/project/usage`：条款 `USAGE-RESTRICTION-2026-11-16`，5 份回执顶层 / 状态端点 / 文档 / 界面统一标注；`changes_gate_state=false` | 已做（B1 / Q18 仍启用，Q19 / Q21 / B3 仍 CLOSED） |
@@ -287,12 +313,16 @@ Phase 2 新增 `zy_phase2_test.py`（单元）与 `zy_phase2_http.py`（HTTP）�
 ## 目录
 
 ```
-index.html            单文件前端（7 视图 + 离线降级），零构建
+workbench.html        主入口「决策工作台」（洞察对齐 → 定向学习 → 模拟面试，解析框三合一按钮）
+index.html            旧版 8 视图单页（E2E 契约保留），零构建
 demo-config.js        演示集展示口径（时间戳 / 来源标签），外置可改
-server.py             FastAPI BFF / JSON Schema 校验 / 静态白名单 / 全部路由
+server.py             FastAPI BFF / 服务端校验 / 登录与管理员入库 / 全部路由
 secure_config.py      统一安全配置（凭据仅在内存，视图不泄露值）
-llm.py                qwen provider / 结构化输出契约 / 外发前置拦截
-embedding.py          BGE → DashScope → 本地 hash 三级适配
+local_vlm.py          本机 Qwen3-VL 视觉模型解析（双接口 ollama/openai，图片不出机）
+llm.py                用户自带 LLM + 云端专家 agent prompt / 结构化输出契约 / 外发前置拦截
+user_llm.py           用户自带 LLM 配置：厂商预设 / AES 加密存储 / 端点闸门
+local_accounts.py     本机账号存储（PBKDF2 + AES-256-GCM）
+embedding.py          本地 BGE 向量化（固定 512 维，不依赖云端模型）
 vector_store.py       Qdrant REST 适配 + 本地降级索引 + D 级闸门
 orchestration.py      LangGraph 状态图 + 同语义标准库兼容引擎
 stores/               PostgreSQL / Redis / Neo4j 适配器 + DDL / Cypher
@@ -304,11 +334,13 @@ github_meta.py        A3 GitHub 公开仓库匿名只读元数据（限频 / 回
 web/                  Next.js 控制台（public/legacy 托管既有单页）
 deploy/               SQL / Cypher 初始化、prometheus.yml、alerts.yml、slo.yaml
 Dockerfile            docker-compose.yml  SLO.md
-sources.py            12 源注册表（含 admin_curated）· fail-closed 闸门 · 分级 · 只读策略
-market.py             公开远程岗 D 级适配（确定性统计 + 快照）
+sources.py            源注册表（含 admin_curated）· fail-closed 闸门 · 分级 · 只读策略
+market.py             国内市场静态统计（读 data/domestic_market_stats.json，零网络请求）
 user_jd.py            C 级用户自带 JD：技能抽取 / PII 脱敏 / 原文零落盘
 rag_store.py          本地研究检索：稀疏 TF-IDF / 加密片段 / TTL / 删除
-knowledge_ingest.py   管理员知识入库：文本 / 截图 OCR 文本 → PII 脱敏 → 仅岗位信息 → 切片 → Qdrant
+knowledge_ingest.py   管理员知识入库：文本 / OCR / CSV / 面试话术 → PII 脱敏 → 切片 → 本地 BGE → Qdrant
+ingest_seed_data.py    国内岗位样本种子数据入库脚本
+hybrid.py             混合检索：TF-IDF 稀疏 + BGE 稠密 + RRF 融合 + 精排（洞察/专家/面试三类上下文）
 outbound_guard.py     Q18 出境写入防护：目标 / 集合 / 分级 / 字段 / PII / 体积锁定
 privacy.py            AES-256-GCM / 脱敏 / 一键删除 / 审计哈希链
 tests/                自包含回归套件
@@ -322,7 +354,7 @@ tests/                自包含回归套件
 
 - 前端只在 `localStorage` 保存非敏感 UI 状态（学习进度、视图、JD 标签、面试模式）；**不保存** JD 原文、简历、OCR 文本、面试回答或报告。
 - 演示集的时间戳与来源标签外置在 `demo-config.js`（`window.ZHIYIN_DEMO`）；数据集本体仍是内置样例，不是实时行情。
-- 前端按需从 CDN 加载 Tesseract.js / Google Fonts / Three.js；离线时字体退化、OCR 降级为「直接粘贴文字」。
+- 用户侧简历解析走本机 Qwen3-VL（Ollama），图片 / PDF / DOCX 在浏览器内读成 base64 上传、服务端内存处理，不落盘不外发；本机模型服务未启动时解析会报错，可直接手写下方字段。管理员入库的截图 OCR 与用户侧解析是两条独立链路。
 - 所有外部结论未回之前，本仓库中所有 `blocked` / `pending_*` 状态都是刻意保留的，不是待修的 bug。
 - **五项待书面结论**（B1 / Q18 / Q19 / Q21 / B3）统一见 [`待书面结论事项与回执清单.md`](待书面结论事项与回执清单.md)。
   2026-11-16 项目所有者逐项决策后 **B1 / Q18 已按工程开关启用**（回执 `issuer=项目所有者`、`legal_review=pending`，不等于法务结论）；
@@ -335,7 +367,7 @@ tests/                自包含回归套件
 
 - qwen 已启用但**不代表放宽数据边界**：`ALLOW_CLOUD_FOR_USER_DATA=false`、C 级原文零落盘零外发；Q18 云写入虽已开启，仍只收 D 级公开样本，书面结论未回。
 - **BGE 已恢复（2026-11-16 17:24）**：病因是主环境 `transformers 4.57.6` 与 `sentence-transformers 6.3.0` 版本互斥（后者要求 transformers 5.x）且目录混入两套文件，触发 `_LazyModule` 循环导入。不再覆盖修补主环境，改用 `pip install --no-deps --target=.bge_env` 装干净组合（transformers 4.49.0 / ST 3.4.1 / tokenizers 0.21.0 / hf-hub 0.29.3 / Pillow 11.1.0），`embedding.py` 把 `.bge_env` 前置到 `sys.path`，并把 HF repo id 解析为本地 hub snapshot 绝对路径——否则 huggingface-hub 的 `.no_exist` 缓存标记会让 SentenceTransformer 误判 `modules.json` 不存在、回退成 mean pooling。实测 `/api/embedding/status` 返回 `bge_available=true`、`bge_runtime=isolated:.bge_env`、`bge_model_source=local_hub_snapshot`（模型含 Transformer + Pooling(CLS) + Normalize 三层）、`selected_backend.user=bge`，`embed(scope=user)` 产出 512 维归一化语义向量、`cloud_used=false`。
-  **维度一致性约束**：既有 Qdrant 集合 `zhiyin_public_d` 是按 DashScope `text-embedding-v3` 的 1024 维建立的，BGE 只有 512 维。故 `EMBED_BACKEND=auto` 下 `public` 优先 1024 维 DashScope、`user` 优先本地 BGE；`vector_store.ensure_collection()` 在检测到集合维度不符时明确抛 `COLLECTION_DIM_MISMATCH`，避免 512 维向量发到云端被拒后静默降级为本地写入。`.bge_env/` 是 gitignored 本机产物；**目录不存在时自动沿用主环境并退回原降级链路**，不影响启动。应用再次升级清空主环境时，重跑一次该 `--target` 安装即可恢复。
+  **维度一致性约束（2026-11-18 统一口径）**：当前集合 `zhiyin_public_d_bge` 为本地 BGE 512 维，`EMBED_BACKEND=bge` 为服务器固定配置，public / user 两条链路同模型同维度；不再调用云端 embedding-v3，也不再由 `auto` 在 1024 维 DashScope 与 512 维 BGE 间切换。旧集合 `zhiyin_public_d`（1024 维）保留只读、不再写入。`vector_store.ensure_collection()` 在检测到维度不符时仍明确抛 `COLLECTION_DIM_MISMATCH`。`.bge_env/` 是 gitignored 本机产物；目录不存在时自动沿用主环境并降级本地 hash 投影（如实标注非语义向量）。
 - Docker Desktop 启动被本机安全策略拦截（`wsl.exe` 黑名单），未重试或绕行；Redis / Neo4j 服务端未运行，继续走本地降级。
 - Chrome 的 CDP 远程调试端口在本环境不监听，交互 E2E 用例优雅 SKIP；DOM 静态审计与渲染后 DOM 检查仍通过。
 - **Python 环境会被应用升级重置**：`python` 指向 WorkBuddy 内置解释器（`3.13.12` 是软链，实际 3.13.14）。2026-11-16 升级后 `site-packages` 被清空，BFF 因缺 `cryptography` 无法启动。恢复方式：先 `python -m pip install -r requirements.txt`（核心可一次装），再对 `requirements-optional.txt` 中的包**逐个**执行 `python -m pip install --no-clean "<包名>"`——一次装多个、或让 pip 清理临时目录，都会触发沙箱的 `SAFE_DELETE_BULK_GUARD_ERROR`。BGE 权重在 `~/.cache/huggingface`、干净依赖栈在项目内 `.bge_env/`，两者都不受应用升级影响。彻底隔离建议改用项目级 venv，**尚未实施**。

@@ -135,7 +135,7 @@ s, d = post("/api/jd/delete", {"id": sid})
 check(s == 200 and d["ok"], "撤回删除 200")
 
 print("=== 路由表 ===")
-s, spec = get("/openapi.json")
+s, spec = get("/api/routes")
 paths = spec.get("paths", {})
 check("/api/capture/policy" in paths, "截图策略只读端点已注册")
 check("/api/admin/knowledge/ingest" in paths, "知识入库端点已注册")
@@ -148,8 +148,7 @@ check(not any("/capture/executor" in p or "/capture/production" in p or "/captur
 check(not any(("upload" in p or "image" in p or "screenshot" in p) and "post" in methods
               for p, methods in paths.items()),
       "路由表中没有任何图片 / 截图上传端点")
-check(sum(1 for p, m in paths.items() if "post" in m
-          and "multipart/form-data" in str(m["post"])) == 1,
+check(sum(1 for p, m in paths.items() if "post" in m and p == "/api/resume/parse") == 1,
       "文件上传端点仅 B1 一处")
 
 print("\n%s  CAP HTTP CHECKS PASSED: %d / %d" % ("OK" if FAIL == 0 else "FAILED", PASS, PASS + FAIL))

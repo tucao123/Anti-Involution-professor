@@ -121,7 +121,7 @@ s, badorigin = req("/api/admin/knowledge/ingest", "POST",
                    {"text": "\n".join(JD_LINES) * 2, "origin": "public_api", "purpose_ack": True})
 check(s in (400, 422), "非法来源形态被 Schema/逻辑拒绝", (s, badorigin))
 # 路由表确认：capture 下无 POST，知识入库端点已注册
-s, spec = req("/openapi.json")
+s, spec = req("/api/routes")
 paths = spec.get("paths", {})
 check("/api/admin/knowledge/ingest" in paths and "/api/admin/knowledge/delete" in paths,
       "知识入库 / 删除端点已注册")
@@ -238,9 +238,10 @@ check(emb.get("semantic", {}).get("bge") is True
       "BGE 恢复后用户数据仍不出本机")
 check(str(emb.get("bge_model_source", "")).startswith("local_hub_snapshot"),
       "BGE 按官方 modules.json 加载（非 mean pooling 重建）")
-check((emb.get("selected_backend") or {}).get("public") == "dashscope-text-embedding-v3"
-      and "1024" in str(emb.get("dimension_policy", "")),
-      "public 侧维持 1024 维后端，与既有 Qdrant 集合维度一致")
+check((emb.get("selected_backend") or {}).get("public") == "bge"
+      and "512" in str(emb.get("dimension_policy", ""))
+      and emb.get("cloud_embedding_used") is False,
+      "public / user 统一走服务器固定本地 BGE 512 维，不再使用 embedding-v3")
 
 print("\n=== 回执 / B1 / 管理员 HTTP 回归：PASS %d  FAIL %d ===" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)

@@ -15,7 +15,7 @@ async function probe(path: string): Promise<{ status: number; body: string }> {
 }
 
 const PATHS = [
-  '/api/health', '/api/config', '/api/schema', '/api/sources',
+  '/api/health', '/api/config', '/api/sources',
   '/api/insight/modes', '/api/capture/policy', '/api/research/policy',
   '/api/embedding/status', '/api/vector/status', '/api/vector/probe',
   '/api/llm/status', '/api/graph/status', '/api/stores/status',

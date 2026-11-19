@@ -1,0 +1,134 @@
+{
+  "label": "国内计算机类岗位样本（管理员提供，非爬取）",
+  "samples": 3000,
+  "hit_jobs": 516,
+  "hit_skills": 9,
+  "counts": {
+    "Python": 243,
+    "JavaScript / TypeScript": 69,
+    "Java / Kotlin / Go": 246,
+    "SQL 与数据库": 164,
+    "云原生与 DevOps": 53,
+    "API 与系统集成": 2,
+    "数据分析与统计": 50,
+    "机器学习 / AI": 37,
+    "算法与实验设计": 0,
+    "沟通与客户协作": 0,
+    "产品与用户研究": 0,
+    "内容写作与表达": 0,
+    "团队管理与辅导": 2
+  },
+  "quad": [
+    {
+      "n": "Java / Kotlin / Go",
+      "a": 71.8,
+      "d": 100,
+      "raw": 246
+    },
+    {
+      "n": "Python",
+      "a": 71.8,
+      "d": 99,
+      "raw": 243
+    },
+    {
+      "n": "SQL 与数据库",
+      "a": 71.8,
+      "d": 67,
+      "raw": 164
+    },
+    {
+      "n": "JavaScript / TypeScript",
+      "a": 71.8,
+      "d": 28,
+      "raw": 69
+    },
+    {
+      "n": "云原生与 DevOps",
+      "a": 71.8,
+      "d": 22,
+      "raw": 53
+    },
+    {
+      "n": "数据分析与统计",
+      "a": 73.2,
+      "d": 20,
+      "raw": 50
+    },
+    {
+      "n": "机器学习 / AI",
+      "a": 73.2,
+      "d": 15,
+      "raw": 37
+    },
+    {
+      "n": "API 与系统集成",
+      "a": 71.8,
+      "d": 1,
+      "raw": 2
+    },
+    {
+      "n": "团队管理与辅导",
+      "a": 42.2,
+      "d": 1,
+      "raw": 2
+    }
+  ],
+  "jobs": [
+    {
+      "name": "通用职能",
+      "growth": 93,
+      "lowRisk": 0,
+      "transfer": 100,
+      "score": 58,
+      "reason": "来自管理员提供的国内岗位样本 2801 条；高频技能：Java / Kotlin / Go、Python、SQL 与数据库。",
+      "sourceRef": "国内岗位样本 · 2801 条",
+      "sample": 2801,
+      "basis": "sample_heat"
+    },
+    {
+      "name": "设计与体验",
+      "growth": 6,
+      "lowRisk": 0,
+      "transfer": 67,
+      "score": 22,
+      "reason": "来自管理员提供的国内岗位样本 182 条；高频技能：SQL 与数据库、Java / Kotlin / Go、Python。",
+      "sourceRef": "国内岗位样本 · 182 条",
+      "sample": 182,
+      "basis": "sample_heat"
+    },
+    {
+      "name": "工程与开发",
+      "growth": 0,
+      "lowRisk": 0,
+      "transfer": 67,
+      "score": 20,
+      "reason": "来自管理员提供的国内岗位样本 14 条；高频技能：Python、Java / Kotlin / Go、机器学习 / AI。",
+      "sourceRef": "国内岗位样本 · 14 条",
+      "sample": 14,
+      "basis": "sample_heat"
+    },
+    {
+      "name": "产品与运营",
+      "growth": 0,
+      "lowRisk": 0,
+      "transfer": 33,
+      "score": 8,
+      "reason": "来自管理员提供的国内岗位样本 2 条；高频技能：Python、SQL 与数据库。",
+      "sourceRef": "国内岗位样本 · 2 条",
+      "sample": 2,
+      "basis": "sample_heat"
+    },
+    {
+      "name": "数据与算法",
+      "growth": 0,
+      "lowRisk": 0,
+      "transfer": 33,
+      "score": 7,
+      "reason": "来自管理员提供的国内岗位样本 1 条；高频技能：数据分析与统计。",
+      "sourceRef": "国内岗位样本 · 1 条",
+      "sample": 1,
+      "basis": "sample_heat"
+    }
+  ]
+}

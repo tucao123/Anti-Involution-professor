@@ -9,11 +9,18 @@
           只查 public scope（D 级公开样本）。
 融合：Reciprocal Rank Fusion，score = Σ 1 / (k + rank)，k=60；再按来源分级过滤与去重。
 
+面向专家 agent 的两个逻辑索引（同一 D 级集合内用 material_kind 区分）：
+  - job_info       岗位信息：目标岗位 / 技能 / 项目场景，供岗位专家与 AI 辅导；
+  - interview_talk 面试话术：常见问法 / 应答结构 / 追问流程，供面试专家。
+两者都是「切片 → 检索召回 → 确定性重排 → 脱敏 materials → 专家 agent」，
+不把用户字段写库、不落盘、不进画像；查询文本先经 PII 前置脱敏。
+
 C 级边界：用户自带 JD / 本地 OCR 片段**只允许出现在稀疏路**，且默认不返回；
 稠密路永远不接收 C 级文本，也不把查询原文写入任何库。查询先经 PII 前置脱敏。
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import rag_store
@@ -24,6 +31,19 @@ import vector_store
 RRF_K = 60
 MAX_TOP_K = 10
 DEFAULT_GRADES = ("D",)
+
+JOB_KIND = "job_info"
+TALK_KIND = "interview_talk"
+DATA_POLICY_NOTE = (
+    "岗位字段与提问只作查询条件，不写向量库、不落盘、不进用户画像；"
+    "返回片段均为 D 级公开样本（岗位信息 / 面试话术）。"
+)
+
+# 精排权重固定、无随机、无模型调用；结果可复现可核查。
+JOB_RERANK_WEIGHTS = {"cover": 0.60, "dual": 0.25, "rrf": 0.15, "rank": 0.0}
+TALK_RERANK_WEIGHTS = {"cover": 0.45, "dual": 0.0, "rrf": 0.15, "rank": 0.40}
+JOB_RERANK_NOTE = "词项覆盖率 60% + 双通道一致 25% + RRF 15%（确定性，可复现）"
+TALK_RERANK_NOTE = "词项覆盖率 45% + 召回名次 40% + RRF 15%（话术子索引，确定性可复现）"
 
 
 class InvalidQuery(RuntimeError):
@@ -152,7 +172,7 @@ def search(q: str, top_k: int = 5, include_user_local: bool = False,
             "note": "混合检索只提升召回与排序，不改变数据代表性；"
                     "C 级用户自带文本仅走本地稀疏路，且默认不返回。",
         },
-        "query_scope_note": ("查询已前置脱敏；稠密路 embedding 可能使用云端公开样本向量后端，"
+        "query_scope_note": ("查询已前置脱敏；稠密路 embedding 使用服务器固定本地 BGE，"
                              "但查询文本不入库、不落盘、不进入用户画像。"),
         "disclaimer": "检索结果是脱敏片段，不是分析结论；不得据此得出国内市场、薪资或录用判断。",
     }
@@ -188,6 +208,221 @@ def compare(q: str, top_k: int = 5) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# 专家 agent 统一 RAG 组装：结构化字段 → 查询意图 → 召回 → 双索引精排 → materials
+# ---------------------------------------------------------------------------
+_STOP = frozenset({
+    "的", "了", "和", "与", "及", "在", "是", "有", "对", "把", "为", "从", "到",
+    "这", "那", "个", "些", "并", "也", "都", "而", "或", "等", "中", "上", "下",
+    "the", "and", "for", "with", "you", "are", "this", "that", "our", "from",
+})
+
+
+def _query_terms(text: str) -> set[str]:
+    """从中英混合文本里抽检索词项，用于精排时的覆盖率打分（纯本地、确定性）。"""
+    s = (text or "").lower()
+    en = re.findall(r"[a-z][a-z0-9+#.]{1,}", s)
+    zh = re.findall(r"[\u4e00-\u9fff]{2,4}", s)
+    return {t for t in (en + zh) if len(t) >= 2 and t not in _STOP}
+
+
+def _intent_queries(payload: dict[str, Any], focus: str = "",
+                    stage: str = "", hint: str = "") -> list[str]:
+    """把结构化字段拼成单条检索意图。
+
+    focus/stage 只来自结构化意图标签或用户岗位技能，不是用户原文；
+    search() 内部再统一 PII 脱敏。一次综合查询，语义覆盖靠精排词项匹配补足，
+    避免每条意图都是一次云端往返。
+    """
+    role = str(payload.get("target_role") or "").strip()[:40]
+    major = str(payload.get("major") or "").strip()[:40]
+    skills = payload.get("skills") or []
+    exp = str(payload.get("experience") or "").strip()[:300]
+    jds = payload.get("jds") or []
+
+    skills_txt = " ".join(str(s).strip()[:24] for s in skills if str(s).strip())[:100]
+    head = " ".join(x for x in (role, major) if x)
+    scene = " ".join(x for x in (exp[:90], *(str(j).strip()[:80] for j in jds[:1])) if x)
+    intent = " ".join(str(x).strip()[:80] for x in (hint, stage, focus) if str(x).strip())[:120]
+    query = " ".join(x for x in (head, skills_txt, scene, intent) if x).strip()
+    return [query[:200]] if len(query) >= 2 else []
+
+
+def _empty_context(scene: str, reason: str, hint: str = "") -> dict[str, Any]:
+    return {
+        "ok": True, "agent": scene, "materials": [], "count": 0,
+        "trace": {"scene": scene, "queries": [], "retrieval": reason,
+                  "rerank": "未执行", "data_policy": DATA_POLICY_NOTE,
+                  "query_hint": hint},
+        "disclaimer": "未提供岗位字段，未做检索；用户字段只作查询，不入库不落盘。",
+    }
+
+
+def _rerank_rows(rows: list[dict[str, Any]], all_terms: set[str],
+                 weights: dict[str, float], fetch_size: int, note: str) -> list[dict[str, Any]]:
+    """确定性精排：词项覆盖 + 双通道一致 / 召回名次 + RRF，固定权重，可复现。"""
+    for row in rows:
+        terms = _query_terms(row["title"] + " " + row["text"])
+        cover = len(terms & all_terms) / (len(all_terms) or 1) if all_terms else 0.0
+        dual = 1.0 if len(row["channels"]) >= 2 else 0.0
+        rrf_norm = min(1.0, row["rrf_score"] / 0.1)
+        rank_score = max(0.0, 1.0 - (row["best_rank"] - 1) / max(1, fetch_size - 1))
+        row["rerank_score"] = round(100.0 * (
+            weights["cover"] * cover + weights["dual"] * dual
+            + weights["rrf"] * rrf_norm + weights["rank"] * rank_score), 2)
+        row["coverage"] = round(cover, 4)
+        row["matched_intents"] = row["hit_intents"]
+        row["rrf_score"] = round(row["rrf_score"], 6)
+        row["rerank_note"] = note
+    rows.sort(key=lambda r: (-r["rerank_score"], -r["rrf_score"], r["title"], r["source_id"]))
+    return rows
+
+
+def _retrieve(payload: dict[str, Any], top_k: int, scene: str,
+              kind: str, weights: dict[str, float], rerank_note: str,
+              focus: str = "", stage: str = "", hint: str = "") -> dict[str, Any]:
+    """岗位信息 / 面试话术共用的检索与重排骨架，避免两套重复实现。"""
+    k = max(1, min(MAX_TOP_K, int(top_k or 6)))
+    queries = _intent_queries(payload, focus=focus, stage=stage, hint=hint)
+    if not queries:
+        return _empty_context(scene, "无可用检索意图（字段为空）", hint)
+
+    all_terms: set[str] = set()
+    fused: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    per_query: list[dict[str, Any]] = []
+    backend = "unknown"
+    fetch = min(MAX_TOP_K, max(k * 3, 10))
+
+    for q in queries:
+        all_terms |= _query_terms(q)
+        try:
+            res = search(q, top_k=fetch)
+        except InvalidQuery:
+            per_query.append({"query": q, "hits": 0, "skipped": "too_short"})
+            continue
+        except Exception as exc:
+            per_query.append({"query": q, "hits": 0, "skipped": type(exc).__name__})
+            continue
+        backend = res.get("backends", {}).get("dense", backend)
+        hits = res.get("hits", [])
+        per_query.append({"query": q, "hits": len(hits)})
+        for rank, h in enumerate(hits, 1):
+            hit_kind = vector_store.material_kind_of(
+                str(h.get("title") or ""), str(h.get("material_kind") or ""))
+            if hit_kind != kind:
+                continue
+            key = _key(h) + (hit_kind,)
+            row = fused.setdefault(key, {
+                "source_id": h.get("source_id", ""),
+                "title": h.get("title", ""),
+                "text": str(h.get("text") or "")[:rag_store.MAX_HIT_CHARS],
+                "grade": h.get("grade", "D"),
+                "region": h.get("region", "n/a"),
+                "attribution": h.get("attribution", ""),
+                "kind": hit_kind,
+                "forbidden_claims": list(h.get("forbidden_claims") or []),
+                "channels": [], "rrf_score": 0.0, "hit_intents": 0,
+                "best_rank": rank,
+            })
+            if h.get("grade") not in DEFAULT_GRADES:
+                continue
+            for ch in (h.get("channels") or []):
+                if ch not in row["channels"]:
+                    row["channels"].append(ch)
+            for claim in (h.get("forbidden_claims") or []):
+                if claim not in row["forbidden_claims"]:
+                    row["forbidden_claims"].append(claim)
+            row["rrf_score"] += 1.0 / (RRF_K + rank)
+            row["hit_intents"] += 1
+            row["best_rank"] = min(row["best_rank"], rank)
+
+    rows = [r for r in fused.values() if r["hit_intents"] > 0]
+    rows = _rerank_rows(rows, all_terms, weights, fetch, rerank_note)[:k]
+    materials = [{
+        "title": r["title"],
+        "text": r["text"],
+        "source": r["source_id"],
+        "attribution": r["attribution"],
+        "grade": r["grade"],
+        "kind": r["kind"],
+        "score": r["rerank_score"],
+        "coverage": r["coverage"],
+        "matched_intents": r["matched_intents"],
+        "rank": r["best_rank"],
+        "channels": r["channels"],
+        "forbidden_claims": r["forbidden_claims"],
+    } for r in rows]
+
+    return {
+        "ok": True,
+        "agent": scene,
+        "materials": materials,
+        "count": len(materials),
+        "trace": {
+            "scene": scene,
+            "queries": [q["query"] for q in per_query],
+            "per_query": per_query,
+            "fused_candidates": len(rows),
+            "material_kind": kind,
+            "rerank": rerank_note,
+            "backend": backend,
+            "retrieval": "稀疏 TF-IDF + 稠密向量双路召回 · RRF(k=60) 融合 · "
+                         "D 级过滤 · %s 子索引精排" % ("岗位信息" if kind == JOB_KIND else "面试话术"),
+            "query_hint": hint,
+            "data_policy": DATA_POLICY_NOTE,
+        },
+        "disclaimer": "片段是脱敏后的公开样本，供专家解读方向用；"
+                      "不代表国内市场、薪资或录用判断。",
+    }
+
+
+def for_expert(payload: dict[str, Any], top_k: int = 6, focus: str = "",
+               scene: str = "job_expert") -> dict[str, Any]:
+    """岗位专家 / AI 辅导共用的 RAG 入口：岗位信息索引召回 + 确定性精排。"""
+    return _retrieve(payload, top_k, scene, JOB_KIND,
+                     JOB_RERANK_WEIGHTS, JOB_RERANK_NOTE, focus=focus)
+
+
+def for_insight(payload: dict[str, Any], top_k: int = 6) -> dict[str, Any]:
+    """洞察对齐复用同一岗位专家 RAG 流程（保留旧调用名）。"""
+    return for_expert(payload, top_k, scene="insight")
+
+
+def for_interview(payload: dict[str, Any], top_k: int = 6, focus: str = "",
+                  stage: str = "") -> dict[str, Any]:
+    """面试专家 RAG：岗位信息索引 + 面试话术索引，两路各自召回重排后合并为上下文。"""
+    job_ctx = _retrieve(payload, top_k, "interview_expert/job", JOB_KIND,
+                        JOB_RERANK_WEIGHTS, JOB_RERANK_NOTE,
+                        focus=focus, stage=stage)
+    talk_ctx = _retrieve(payload, top_k, "interview_expert/talk", TALK_KIND,
+                         TALK_RERANK_WEIGHTS, TALK_RERANK_NOTE,
+                         focus=focus, stage=stage,
+                         hint="面试 常见问法 应答结构 追问 压力面")
+    materials = job_ctx["materials"] + talk_ctx["materials"]
+    queries = job_ctx["trace"].get("queries", []) + talk_ctx["trace"].get("queries", [])
+    return {
+        "ok": True,
+        "agent": "interview_expert",
+        "materials": materials,
+        "job_materials": job_ctx["materials"],
+        "talk_materials": talk_ctx["materials"],
+        "count": len(materials),
+        "trace": {
+            "scene": "interview",
+            "queries": queries,
+            "rerank": "岗位信息：" + JOB_RERANK_NOTE + "；面试话术：" + TALK_RERANK_NOTE,
+            "retrieval": "岗位信息索引 + 面试话术索引，双路检索重排后合并给面试专家",
+            "data_policy": DATA_POLICY_NOTE,
+            "indexes": {
+                "job": job_ctx["trace"],
+                "talk": talk_ctx["trace"],
+            },
+        },
+        "disclaimer": "片段是脱敏后的公开样本，供面试专家组织追问与反馈；"
+                      "不预测录用结果，不代表公司真实面试标准。",
+    }
+
+
 def status() -> dict[str, Any]:
     return {
         "ok": True,
@@ -198,7 +433,12 @@ def status() -> dict[str, Any]:
         "default_grades": list(DEFAULT_GRADES),
         "user_data_policy": "C 级仅本地稀疏路，默认不返回；稠密路永不接收 C 级文本",
         "query_redaction": True,
-        "deduplication": "(source_id, title, text[:60]) 归一去重",
+        "deduplication": "(source_id, title, text[:60], material_kind) 归一去重",
         "fallback": "稠密路不可用时仅用稀疏结果，不返回空页或假数据",
+        "expert_agents": {
+            "job_expert": "岗位信息索引 → 确定性重排 → 岗位专家 / AI 辅导",
+            "interview_expert": "岗位信息索引 + 面试话术索引 → 双路重排 → 面试专家",
+        },
+        "material_kinds": list(vector_store.MATERIAL_KINDS),
         "max_top_k": MAX_TOP_K,
     }

@@ -136,6 +136,17 @@ h2{font-size:clamp(26px,3vw,40px);font-weight:900;letter-spacing:-.04em;margin-b
 .btn-ink:hover{background:var(--acid);color:var(--acid-ink)}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)}
 .btn-ghost:hover{background:var(--ink);color:#fff}
+/* 解析按钮 = 选文件 / 拖放 / 解析 三合一 */
+.parse-drop{position:relative;min-height:64px;flex:1 1 320px;flex-direction:column;align-items:flex-start;gap:3px;
+  text-transform:none;letter-spacing:0;border-style:dashed;padding:12px 20px;line-height:1.45}
+.parse-drop .pd-main{font-size:11px;font-weight:900;letter-spacing:.08em}
+.parse-drop .pd-sub{font-size:10px;font-weight:600;color:var(--gray);letter-spacing:0}
+.parse-drop:hover .pd-sub{color:inherit}
+.parse-drop.dragover{background:var(--acid);color:var(--acid-ink);border-style:solid;transform:none}
+.parse-drop.dragover .pd-sub{color:var(--acid-ink)}
+.parse-drop .pd-clear{position:absolute;top:5px;right:7px;font-size:13px;line-height:1;padding:2px 6px;
+  border:1px solid var(--line);cursor:pointer;text-transform:none;letter-spacing:0}
+.parse-drop .pd-clear:hover{background:var(--ink);color:#fff}
 .bar-actions{display:flex;gap:10px}
 
 /* 卡片 / 网格 */
@@ -149,9 +160,9 @@ h2{font-size:clamp(26px,3vw,40px);font-weight:900;letter-spacing:-.04em;margin-b
 .muted{color:var(--gray)}
 .field{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
 .field label{font-size:11px;font-weight:800;letter-spacing:.08em}
-textarea,input[type=text]{width:100%;border:1px solid var(--line);background:var(--bg);padding:14px 16px;
+textarea,input[type=text],input[type=password],select{width:100%;border:1px solid var(--line);background:var(--bg);padding:14px 16px;
   font-size:13px;line-height:1.6;resize:vertical;color:var(--ink);transition:border-color .25s}
-textarea:focus,input[type=text]:focus{outline:none;border-color:var(--ink)}
+textarea:focus,input[type=text]:focus,input[type=password]:focus,select:focus{outline:none;border-color:var(--ink)}
 textarea::placeholder{color:#aaa}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:pointer}
 .consent{display:flex;align-items:flex-start;gap:10px;font-size:11px;line-height:1.6;color:var(--gray);margin:6px 0 20px;cursor:pointer}
@@ -212,11 +223,58 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
 .empty{padding:44px 20px;text-align:center;border:1px dashed var(--line);color:var(--gray);font-size:12px;line-height:1.8}
 
 /* toast */
-.toast{position:fixed;bottom:96px;right:32px;background:var(--void);color:#fff;padding:14px 20px;
+.toast{position:fixed;bottom:160px;right:32px;background:var(--void);color:#fff;padding:14px 20px;
   font-size:11px;font-weight:700;letter-spacing:.03em;z-index:950;transform:translateY(20px);opacity:0;
   transition:all .3s var(--ease);pointer-events:none;max-width:340px;line-height:1.6}
 .toast.show{transform:none;opacity:1}
 .toast b{color:var(--acid)}
+
+/* 常驻 AI 辅导侧栏：右下按钮召唤的可拖动浮动面板，任何视图都能随时对话 */
+.coach-fab{position:fixed;right:32px;bottom:96px;z-index:700;display:flex;align-items:center;gap:10px;
+  background:var(--acid);color:var(--acid-ink);border:1px solid var(--ink);font-size:11px;font-weight:900;
+  letter-spacing:.12em;padding:14px 18px;box-shadow:5px 5px 0 rgba(0,0,0,.18);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%);
+  transition:transform .3s var(--ease),box-shadow .3s var(--ease),opacity .25s var(--ease)}
+.coach-fab:hover{transform:translateY(-4px) rotate(-1deg);box-shadow:7px 9px 0 rgba(0,0,0,.22)}
+.coach-fab i{font-style:normal;font-size:15px;line-height:1;display:inline-block;transition:transform .5s var(--ease)}
+.coach-fab:hover i{transform:rotate(60deg)}
+.coach-fab.gone{opacity:0;transform:scale(.82);pointer-events:none}
+.coach-backdrop{position:fixed;inset:0;background:rgba(10,10,10,.16);z-index:790;
+  opacity:0;pointer-events:none;transition:opacity .35s var(--ease)}
+.coach-backdrop.on{opacity:1}
+.coach-drawer{position:fixed;right:32px;bottom:96px;top:auto;left:auto;z-index:800;
+  width:min(400px,calc(100vw - 24px));height:min(660px,calc(100vh - 120px));
+  background:#fff;border:1px solid var(--ink);display:flex;flex-direction:column;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%);
+  filter:drop-shadow(11px 13px 0 rgba(0,0,0,.15)) drop-shadow(0 18px 34px rgba(0,0,0,.16));
+  opacity:0;transform:translateY(24px) scale(.94) rotate(-1.4deg);pointer-events:none;
+  transition:transform .5s var(--ease),opacity .35s var(--ease),filter .3s var(--ease)}
+.coach-drawer.open{opacity:1;transform:none;pointer-events:auto}
+.coach-drawer.dragging{transform:scale(1.015) rotate(.5deg);transition:none;
+  filter:drop-shadow(20px 24px 0 rgba(0,0,0,.18)) drop-shadow(0 30px 60px rgba(0,0,0,.22))}
+.coach-drawer.snapping{transition:left .3s var(--ease),top .3s var(--ease),transform .5s var(--ease),filter .3s var(--ease)}
+.cd-head{flex-shrink:0;background:var(--void);color:#f5f5f1;padding:16px 18px;
+  display:flex;align-items:center;gap:12px;cursor:grab;user-select:none;touch-action:none;
+  position:relative;overflow:hidden}
+.cd-head::before{content:'';position:absolute;inset:0;opacity:.14;pointer-events:none;
+  background-image:linear-gradient(#444 1px,transparent 1px),linear-gradient(90deg,#444 1px,transparent 1px);
+  background-size:18px 18px}
+.cd-head>*{position:relative;z-index:1}
+.cd-head.grabbing{cursor:grabbing}
+.cd-grip{display:grid;grid-template-columns:repeat(2,3px);gap:3px;flex-shrink:0}
+.cd-grip i{width:3px;height:3px;background:var(--acid);display:block}
+.cd-head .t{font-size:13px;font-weight:900;letter-spacing:.04em}
+.cd-head .t em{display:block;font-style:normal;font-size:9px;letter-spacing:.1em;color:#8d8d88;margin-top:5px}
+.cd-close{background:transparent;border:1px solid #555;color:#f5f5f1;width:30px;height:30px;font-size:16px;line-height:1;
+  margin-left:auto;transition:background .25s,color .25s,transform .3s var(--ease)}
+.cd-close:hover{background:var(--acid);color:var(--acid-ink);border-color:var(--acid);transform:rotate(90deg)}
+.cd-log{flex:1;overflow-y:auto;padding:8px 20px 20px}
+.cd-log .dim b{width:auto;margin-right:10px}
+@keyframes msgIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.cd-log .dim.msg-in{animation:msgIn .35s var(--ease)}
+.cd-foot{flex-shrink:0;border-top:1px solid var(--line);padding:14px 18px 18px;background:var(--bg)}
+.cd-foot textarea{min-height:62px;margin-bottom:12px}
+.cd-meta{font-size:10px;color:var(--gray);margin-top:10px;min-height:14px}
 
 /* 响应式：窄屏把轨道收成顶部条 */
 @media(max-width:860px){
@@ -233,26 +291,25 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
   .actionbar{padding:0 20px;height:70px}
   .hint{display:none}
   .grid2,.grid3{grid-template-columns:1fr}
+  /* 窄屏面板靠近全宽、保持停靠，不启用拖动 */
+  .coach-fab{right:16px;bottom:84px}
+  .coach-drawer{right:8px;bottom:84px;width:calc(100vw - 16px);height:min(70vh,560px)}
 }
 </style>
 </head>
 <body>
 <div class="overlay" id="overlay"></div>
 <div class="app">
-  <!-- 左侧模块轨道（文档 7 大功能，HOMETRY 视觉不变） -->
+  <!-- 左侧主步骤轨道（3 步；AI 辅导改为常驻侧栏，隐私须知并入个人中心） -->
   <aside class="rail">
     <div class="brand">
       <div class="brand-mark"></div>
       <div class="brand-name">职引者 ZHIYIN<em>DECISION WORKBENCH</em></div>
     </div>
     <div class="steps" id="steps">
-      <button class="step on" data-go="insight"><span class="num">01</span><span class="lbl">洞察对齐<span class="sub">Insight</span></span></button>
-      <button class="step" data-go="intake"><span class="num">02</span><span class="lbl">输入解析<span class="sub">Intake</span></span></button>
-      <button class="step" data-go="learning"><span class="num">03</span><span class="lbl">定向学习<span class="sub">Learning</span></span></button>
-      <button class="step" data-go="interview"><span class="num">04</span><span class="lbl">模拟面试<span class="sub">Interview</span></span></button>
-      <button class="step" data-go="coach"><span class="num">05</span><span class="lbl">AI 辅导<span class="sub">Coach</span></span></button>
-      <button class="step" data-go="library"><span class="num">06</span><span class="lbl">材料检索<span class="sub">Library</span></span></button>
-      <button class="step" data-go="privacy"><span class="num">07</span><span class="lbl">隐私合规<span class="sub">Privacy</span></span></button>
+      <button class="step on" data-go="insight"><span class="num">01</span><span class="lbl">洞察对齐<span class="sub">Insight + 输入解析</span></span></button>
+      <button class="step" data-go="learning"><span class="num">02</span><span class="lbl">定向学习<span class="sub">Learning</span></span></button>
+      <button class="step" data-go="interview"><span class="num">03</span><span class="lbl">模拟面试<span class="sub">Interview</span></span></button>
     </div>
     <div class="rail-foot">
       <div class="sline">Data Boundary</div>
@@ -268,7 +325,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
     <div class="stage-top">
       <div class="stage-title"><i></i><span id="stageName">01 — 洞察对齐</span></div>
       <div class="top-right">
-        <div class="scope-chip">结论范围 · <b>样本内 / 你提供的内容</b></div>
+        <div class="scope-chip">口径 · <b>国内样本</b></div>
         <div class="acct">
           <button class="acct-btn" id="acctBtn" aria-haspopup="true" aria-expanded="false">
             <span class="avatar" id="acctAvatar">?</span>
@@ -294,130 +351,46 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
       <!-- 01 洞察对齐 -->
       <section class="view on" id="view-insight">
         <div class="wrap">
-          <div class="eyebrow">01 / 行业洞察与能力对齐 · 结论只在你给的样本内</div>
+          <div class="eyebrow">01 / 洞察对齐 · 结论只在国内样本内</div>
           <h1>把岗位要求<br><span class="acid">放在证据上比。</span></h1>
-          <p class="lede">看技能出现率、自动化可行性四象限与技能趋势；再用「必备 / 加分 / 隐含」三级权重算覆盖率、差距雷达与缺口清单。回答由向量库切片 + 行业专家 agent 归纳，数值只来自公开样本，不预测薪资、不下岗位判决。</p>
-          <div class="card dark">
-            <div class="meta" style="margin-bottom:14px">INPUT / 专业方向 + 你手上的 JD</div>
-            <div class="grid2">
-              <div class="field"><label>专业 / 方向（如：计算机科学与技术）</label><input type="text" id="insMajor" value="计算机科学与技术"></div>
-              <div class="field"><label>样本口径</label><input type="text" id="insScope" value="全球远程岗公开样本 · D 级" disabled></div>
+          <p class="lede">粘贴 JD / 简历文本，或上传截图 / PDF / DOCX，点「解析」由本机模型识别岗位字段，结果自动带入洞察与面试。不预测薪资、不下岗位判决。</p>
+          <div class="card">
+            <div class="meta" style="margin-bottom:6px">① 解析 → 对齐 → 生成 · 一个框完成</div>
+            <div id="insAutoStatus" class="muted" style="font-size:12px;line-height:1.7;margin:0 0 14px">粘贴文本或选文件后点「解析」，本机模型识别岗位字段并填入下方，可直接修改，改完即生成洞察。</div>
+            <div class="field"><label>粘贴 JD / 简历文本</label><textarea id="inText" rows="4" placeholder="粘贴简历或岗位职责，再点下方「解析」。"></textarea></div>
+            <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-bottom:12px">
+              <input type="file" id="inResume" accept="image/png,image/jpeg,image/webp,image/bmp,.pdf,.docx" style="display:none">
+              <button class="btn btn-ghost geo parse-drop" id="inParse" type="button" title="点击选择文件，或直接把文件拖放到这里；有粘贴文本时点击则解析文本">
+                <span class="pd-main" id="inParseMain">解析 ↗ · 点此选文件，或拖放文件至此</span>
+                <span class="pd-sub" id="inParseSub">支持 PNG / JPG / WEBP / BMP / PDF / DOCX ≤10MB，本机识别不外发 · 无文件时解析上方文本</span>
+                <span class="pd-clear" id="inClearFile" title="清除已选文件" style="display:none">×</span>
+              </button>
             </div>
-            <div class="field"><label>粘贴 1–10 份目标 JD（可选；用你自己的样本算覆盖率与缺口）</label><textarea id="insJds" rows="5" placeholder="每份 JD 之间用空行分隔。留空则只用公开样本看技能出现率与四象限。"></textarea></div>
-            <div class="field"><label>你的经历要点（可选；填了才算「可复用」与覆盖率）</label><textarea id="insResume" rows="3" placeholder="例：Python 数据分析课程项目，SQL 取数，写过需求文档。"></textarea></div>
-            <label class="consent"><input type="checkbox" id="insAck"><span>我确认内容由我提供，仅用于本次本地分析；<b>不预测薪资 / 录用，不外发用户原文</b>。</span></label>
-            <button class="btn btn-acid geo" id="insRun">生成洞察与缺口清单 ↗</button>
+            <div id="inNote" style="font-size:11px;color:var(--gray);margin:-4px 0 12px">图片 / PDF / DOCX ≤ 10MB，均由本机模型识别，不出本机、不留存。</div>
+            <div class="meta" style="margin:14px 0 12px">解析结果 · 已对齐为可编辑字段，改完即生成洞察</div>
+            <div class="grid2">
+              <div class="field"><label>求职意向</label><input type="text" id="insTargetRole" placeholder="例：数据分析师"></div>
+              <div class="field"><label>薪资意向（只作个人约束，不预测市场薪资）</label><input type="text" id="insSalary" placeholder="例：8k–10k；没有可不填"></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>专业 / 方向</label><input type="text" id="insMajor" placeholder="例：软件工程"></div>
+              <div class="field"><label>学历</label><input type="text" id="insEdu" placeholder="例：本科"></div>
+            </div>
+            <div class="field"><label>技能方向（顿号 / 逗号分隔，可改）</label><input type="text" id="insSkills" placeholder="例：Python、SQL、机器学习"></div>
+            <div class="grid2">
+              <div class="field"><label>证书（可改）</label><input type="text" id="insCerts" placeholder="例：ACP 认证、CET-4"></div>
+              <div class="field"><label>荣誉 / 奖项（可改）</label><input type="text" id="insHonors" placeholder="例：校级一等奖学金"></div>
+            </div>
+            <div class="field"><label>项目 / 实习经历（作为专家的岗位背景，可改）</label><textarea id="insResume" rows="3" placeholder="例：用户行为分析看板，做数据清洗与 SQL 建模，产出 3 张图表。"></textarea></div>
+            <div class="field"><label>目标 JD（空行分隔多份，可填）</label><textarea id="insJds" rows="3" placeholder="留空则只用国内样本看技能出现率。"></textarea></div>
+            <div class="dim" style="font-size:11px;line-height:1.7;border:none;padding:6px 0;margin:2px 0 8px"><b>说明</b><span id="insParseNote">读取求职意向、薪资意向、专业、学历、项目 / 实习关键内容、证书与荣誉；姓名、手机、邮箱、出生地、性别等身份信息已剔除且不留存。以上字段解析后均可直接修改，改完重新生成即按新内容解读。</span></div>
+            <label class="consent"><input type="checkbox" id="insAck"><span>岗位字段会先与国内样本比对检索，再作为专家解读依据；<b>不发送原文 / 隐私，不预测薪资 / 录用</b>。</span></label>
+            <button class="btn btn-acid geo" id="insRun" style="width:100%">生成洞察与缺口清单 ↗</button>
+            <button class="btn btn-ghost geo" id="inSaveMat" type="button" style="margin-top:10px">存入本机材料库</button>
           </div>
           <div id="insResult"></div>
-        </div>
-      </section>
-
-      <!-- 02 输入解析 -->
-      <section class="view" id="view-intake">
-        <div class="wrap">
-          <div class="eyebrow">02 / 多种输入方式 · 图片不上传、文件不留存</div>
-          <h1>一条 JD，<br><span class="acid">怎么进来都行。</span></h1>
-          <p class="lede">三种入口：粘贴 JD 文本、上传你手动截的图（浏览器本地识别，位图不上传）、上传 PDF / DOCX 简历（仅内存解析，不留原文）。解析结果汇入下方文本框，可复制到洞察 / 面试使用。</p>
           <div class="card">
-            <div class="field"><label>① 直接粘贴 JD / 文本</label><textarea id="inText" rows="6" placeholder="粘贴岗位职责 + 任职要求，或任意要解析的文本。"></textarea></div>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-              <input type="file" id="inShot" accept="image/png,image/jpeg,image/webp,image/bmp" style="font-size:12px;max-width:260px">
-              <button class="btn btn-ghost geo" id="inOcr" type="button">② 截图本地 OCR ↗</button>
-            </div>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
-              <input type="file" id="inResume" accept=".pdf,.docx" style="font-size:12px;max-width:260px">
-              <button class="btn btn-ghost geo" id="inParse" type="button">③ 解析 PDF / DOCX ↗</button>
-              <span id="inNote" style="font-size:11px;color:var(--gray)">截图 ≤ 8MB，仅在浏览器内存；简历 ≤ 3MB，仅内存解析。</span>
-            </div>
-            <div class="grid2">
-              <button class="btn btn-ink geo" id="inSaveMat" type="button">存入本机材料库</button>
-              <button class="btn btn-acid geo" id="inToInsight" type="button">送入洞察对齐 →</button>
-            </div>
-          </div>
-          <div id="inResult"></div>
-        </div>
-      </section>
-
-      <!-- 03 定向学习 -->
-      <section class="view" id="view-learning">
-        <div class="wrap">
-          <div class="eyebrow">03 / 定向学习 · 把差距变成分阶段路径</div>
-          <h1>差距排成路径，<br><span class="acid">每阶段可验收。</span></h1>
-          <p class="lede">把缺口拆成分阶段学习路径，每阶段有资源、里程碑与验收标准，勾选进度只存在本机浏览器。做完回到洞察重判一次，不制造「补完才能投」的焦虑。</p>
-          <div class="card">
-            <div class="field"><label>要补的技能 / 差距项（逗号分隔）</label><input type="text" id="lrGaps" placeholder="例：Python, SQL, 数据可视化, 需求文档"></div>
-            <div class="grid2">
-              <div class="field"><label>每周可投入时长</label><input type="text" id="lrPace" value="每周 6 小时"></div>
-              <div class="field"><label>目标场景（可选）</label><input type="text" id="lrGoal" placeholder="例：数据分析实习"></div>
-            </div>
-            <button class="btn btn-ink geo" id="lrGen">生成分阶段学习路径 ↗</button>
-          </div>
-          <div id="lrResult"></div>
-        </div>
-      </section>
-
-      <!-- 04 模拟面试 -->
-      <section class="view" id="view-interview">
-        <div class="wrap">
-          <div class="eyebrow">04 / 模拟面试 · 四阶段固定流程</div>
-          <h1>自我介绍 → 项目追问<br><span class="acid">→ 压力面 → 反问。</span></h1>
-          <p class="lede">四阶段流程，标准面 / 压力面可切换；结束后给逐题反馈、能力雷达、改进建议与简历优化锚点。追问素材从向量库检索支撑，评分只依据你的原话，不替你编经历。</p>
-          <div class="card dark">
-            <div class="meta" style="margin-bottom:14px">SETUP / 面试配置</div>
-            <div class="grid2">
-              <div class="field"><label>目标岗位</label><input type="text" id="ivRole" placeholder="例：数据分析实习生"></div>
-              <div class="field"><label>模式</label>
-                <div style="display:flex;gap:10px">
-                  <button class="btn geo iv-mode on" data-mode="standard" style="flex:1">标准面</button>
-                  <button class="btn geo iv-mode" data-mode="pressure" style="flex:1">压力面</button>
-                </div>
-              </div>
-            </div>
-            <div class="field"><label>你的真实项目（≥10 字，用于追问支撑）</label><textarea id="ivProj" rows="3" placeholder="例：我用 Python 做过销售数据分析，把三个月订单按区域汇总成看板。"></textarea></div>
-            <label class="consent"><input type="checkbox" id="ivAck"><span>我确认项目由我提供；<b>反馈只引用原话、不承诺录用</b>。</span></label>
-            <button class="btn btn-acid geo" id="ivStart">开始面试 ↗</button>
-          </div>
-          <div id="ivResult"></div>
-        </div>
-      </section>
-
-      <!-- 05 AI 辅导 -->
-      <section class="view" id="view-coach">
-        <div class="wrap">
-          <div class="eyebrow">05 / AI 辅导 · 护栏固定、会话只在内存</div>
-          <h1>随时问一句<br><span class="acid">「这一步对不对」。</span></h1>
-          <p class="lede">多轮对话陪你拆技能差距、面试答法、简历锚点与学习安排。护栏固定：不预测薪资、不承诺录用、不制造焦虑；会话只在内存，随时可清除，原文零落盘、不外发。</p>
-          <div class="card">
-            <div id="coachLog" style="max-height:420px;overflow:auto;margin-bottom:18px">
-              <div class="empty">发第一句话开始。不需要提供姓名 / 手机号 / 学校。</div>
-            </div>
-            <div class="field"><label>你的问题</label><textarea id="coachMsg" rows="2" placeholder="例：技术面自我介绍该怎么组织？"></textarea></div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-              <button class="btn btn-ink geo" id="coachSend">发送 ↗</button>
-              <button class="btn btn-ghost geo" id="coachClear">结束并清除会话</button>
-              <span id="coachMeta" style="font-size:11px;color:var(--gray)"></span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 06 材料检索 -->
-      <section class="view" id="view-library">
-        <div class="wrap">
-          <div class="eyebrow">06 / 材料检索 · 稀疏 + 稠密混合，稠密走 Qdrant</div>
-          <h1>按技能词检索，<br><span class="acid">两路结果一起看。</span></h1>
-          <p class="lede">稀疏路（本地加密 TF-IDF）与稠密路（BGE / Qdrant 云向量库）经 RRF 融合；云端不可达时稠密路自动降级本地。检索只为其他模块提供数据支撑，用户自带材料默认不返回、不入库。</p>
-          <div class="card">
-            <div class="field"><label>检索词</label><input type="text" id="libQ" placeholder="例：Python 数据分析 RAG"></div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-              <button class="btn btn-ink geo" id="libRun">混合检索 ↗</button>
-              <label class="consent" style="margin:0"><input type="checkbox" id="libDense" checked><span>启用稠密路（Qdrant）</span></label>
-              <span id="libBackend" style="font-size:11px;color:var(--gray)"></span>
-            </div>
-          </div>
-          <div id="libResult"></div>
-          <div class="card">
-            <div class="meta" style="margin-bottom:14px">本机材料库（仅存浏览器 localStorage）</div>
+            <div class="meta" style="margin-bottom:14px">本机材料库 · 只存浏览器，不进向量库</div>
             <div class="grid2">
               <div class="field"><label>标题</label><input type="text" id="mTitle" placeholder="例：某数据岗 JD"></div>
               <div class="field"><label>标签</label><input type="text" id="mTag" placeholder="例：JD / 项目 / 面试素材"></div>
@@ -430,22 +403,129 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
         </div>
       </section>
 
-      <!-- 07 隐私合规 -->
-      <section class="view" id="view-privacy">
+      <!-- 02 定向学习 -->
+      <section class="view" id="view-learning">
         <div class="wrap">
-          <div class="eyebrow">07 / 隐私与合规管理 · 脱敏 / 加密 / 撤回 / 审计</div>
-          <h1>能核对的账，<br><span class="acid">才敢照着做。</span></h1>
-          <p class="lede">自动脱敏、AES-256-GCM 加密存储、按条删除 / 一键撤回、哈希链审计记录。管理员页集中提供知识入库与授权状态；自动爬取与自动截图执行体已移除，系统不访问第三方页面。</p>
-          <div class="card dark">
-            <div class="meta" style="margin-bottom:16px">四条不动的边界</div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>样本内</b>没有授权数据就不给市场级结论；所有洞察都标注样本范围。</div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不出本机</b>用户材料默认不保存；保存、外发都要单独确认；删除会说明范围。</div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不爬取</b>自动爬取 / 自动截图执行体已移除；知识只由管理员提供文本 / 截图（本地 OCR）/ CSV。</div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不制造焦虑</b>不承诺录用、不预测薪资；「先投」和「放弃」都是合法结论。</div>
-          </div>
-          <div class="card"><div class="meta" style="margin-bottom:12px">服务端隐私状态 / 审计链</div><pre id="pvStatus" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+          <div class="eyebrow">02 / 定向学习 · 缺口由洞察对齐给出</div>
+          <h1>差距排成路径，<br><span class="acid">每阶段可验收。</span></h1>
+          <p class="lede">要补什么由「洞察对齐」根据你的 JD 与经历算出并带入，不用自己判断；进度只存本机。</p>
           <div class="card">
-            <div class="meta" style="margin-bottom:14px">加密存储演示（PII 字段经 AES-GCM 加密；原文不落盘）</div>
+            <p id="lrSource" style="font-size:12px;color:var(--gray);line-height:1.7;margin:0 0 14px">尚无洞察结果，请先在「洞察对齐」生成。</p>
+            <div class="field"><label>补学清单（与「洞察对齐」同一批，可微调）</label><input type="text" id="lrGaps" placeholder="先在「洞察对齐」生成，这里会自动填入"></div>
+            <div class="grid2">
+              <div class="field"><label>每周可投入时长</label><input type="text" id="lrPace" value="每周 6 小时"></div>
+              <div class="field"><label>目标岗位（自动带入，可改）</label><input type="text" id="lrGoal" placeholder="例：数据分析实习"></div>
+            </div>
+            <button class="btn btn-ink geo" id="lrGen">生成分阶段学习路径 ↗</button>
+          </div>
+          <div id="lrResult"></div>
+        </div>
+      </section>
+
+      <!-- 03 模拟面试 -->
+      <section class="view" id="view-interview">
+        <div class="wrap">
+          <div class="eyebrow">03 / 模拟面试 · 四阶段固定流程</div>
+          <h1>自我介绍 → 项目追问<br><span class="acid">→ 压力面 → 反问。</span></h1>
+          <p class="lede">四阶段逐题反馈与能力雷达。岗位知识片段从向量库检索，参与出题、反馈与最终报告；评分只依据你的原话，不替你编经历。</p>
+          <div class="card dark">
+            <div class="meta" style="margin-bottom:14px">SETUP / 面试配置</div>
+            <div class="grid2">
+              <div class="field"><label>目标岗位</label><input type="text" id="ivRole" placeholder="例：数据分析实习生"></div>
+              <div class="field"><label>模式</label>
+                <div style="display:flex;gap:10px">
+                  <button class="btn geo iv-mode on" data-mode="standard" style="flex:1">标准面</button>
+                  <button class="btn geo iv-mode" data-mode="pressure" style="flex:1">压力面</button>
+                </div>
+              </div>
+            </div>
+            <div class="field"><label>你的真实项目（≥10 字，用于追问支撑）</label><textarea id="ivProj" rows="3" placeholder="例：我用 Python 做过销售数据分析，把三个月订单按区域汇总成看板。"></textarea></div>
+            <p id="ivAutoNote" style="font-size:11px;color:var(--gray);line-height:1.7;margin:-6px 0 14px">岗位与项目草稿由「洞察对齐」自动带入；<b>请改成你的真实项目</b>再开始。</p>
+            <label class="consent"><input type="checkbox" id="ivAck"><span>项目由我提供；<b>反馈只引用原话、不承诺录用</b>。</span></label>
+            <button class="btn btn-acid geo" id="ivStart">开始面试 ↗</button>
+          </div>
+          <div id="ivResult"></div>
+        </div>
+      </section>
+
+
+      <!-- 投递看板（内容由 drawBoard 动态注入） -->
+      <section class="view" id="view-board"></section>
+
+      <!-- 说明 -->
+      <section class="view" id="view-about">
+        <div class="wrap">
+          <div class="eyebrow">About / 功能地图</div>
+          <h1>能核对的账，<br><span class="acid">才敢让你照着做。</span></h1>
+          <div class="card">
+            <div class="meta" style="margin-bottom:14px">用户侧功能地图</div>
+            <p style="font-size:13px;line-height:2">
+              ① <b>洞察对齐（含输入解析）</b>：粘贴 / 截图 / PDF / DOCX → 本机模型解析并自动带入<br>
+              ② <b>定向学习</b>：分阶段路径 + 验收标准，缺口由洞察结果自动带入<br>
+              ③ <b>模拟面试</b>：自动带入岗位与项目草稿，四阶段逐题反馈<br>
+              <b>AI 辅导</b>：右下角常驻按钮随时召唤侧栏，多轮对话、会话只在内存<br>
+              <b>用户须知</b>：隐私合规说明已并入个人中心，含脱敏 / 加密 / 撤回 / 审计<br>
+              管理员后台：<b>向量库检索 / 入库 / 删除</b>，仅管理员可用。
+            </p>
+          </div>
+          <div class="card"><p style="font-size:13px;line-height:1.8">洞察统一采用国内样本；用户自带文本只在本次请求内存处理，零落盘、零外发；看板与本机材料只存浏览器，由你自己保存与删除。</p></div>
+        </div>
+      </section>
+
+      <!-- 个人中心 -->
+      <section class="view" id="view-profile">
+        <div class="wrap">
+          <div class="eyebrow">个人中心 / Profile</div>
+          <h1>这是你的<br><span class="acid">工作台。</span></h1>
+          <p class="lede">登录态只区分「个人 / 管理员」角色。看板、材料与学习进度仍只存本机，不上传账号服务器。</p>
+          <div class="card dark">
+            <div class="meta" style="margin-bottom:16px">当前身份</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>登录方式</b><span id="pfLogin">读取中…</span></div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>角色</b><span id="pfRole">读取中…</span></div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>身份性质</b><span id="pfDemo">读取中…</span></div>
+            <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-ghost geo" id="pfChangePw" style="display:none;flex:1;min-width:150px">修改登录密码 ↗</button>
+            </div>
+            <div id="pfSocialTip" style="font-size:11px;color:#8d8d88;margin-top:10px;line-height:1.6"></div>
+          </div>
+          <div class="card">
+            <div class="meta" style="margin-bottom:14px">大模型 API · 由你选择（仅本人可读）</div>
+            <p style="font-size:12px;line-height:1.8;color:var(--gray);margin:0 0 14px">自带密钥加密存服务端、按登录身份隔离，页面不会再看到完整密钥；留空则用服务端兜底。向量模型固定为服务器本地 BGE，不在此配置。</p>
+            <div id="pfLlmNeedLogin" style="display:none;font-size:12px;color:#b00;margin-bottom:10px">请先登录，再配置个人大模型 API。</div>
+            <div id="pfLlmBody">
+              <div class="grid2">
+                <div class="field"><label>厂商</label><select id="pfLlmProvider">
+                  <option value="qwen">通义千问 / DashScope</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="moonshot">Moonshot / Kimi</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="custom">自定义 OpenAI 兼容端点</option>
+                </select></div>
+                <div class="field"><label>模型名</label><input type="text" id="pfLlmModel" placeholder="留空用厂商默认模型"></div>
+              </div>
+              <div class="field"><label>接口地址（OpenAI 兼容，须 https）</label><input type="text" id="pfLlmBase" placeholder="留空用厂商默认地址；自定义端点必填"></div>
+              <div class="field"><label>API key（仅保存加密后的密文）</label><input type="password" id="pfLlmKey" placeholder="sk-…" autocomplete="off"></div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <button class="btn btn-ink geo" id="pfLlmSave" type="button">保存我的 API ↗</button>
+                <button class="btn btn-ghost geo" id="pfLlmTest" type="button">测试连通 ↗</button>
+                <button class="btn btn-ghost geo" id="pfLlmClear" type="button">清除配置</button>
+              </div>
+              <div id="pfLlmMsg" style="font-size:12px;color:#b00;margin-top:12px;white-space:pre-wrap"></div>
+              <div id="pfLlmStatus" style="font-size:12px;line-height:1.8;color:var(--gray);margin-top:10px">读取中…</div>
+            </div>
+          </div>
+          <h2 style="margin-top:38px">用户须知</h2>
+          <p class="lede" style="margin-bottom:24px">脱敏、加密存储、按条删除 / 撤回、审计留痕。知识只由管理员提供，系统不访问第三方页面。</p>
+          <div class="card dark">
+            <div class="meta" style="margin-bottom:16px">四条边界</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>样本内</b>不给市场级结论，洞察均标注样本范围。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不出本机</b>用户材料默认不保存；保存 / 外发需单独确认。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不爬取</b>已移除自动爬取 / 截图执行体；知识由管理员提供。</div>
+            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>不制造焦虑</b>不承诺录用、不预测薪资。</div>
+          </div>
+          <div class="card"><div class="meta" style="margin-bottom:12px">服务端隐私状态 / 审计链</div><div id="pvStatus" style="font-size:12px;line-height:1.8;color:var(--gray)">读取中…</div></div>
+          <div class="card">
+            <div class="meta" style="margin-bottom:14px">加密存储演示 · 原文不落盘</div>
             <div class="grid2">
               <div class="field"><label>字段类型</label><input type="text" id="pvField" value="phone" placeholder="name / phone / email / id_card"></div>
               <div class="field"><label>值（仅用于演示加密与撤回）</label><input type="text" id="pvValue" placeholder="仅演示，请勿填真实信息"></div>
@@ -456,49 +536,9 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
             <div id="pvMsg" style="font-size:12px;color:#b00;margin-top:12px;white-space:pre-wrap"></div>
           </div>
           <div class="card"><p style="font-size:13px;line-height:1.8">本项目仅用于研究与学习，不得用于任何商业行为；该条款对全部数据链路统一适用，不构成任何合规豁免。</p></div>
-        </div>
-      </section>
-
-      <!-- 投递看板（内容由 drawBoard 动态注入） -->
-      <section class="view" id="view-board"></section>
-
-      <!-- 说明 -->
-      <section class="view" id="view-about">
-        <div class="wrap">
-          <div class="eyebrow">About / 数据边界与功能地图</div>
-          <h1>能核对的账，<br><span class="acid">才敢让你照着做。</span></h1>
-          <div class="card">
-            <div class="meta" style="margin-bottom:14px">七大功能</div>
-            <p style="font-size:13px;line-height:2">
-              ① <b>洞察对齐</b>：技能出现率 / 四象限 / 趋势 + 三级权重覆盖与缺口清单<br>
-              ② <b>输入解析</b>：粘贴 JD / 截图本地 OCR / PDF·DOCX 内存解析<br>
-              ③ <b>定向学习</b>：分阶段学习路径 + 里程碑 + 验收标准，可勾选进度<br>
-              ④ <b>模拟面试</b>：自我介绍→项目追问→压力面→反问，逐题反馈与简历锚点<br>
-              ⑤ <b>AI 辅导</b>：多轮对话，护栏固定，会话只在内存<br>
-              ⑥ <b>材料检索</b>：稀疏 + 稠密混合检索，稠密走 Qdrant，本地降级<br>
-              ⑦ <b>隐私合规</b>：脱敏 / 加密 / 删除撤回 / 审计 + 管理员知识入库
-            </p>
-          </div>
-          <div class="card"><p style="font-size:13px;line-height:1.8">结论一律标注样本范围；用户自带文本只在本次请求内存处理，零落盘、零外发；投递看板与本机材料只存浏览器 localStorage，由你自己保存与删除。</p></div>
-        </div>
-      </section>
-
-      <!-- 个人中心 -->
-      <section class="view" id="view-profile">
-        <div class="wrap">
-          <div class="eyebrow">个人中心 / Profile</div>
-          <h1>这是你的<br><span class="acid">工作台。</span></h1>
-          <p class="lede">登录态只用于区分「个人 / 管理员」角色。你的看板、材料与学习进度仍然只保存在本机浏览器，不上传账号服务器。</p>
-          <div class="card dark">
-            <div class="meta" style="margin-bottom:16px">当前身份</div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>登录方式</b><span id="pfLogin">读取中…</span></div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>角色</b><span id="pfRole">读取中…</span></div>
-            <div class="dim" style="color:#c9c9c3;border-color:#2a2a2a"><b>身份性质</b><span id="pfDemo">读取中…</span></div>
-          </div>
           <div class="card">
             <div class="meta" style="margin-bottom:14px">本机数据</div>
-            <p style="font-size:13px;line-height:1.9">投递看板 <b id="pfBoard">0</b> 条 · 材料库 <b id="pfMat">0</b> 条，均只存于当前浏览器。<br>
-            换个浏览器或清理站点数据就会消失——这是设计如此，不是故障。</p>
+            <p style="font-size:13px;line-height:1.9">投递看板 <b id="pfBoard">0</b> 条 · 材料库 <b id="pfMat">0</b> 条，均只存当前浏览器。<br>换浏览器或清理站点数据即消失——这是设计如此。</p>
             <button class="btn btn-ghost geo" id="pfClear" style="margin-top:8px">清空本机看板与材料</button>
           </div>
         </div>
@@ -508,8 +548,8 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
       <section class="view" id="view-admin">
         <div class="wrap">
           <div class="eyebrow">管理后台 / Administrator · 仅管理员</div>
-          <h1>知识入库与闸门，<br><span class="acid">在这里核对。</span></h1>
-          <p class="lede">系统已移除自动爬取与自动截图执行体，不再访问任何第三方页面。知识只由管理员主动提供：粘贴文本、上传截图（浏览器本地 OCR）、或上传 CSV；位图不上传、不落盘。服务端只收文本，经脱敏与过滤后切片、向量化写入 Qdrant（全部走 Qdrant，服务器部署重启不丢）。</p>
+          <h1>向量库检索与管理，<br><span class="acid">在这里核对。</span></h1>
+          <p class="lede">仅管理员可用。知识由管理员提供文本 / 截图（本地 OCR）/ CSV，服务端脱敏后切片写入 Qdrant；位图不上传、不落盘。</p>
           <div id="adminDenied" class="card dark" style="display:none">
             <div class="meta" style="color:#e0a800">权限不足</div>
             <p style="font-size:13px;line-height:1.8;color:#c9c9c3;margin-top:10px">当前身份不是管理员，无法查看管理面板。请退出后用管理员密码登录。</p>
@@ -517,15 +557,26 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
           <div id="adminBody">
             <div class="card">
               <div class="meta" style="margin-bottom:14px">认证 / 分角色</div>
-              <pre id="adAuth" style="font-size:11px;line-height:1.7;white-space:pre-wrap;word-break:break-all">读取中…</pre>
+              <div id="adAuth" style="font-size:12px;line-height:1.8;color:var(--gray)">读取中…</div>
             </div>
             <div class="grid2">
-              <div class="card"><div class="meta" style="margin-bottom:12px">回执台账</div><pre id="adApprovals" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
-              <div class="card"><div class="meta" style="margin-bottom:12px">Qdrant 出境防护</div><pre id="adGuard" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+              <div class="card"><div class="meta" style="margin-bottom:12px">回执台账</div><div id="adApprovals" style="font-size:12px;line-height:1.8;color:var(--gray)">读取中…</div></div>
+              <div class="card"><div class="meta" style="margin-bottom:12px">Qdrant 出境防护</div><div id="adGuard" style="font-size:12px;line-height:1.8;color:var(--gray)">读取中…</div></div>
             </div>
 
             <div class="card">
-              <div class="meta" style="margin-bottom:14px">① 知识来源 · 文本 / 截图本地 OCR / CSV / 面试素材</div>
+              <div class="meta" style="margin-bottom:14px">① 向量库检索（管理员核对） · 稀疏 + 稠密，稠密走 Qdrant</div>
+              <div class="field"><label>检索词</label><input type="text" id="libQ" placeholder="例：Python 数据分析 RAG"></div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+                <button class="btn btn-ink geo" id="libRun">混合检索 ↗</button>
+                <label class="consent" style="margin:0"><input type="checkbox" id="libDense" checked><span>启用稠密路（Qdrant）</span></label>
+                <span id="libBackend" style="font-size:11px;color:var(--gray)"></span>
+              </div>
+              <div id="libResult"></div>
+            </div>
+
+            <div class="card">
+              <div class="meta" style="margin-bottom:14px">② 知识来源 · 文本 / 截图本地 OCR / CSV / 面试素材</div>
               <div class="field">
                 <label>条目标题</label>
                 <input type="text" id="kbTitle" placeholder="例：AI 应用工程师 · 岗位知识" maxlength="80">
@@ -547,14 +598,14 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
               <label class="consent"><input type="checkbox" id="kbAck"><span>我确认该内容由我主动提供、有权使用，仅用于研究检索：<b>个人信息先脱敏、隐私行剔除，不用于画像或商业行为</b>。</span></label>
               <button class="btn btn-acid geo" id="kbIngest" type="button">脱敏切片 → 向量化入库 Qdrant ↗</button>
               <div class="msg" id="kbMsg" style="font-size:12px;color:#b00;margin-top:12px;white-space:pre-wrap"></div>
-              <pre id="kbResult" style="font-size:11px;line-height:1.7;white-space:pre-wrap;word-break:break-all;margin-top:12px"></pre>
+              <div id="kbResult" style="font-size:12px;line-height:1.8;color:var(--gray);margin-top:12px"></div>
             </div>
 
             <div class="grid2">
-              <div class="card"><div class="meta" style="margin-bottom:12px">② 知识库状态（只读）</div><pre id="adKnowledge" style="font-size:11px;line-height:1.7;white-space:pre-wrap">读取中…</pre></div>
+              <div class="card"><div class="meta" style="margin-bottom:12px">③ 知识库状态（只读）</div><div id="adKnowledge" style="font-size:12px;line-height:1.8;color:var(--gray)">读取中…</div></div>
               <div class="card">
-                <div class="meta" style="margin-bottom:12px">③ 按 id 删除已入库条目</div>
-                <p style="font-size:12px;line-height:1.8;color:var(--gray);margin-bottom:10px">填入入库返回的 chunk id（逗号分隔）。</p>
+                <div class="meta" style="margin-bottom:12px">④ 按 id 删除</div>
+                <p style="font-size:12px;line-height:1.8;color:var(--gray);margin-bottom:10px">填入入库返回的 chunk id，逗号分隔。</p>
                 <div class="field"><input type="text" id="kbDelIds" placeholder="kb-xxxxxxxx-0, kb-xxxxxxxx-1"></div>
                 <button class="btn btn-ghost geo" id="kbDelete" type="button">删除这些条目 ↗</button>
                 <div class="msg" id="kbDelMsg" style="font-size:12px;color:#b00;margin-top:10px"></div>
@@ -566,7 +617,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
 
     </div>
     <div class="actionbar">
-      <div class="hint" id="hint"><b>提示</b> · 从「洞察对齐」开始；所有数值只标注样本范围。</div>
+      <div class="hint" id="hint"><b>提示</b> · 从「洞察对齐」开始。</div>
       <div class="bar-actions">
         <button class="btn btn-ghost geo" id="prevBtn">← 上一步</button>
         <button class="btn btn-acid geo" id="nextBtn">下一步 →</button>
@@ -574,41 +625,66 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:point
     </div>
   </main>
 </div>
+
+<!-- 常驻 AI 辅导侧栏：右下按钮召唤，任何视图都能随时对话 -->
+<div class="coach-backdrop" id="coachBackdrop"></div>
+<aside class="coach-drawer" id="coachDrawer" aria-label="AI 辅导">
+  <div class="cd-head" id="cdHead" title="按住标题栏可拖动面板">
+    <span class="cd-grip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+    <div class="t">AI 辅导 · 随时问<em>拖动标题栏移动 · 会话只在内存</em></div>
+    <button class="cd-close" id="coachClose" aria-label="关闭 AI 辅导">×</button>
+  </div>
+  <div class="cd-log" id="coachLog">
+    <div class="empty">发第一句话开始。不需要提供姓名 / 手机号 / 学校。</div>
+  </div>
+  <div class="cd-foot">
+    <textarea id="coachMsg" rows="2" placeholder="例：技术面自我介绍该怎么组织？"></textarea>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ink geo" id="coachSend">发送 ↗</button>
+      <button class="btn btn-ghost geo" id="coachClear">清除会话</button>
+    </div>
+    <div class="cd-meta" id="coachMeta"></div>
+  </div>
+</aside>
+<button class="coach-fab" id="coachFab" aria-label="打开 AI 辅导侧栏"><i>✳</i>AI 辅导</button>
 <div class="toast" id="toast"></div>
 
 <script>
 /* ============================================================
-   工作台逻辑（文档 7 模块）· CSS / HOMETRY 视觉系统保持不变
-   - C 级用户文本只在本次请求内存处理；看板 / 材料 / 学习进度只存 localStorage
-   - 云端：Qdrant 稠密检索 + 管理员知识入库；本地索引仅作降级
+   工作台逻辑（主流程 3 步 + 常驻 AI 辅导侧栏 + 个人中心用户须知 + 管理员知识库）
+   CSS / HOMETRY 视觉系统保持不变
+   - 用户文本只在本机 / 本次请求处理；看板 / 材料 / 学习进度只存 localStorage
+   - 口径统一为国内样本；洞察数值只来自样本，不预测薪资 / 不下岗位判决
+   - AI 辅导不再占主视图，由右下常驻按钮召唤侧栏，任何视图都能随时对话
    ============================================================ */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const ORDER=['insight','intake','learning','interview','coach','library','privacy'];
+const ORDER=['insight','learning','interview'];
 const EXTRA=['board','about','profile','admin'];
-const NAME={insight:'01 — 洞察对齐',intake:'02 — 输入解析',learning:'03 — 定向学习',
-  interview:'04 — 模拟面试',coach:'05 — AI 辅导',library:'06 — 材料检索',privacy:'07 — 隐私合规',
+const NAME={insight:'01 — 洞察对齐（含输入解析）',learning:'02 — 定向学习',
+  interview:'03 — 模拟面试',
   board:'投递看板',about:'说明 — 数据边界',profile:'个人中心',admin:'管理后台 — 仅管理员'};
-const HINT={insight:'<b>提示</b> · 数值只来自公开样本，不代表国内市场，不预测薪资。',
-  intake:'<b>提示</b> · 截图本地识别、简历内存解析；位图不上传、文件不留存。',
-  learning:'<b>提示</b> · 进度只存本机；做完回到洞察重判一次。',
-  interview:'<b>提示</b> · 反馈只引用你的原话，不承诺录用。',
-  coach:'<b>提示</b> · 会话只在内存，随时可清除。',
-  library:'<b>提示</b> · 稠密路走 Qdrant，云端不可达自动降级本地。',
-  privacy:'<b>提示</b> · 脱敏 / 加密 / 撤回 / 审计，管理员页集中控制。',
-  board:'<b>提示</b> · 只存本机浏览器，由你自己保存与删除。',
+const HINT={insight:'<b>提示</b> · 粘贴文本或上传文件后点「解析」，由本机模型识别岗位字段；数值只来自国内样本，不预测薪资。',
+  learning:'<b>提示</b> · 缺口来自「洞察对齐」，不用自己判断；进度只存本机。',
+  interview:'<b>提示</b> · 向量库素材参与出题与反馈；项目草稿请改成真实项目，评分只引用原话。',
+  board:'<b>提示</b> · 只存本机浏览器。',
   about:'<b>提示</b> · 仅限研究与学习，不得用于商业行为。',
-  profile:'<b>提示</b> · 登录态只区分角色，业务数据仍只存本机。',
-  admin:'<b>提示</b> · 管理与写操作在服务端按管理员角色鉴权。'};
+  profile:'<b>提示</b> · 用户须知 / 大模型 API / 业务数据都在这里。',
+  admin:'<b>提示</b> · 写操作按管理员角色鉴权。'};
 let view='insight', animating=false, API_OK=false, SESSION={logged_in:false,role:null,name:'',demo:false};
 const LS={board:'zhiyin.jtbd.board',mat:'zhiyin.jtbd.materials',learn:'zhiyin.jtbd.learning'};
 
 function toast(msg){const t=$('#toast');t.innerHTML=msg;t.classList.add('show');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-const pretty=o=>JSON.stringify(o,null,2);
+const tags=o=>Object.entries(o||{}).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>
+  '<span class="tag"><b>'+esc(k)+'</b> '+esc(typeof v==='object'?(Array.isArray(v)?v.join(' / '):Object.keys(v).join(' / ')):v)+'</span>').join('');
+/* 把样本热度转成「这个岗位该补什么」，不再解释工具和人的分工 */
+function studyPriority(name,demand){
+  return Number(demand)>=60?'建议重点补学':'先了解基础';
+}
 async function api(path,body){
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
-  const d=await r.json(); if(!r.ok||d.ok===false)throw new Error(d.message||d.error||('HTTP '+r.status));return d;
+  const d=await r.json(); if(!r.ok||d.ok===false){const e=new Error(d.message||d.error||('HTTP '+r.status));e.code=d.error||'';throw e}return d;
 }
 async function getJson(path){try{const r=await fetch(path);return await r.json()}catch(e){return{error:String(e)}}}
 function go(id){
@@ -617,8 +693,9 @@ function go(id){
     view=id;$('#stageName').textContent=NAME[id];$('#hint').innerHTML=HINT[id];
     $$('.step').forEach(s=>{const g=s.dataset.go;s.classList.toggle('on',g===id);
       s.classList.toggle('done',ORDER.indexOf(g)<ORDER.indexOf(id)&&ORDER.indexOf(id)>=0);});
-    if(id==='admin')renderAdmin();if(id==='privacy')renderPrivacy();
-    if(id==='profile')renderProfile();if(id==='board')drawBoard();if(id==='library')drawMat();
+    if(id==='admin')renderAdmin();
+    if(id==='profile'){renderProfile();renderPrivacy()}
+    if(id==='board')drawBoard();if(id==='insight')drawMat();
     location.hash=id;}
   if(!$('#overlay').classList.contains('on')){animating=true;$('#overlay').classList.add('on');}
   setTimeout(()=>{apply();setTimeout(()=>{$('#overlay').classList.remove('on');
@@ -649,118 +726,323 @@ $('#insRun').onclick=async()=>{
     if(jds.length)compare=await api('/api/jtbd/compare',{jds,resume_text:resume});
     const firstJd=jds.length?jds[0].text:'';
     if(firstJd)evidence=await api('/api/jtbd/evidence',{jd_text:firstJd,resume_text:resume});
-    const p=jobs.profile||{}, meta=jobs.meta||{}, quad=p.quad||[], trend=p.trend;
+    const p=jobs.profile||{}, meta=jobs.meta||{}, quad=p.quad||[];
+    // RAG：本地模型解析出的岗位字段 → 检索意图 → 与库内样本比对、精排 → 脱敏证据给专家。
+    // 技能以解析字段为准，没解析到才用国内样本统计词兜底。
+    const parsedSkills=parsedSkillNames();
+    let rag=null;
+    try{
+      rag=await api('/api/insight/context',{
+        target_role:$('#insTargetRole').value.trim(),
+        major,
+        skills:(parsedSkills.length?parsedSkills:quad.slice(0,10).map(x=>x.n)),
+        experience:$('#insResume').value.trim(),
+        jds:jds.map(x=>x.text),
+        top_k:6
+      });
+    }catch(e){rag=null}
+    const materials=(rag&&rag.materials||[]).map(m=>({
+      title:m.title, text:String(m.text||'').slice(0,220), score:m.score,
+      coverage:m.coverage, matched_intents:m.matched_intents
+    }));
     let expert=null;
     try{
+      const plainSkills=quad.slice(0,8).map(x=>x.n+'：岗位样本里'+(x.d>=60?'常提到':'较少提到')+'，'+(x.d>=60?'建议重点补学':'先了解基础'));
       expert=await api('/api/llm',{task:'insight',payload:{
-        focus_text:(p.summary||'').slice(0,600),
-        skills:quad.slice(0,8).map(x=>x.n),
-        note:'数值来自 D 级公开样本，仅方向性参考'
+        sample_text:plainSkills.join('；'),
+        skills:(parsedSkills.length?parsedSkills:quad.slice(0,8).map(x=>x.n)),
+        career_context:expertContextFromInputs(),
+        target_role:$('#insTargetRole').value.trim(),
+        salary_expectation:$('#insSalary').value.trim()||((lastProfile&&lastProfile.salary_expectation)||''),
+        // 本地模型解析出的结构化字段，完整交给 OpenAI 接口专家；RAG 证据在 materials。
+        parsed_profile:{
+          education:$('#insEdu').value.trim(),
+          skills:$('#insSkills').value.trim(),
+          certificates:$('#insCerts').value.trim(),
+          honors:$('#insHonors').value.trim(),
+          experience:$('#insResume').value.trim()
+        },
+        materials,
+        note:'面向应届生，只用大白话；直接回答这个岗位要补学什么，不要说交给工具或靠人；用户岗位背景、解析字段与检索到的样本片段仅作方向约束，不提全球、市场、薪资预测、百分比和指标术语'
       }});
     }catch(e){expert=null}
+    // 缺口清单 = 专家解读里给的补学动作（focus），保证「洞察对齐」与「定向学习」是同一批内容
+    let lrGaps=[], lrSource='';
+    const focus=expert&&expert.data&&Array.isArray(expert.data.focus)?expert.data.focus.filter(Boolean):[];
+    if(focus.length){
+      lrGaps=focus.slice(0,8);
+      lrSource='专家解读给出的补学清单（本周可执行的动作）';
+    }else if(compare && (compare.lowest_effort||[]).length){
+      const set=new Set();
+      compare.lowest_effort.forEach(r=>(r.to_add||[]).forEach(s=>set.add(s)));
+      lrGaps=[...set].filter(Boolean).slice(0,8);
+      lrSource='依据你提供的 JD 与经历对比得出（专家未返回补学清单时的兜底）';
+    }else if(quad.length){
+      lrGaps=quad.filter(x=>x.a<50).sort((a,b)=>b.d-a.d).slice(0,6).map(x=>x.n).filter(Boolean);
+      lrSource='依据国内样本里适合先补的能力筛出的方向（方向性参考）';
+    }
+    INSIGHT={gaps:lrGaps, source:lrSource, role:$('#insTargetRole').value.trim()||(firstJd?inferRole(firstJd,lastProfile):'')||$('#ivRole').value.trim(),
+      major, at:Date.now()};
+    syncLearning();
+    const shownRole=$('#insTargetRole').value.trim();
+    const shownSalary=$('#insSalary').value.trim();
+    const shownExp=$('#insResume').value.trim();
+    const ctxCard='<div class="card"><div class="meta" style="margin-bottom:12px">本次岗位方向 · 可在上方对齐字段修改后重新生成</div>'+
+      (shownRole?'<div class="dim"><b>求职意向</b><span>'+esc(shownRole)+'</span></div>':'')+
+      (shownSalary?'<div class="dim"><b>薪资意向</b><span>'+esc(shownSalary)+'（只作个人约束，不预测市场薪资）</span></div>':'')+
+      (shownExp?'<div class="dim"><b>项目/实习经历</b><span>'+esc(shownExp.slice(0,200))+'</span></div>':'')+
+      (!shownRole&&!shownExp?'<p class="muted">尚未填入。可先在上方粘贴文本或上传截图 / PDF / DOCX 点「解析」，或直接填写后再生成。</p>':'')+
+      '</div>';
     const freq=quad.slice(0,10).map(x=>'<div class="req"><div class="q"><b>'+esc(x.n)+'</b></div>'+
-      '<div><span class="tag '+(x.a<50?'ok':'')+'">自动化可行性 '+esc(x.a)+'</span>'+
-      '<span class="tag">需求热度 '+esc(x.d)+'</span></div></div>').join('')||'<p class="muted">本次样本未命中技能词。</p>';
-    const gaps=compare?(compare.lowest_effort||[]).map(x=>'<div class="act"><div class="t">'+esc(x.name)+'</div>'+
-      '<div class="d">可复用：'+esc((x.reusable||[]).join(' / ')||'未提供经历')+' · 要补：'+esc((x.to_add||[]).join(' / ')||'无明显缺口')+'</div></div>').join(''):'';
+      '<div><span class="tag '+(x.d>=60?'ok':'')+'">'+esc(studyPriority(x.n,x.d))+'</span>'+
+      '<span class="tag">'+(x.d>=60?'样本里常出现':'样本里偶尔出现')+'</span></div></div>').join('')||'<p class="muted">本次样本未命中技能词，可补充目标 JD 或在上方填写更具体的专业 / 方向。</p>';
+    // 补学清单直接用 INSIGHT.gaps（专家 focus），与「定向学习」框完全同一批
+    const gaps=(INSIGHT.gaps||[]).map((x,i)=>'<div class="act"><div class="t">'+(i+1)+'. '+esc(x)+'</div></div>').join('');
     const ev=evidence?('<div class="card"><div class="meta" style="margin-bottom:14px">三级权重逐条对照 · '+esc(evidence.total)+' 条</div>'+
       evidence.requirements.map(r=>'<div class="req"><div class="q">'+esc(r.requirement)+'<div class="why">'+esc(r.explanation)+'</div></div>'+
       '<div><span class="state '+r.state+'">'+esc(r.state_zh)+'</span></div></div>').join('')+
       '<div class="verdict">'+esc(evidence.decision_hint)+'</div></div>'):'';
+    const ragCard=(materials.length?
+      '<div class="card"><div class="meta" style="margin-bottom:12px">检索证据 · 与库内样本比对后重排（脱敏片段，供专家参考）</div>'+
+      materials.map((m,i)=>'<div class="req"><div class="q"><b>'+esc(m.title)+'</b>'+
+        '<div class="why">'+esc(m.text)+(m.text.length>=220?'…':'')+'</div></div>'+
+        '<div><span class="tag ok">'+(i+1)+'</span>'+
+        '<span class="tag">相关度 '+esc(m.score)+'</span></div></div>').join('')+
+      '<div class="verdict">以上片段来自国内岗位的公开样本，只作补学方向参考，不代表公司要求或录用标准。</div></div>':
+      (rag&&rag.trace&&rag.trace.queries&&rag.trace.queries.length?
+        '<div class="card"><div class="meta" style="margin-bottom:10px">检索证据</div>'+
+        '<p class="muted">本次检索未命中相似样本；专家解读改依据上方技能统计与岗位方向。字段仅作查询，未入库未留存。</p></div>':''));
     $('#insResult').innerHTML=
-      '<div class="card dark"><div class="meta" style="margin-bottom:16px">RESULT / '+esc(p.name||major)+' · '+(p.data_grade||'D')+' 级 · '+(p.region||'global_remote')+'</div>'+
-      '<p style="font-size:13px;line-height:1.9;color:#c9c9c3">'+esc(p.summary||'公开样本暂不可用，已降级内置演示数据。')+'</p>'+
-      '<div style="margin-top:16px">'+(p.metrics||[]).map(m=>'<span class="tag ok">'+esc(m[0])+' '+esc(m[1])+'</span>').join('')+'</div>'+
-      (p.quadNote?'<p style="font-size:11px;color:#8d8d88;line-height:1.7;margin-top:14px">'+esc(p.quadNote)+'</p>':'')+'</div>'+
-      (expert&&expert.data?'<div class="card"><div class="meta" style="margin-bottom:12px">行业专家 agent 解读（结构化校验通过）</div>'+
-        '<p style="font-size:14px;line-height:1.9">'+esc(expert.data.reading||'')+'</p>'+
-        '<div style="margin-top:12px">'+(expert.data.focus||[]).map(f=>'<span class="tag ok">'+esc(f)+'</span>').join('')+'</div></div>':'')+
-      '<div class="card"><div class="meta" style="margin-bottom:14px">技能出现率 / 自动化可行性四象限</div>'+freq+'</div>'+
-      (gaps?'<div class="card"><div class="meta" style="margin-bottom:14px">缺口清单（按补起来最省力排序）</div>'+gaps+'</div>':'')+ev+
-      (trend?'<div class="card"><div class="meta" style="margin-bottom:12px">技能趋势</div><pre style="font-size:11px;white-space:pre-wrap">'+esc(pretty(trend))+'</pre></div>':'')+
-      (meta.source?'<div class="card"><div class="meta" style="margin-bottom:12px">来源署名 / 口径</div>'+
-        '<p style="font-size:12px;line-height:1.8">'+esc(meta.source.name||'')+' · <a href="'+esc(meta.source.url||'')+'" target="_blank" rel="noopener">原始链接 ↗</a> · '+esc(meta.source.scope||'')+'</p>'+
-        '<p style="font-size:11px;color:var(--gray);line-height:1.7;margin-top:8px">'+esc(meta.note||'')+'</p></div>':'');
+      '<div class="card dark"><div class="meta" style="margin-bottom:16px">RESULT / '+esc(p.name||major)+' · 国内样本</div>'+
+      '<div style="margin-top:4px">'+(p.metrics||[]).map(m=>'<span class="tag ok">'+esc(m[0])+' '+esc(m[1])+'</span>').join('')+'</div></div>'+
+      ctxCard+ragCard+
+      (expert&&expert.data?'<div class="card"><div class="meta" style="margin-bottom:12px">行业专家解读</div>'+
+        '<p style="font-size:14px;line-height:1.9">'+esc(expert.data.reading||'')+'</p></div>':'')+
+      '<div class="card"><div class="meta" style="margin-bottom:14px">岗位里常提到的能力 · 先看该补什么</div>'+freq+'</div>'+
+      (gaps?'<div class="card"><div class="meta" style="margin-bottom:14px">补学清单 · 已带入「定向学习」（可微调）</div>'+gaps+'</div>':'')+ev+
+      (meta.source?'<div class="card"><div class="meta" style="margin-bottom:12px">样本来源</div>'+
+        '<p style="font-size:12px;line-height:1.8">'+esc(meta.source.name||'')+' · 仅作技能词频与补学方向参考，不代表全国就业市场</p></div>':'');
     toast('洞察完成 · <b>'+(p.metrics?.[0]?.[0]||'0')+'</b> 条样本');
   }catch(e){toast('洞察失败：'+esc(e.message))}
   finally{btn.disabled=false}
 };
 
-/* ---- 02 输入解析（本地 OCR + 简历解析） ---- */
-const OCR_CDN='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
-const OCR_MAX_BYTES=8*1024*1024;
-let inBlobUrl=null,ocrScriptEl=null,ocrBusy=false;
+/* ---- 01 内嵌解析（本机视觉模型）→ 填充洞察 / 面试 ---- */
+let lastProfile=null;
+const AUTO={};
 function inNote(msg){$('#inNote').textContent=msg}
-function loadOcr(){
-  if(window.Tesseract&&typeof window.Tesseract.recognize==='function')return Promise.resolve(window.Tesseract);
-  return new Promise((resolve,reject)=>{
-    if(ocrScriptEl&&ocrScriptEl.parentNode){
-      ocrScriptEl.addEventListener('load',()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR_ENGINE_INVALID')));
-      ocrScriptEl.addEventListener('error',()=>reject(new Error('OCR_CDN_FAILED')));return;
-    }
-    const s=document.createElement('script');ocrScriptEl=s;s.src=OCR_CDN;s.async=true;
-    const timer=setTimeout(()=>{s.remove();reject(new Error('OCR_CDN_TIMEOUT'))},20000);
-    s.onload=()=>{clearTimeout(timer);window.Tesseract&&window.Tesseract.recognize?resolve(window.Tesseract):reject(new Error('OCR_ENGINE_INVALID'))};
-    s.onerror=()=>{clearTimeout(timer);s.remove();reject(new Error('OCR_CDN_FAILED'))};
-    document.head.appendChild(s);
-  });
+function autoSet(sel,val,key){
+  const el=$(sel),v=String(val||'').trim();if(!el||!v)return false;
+  const cur=el.value.trim();
+  if(cur&&cur!==AUTO[key])return false;   // 用户手工改过的字段不覆盖
+  el.value=v;AUTO[key]=v;return true;
 }
-$('#inShot').onchange=e=>{
-  const f=e.target.files&&e.target.files[0];if(!f)return;
-  if(!/^image\/(png|jpeg|webp|bmp)$/.test(f.type)){inNote('只支持 PNG / JPG / WEBP / BMP 图片');e.target.value='';return}
-  if(f.size>OCR_MAX_BYTES){inNote('图片超过 8 MB，请裁剪后再试');e.target.value='';return}
-  if(inBlobUrl)URL.revokeObjectURL(inBlobUrl);
-  inBlobUrl=URL.createObjectURL(f);
-  inNote(f.name+' · '+Math.max(1,Math.round(f.size/1024))+' KB · 仅在浏览器内存');
-};
-$('#inOcr').onclick=async()=>{
-  if(ocrBusy||!inBlobUrl){inNote('请先选择一张截图');return}
-  ocrBusy=true;$('#inOcr').disabled=true;$('#inOcr').textContent='本地识别中…';
+function inferRole(text,profile){
+  const m=text.match(/(?:岗位名称|岗位|职位|招聘|title)\s*(?:名称)?\s*[:：]\s*([^\n]{2,30})/i);
+  if(m)return m[1].trim();
+  const line=text.split(/\n/).map(s=>s.trim()).find(s=>s.length>=2&&s.length<=30&&
+    /(工程师|专员|分析师|实习生|开发|设计|产品|运营|数据|算法|测试)/.test(s));
+  return line||String((profile&&profile.job_title_hint)||'').slice(0,40);
+}
+function profileDraft(p){
+  if(!p)return '';
+  // 优先用后端已去重、已脱敏的结构化岗位上下文，避免重复字段再次进入专家解读
+  if(p.expert_context)return String(p.expert_context).slice(0,500);
+  const parts=[];
+  if(p.target_role||p.job_title_hint)parts.push('求职意向：'+(p.target_role||p.job_title_hint));
+  if(p.salary_expectation)parts.push('薪资意向（用户自填）：'+p.salary_expectation);
+  if(p.major)parts.push('专业：'+p.major);
+  if(p.education)parts.push('学历：'+p.education);
+  if(Array.isArray(p.certificates)&&p.certificates.length)
+    parts.push('证书：'+p.certificates.slice(0,8).join('、'));
+  if(Array.isArray(p.skill_areas)&&p.skill_areas.length)
+    parts.push('技能方向：'+p.skill_areas.slice(0,8).map(s=>s.name).join('、'));
+  if(p.level_hint&&p.level_hint!=='unspecified')parts.push('级别：'+p.level_hint);
+  if(p.coarse_summary)parts.push(p.coarse_summary);
+  return parts.join('；').slice(0,500);
+}
+/* 本机模型解析出的技能字段——洞察/辅导/面试三处专家 RAG 共用同一口径，避免各读各的 */
+function parsedSkillNames(){
+  const p=lastProfile||{};
+  if(Array.isArray(p.skill_areas))
+    return p.skill_areas.slice(0,10).map(s=>String((s&&s.name)||s||'').trim()).filter(Boolean);
+  return [];
+}
+/* 用洞察参数区里用户可见、可手改的字段拼装专家上下文——手改后重新生成洞察即生效 */
+function expertContextFromInputs(){
+  const p=lastProfile||{},parts=[];
+  const v=id=>{const e=$(id);return e?String(e.value||'').trim():''};
+  const role=v('#insTargetRole'), exp=v('#insResume'), major=v('#insMajor'), salary=v('#insSalary');
+  const edu=v('#insEdu'), skills=v('#insSkills'), certs=v('#insCerts'), honors=v('#insHonors');
+  if(role)parts.push('求职意向：'+role);
+  if(salary)parts.push('薪资意向（用户自填）：'+salary);
+  else if(p.salary_expectation)parts.push('薪资意向（用户自填）：'+p.salary_expectation);
+  if(major&&major!=='计算机科学与技术')parts.push('专业：'+major);
+  if(edu)parts.push('学历：'+edu);
+  else if(p.education)parts.push('学历：'+p.education);
+  if(exp)parts.push('项目/实习上下文：'+exp.slice(0,400));
+  if(certs)parts.push('证书：'+certs.slice(0,120));
+  else if(Array.isArray(p.certificates)&&p.certificates.length)parts.push('证书：'+p.certificates.slice(0,8).join('、'));
+  if(honors)parts.push('荣誉/奖项：'+honors.slice(0,120));
+  else if(Array.isArray(p.honors)&&p.honors.length)parts.push('荣誉/奖项：'+p.honors.slice(0,6).join('、'));
+  if(skills)parts.push('技能方向：'+skills.slice(0,120));
+  else if(Array.isArray(p.skill_areas)&&p.skill_areas.length)parts.push('技能方向：'+p.skill_areas.slice(0,8).map(s=>s.name).join('、'));
+  return parts.join('；').slice(0,1200);
+}
+/* 解析结果对齐到同一框的可编辑字段：所有岗位字段可直接改，只有「说明」为只读提示。
+   不再渲染第二份只读卡片，避免与下方输入框重复。 */
+function renderParseResult(d){
+  const p=d.job_profile||{};
+  const skills=(p.skill_areas||[]).slice(0,10).map(s=>s.name).join('、');
+  const certs=(p.certificates||[]).slice(0,10).join('、');
+  const honors=(p.honors||[]).slice(0,8).join('、');
+  const exp=(p.experience_context||[]).slice(0,5).join('；');
+  const role=p.target_role||p.job_title_hint||'';
+  const level=(p.level_hint&&p.level_hint!=='unspecified')?
+    ({senior:'资深',junior:'初级/应届'}[p.level_hint]||p.level_hint):'';
+  autoSet('#insTargetRole',role,'targetRole');
+  autoSet('#insSalary',p.salary_expectation,'salary');
+  autoSet('#insMajor',p.major,'major');
+  autoSet('#insEdu',p.education,'edu');
+  autoSet('#insSkills',skills,'skills');
+  autoSet('#insCerts',certs,'certs');
+  autoSet('#insHonors',honors,'honors');
+  autoSet('#insResume',exp,'resume');
+  // 同框内的 JD 与面试草稿字段（仍带手改保护）
+  const text=$('#inText').value.trim();
+  if(text.length>=12){
+    const jds=text.split(/\n\s*\n+/).map(s=>s.trim()).filter(s=>s.length>=12).slice(0,10).join('\n\n')||text.slice(0,4000);
+    autoSet('#insJds',jds,'jds');
+    autoSet('#ivRole',inferRole(text,lastProfile),'role');
+  }
+  if(role)autoSet('#ivRole',role,'role');
+  if(exp)autoSet('#ivProj','（解析草稿，请改成你的真实项目）'+exp,'proj');
+  // 说明为只读：仅更新文案里的解析计数提示，不接受用户编辑
+  const note=$('#insParseNote');
+  if(note){
+    const parts=[role&&'求职意向',p.salary_expectation&&'薪资意向',p.major&&'专业',
+      p.education&&'学历',exp&&'项目 / 实习',certs&&'证书',honors&&'荣誉',skills&&'技能方向'].filter(Boolean);
+    const levelTip=level?'（级别线索：'+level+'）':'';
+    note.textContent=parts.length?
+      ('已解析并填入 '+parts.join('、')+'；姓名、手机、邮箱、出生地、性别等身份信息已剔除且不留存。'+
+       '以上字段均可直接修改，改完重新生成即按新内容解读。'+levelTip):
+      ('读取求职意向、薪资意向、专业、学历、项目 / 实习、证书与荣誉；身份信息已剔除且不留存。字段可直接修改。'+levelTip);
+  }
+}
+function parsedFieldCount(p){
+  return [p.target_role,p.salary_expectation,p.major,p.education,
+    (p.experience_context||[]).length,(p.certificates||[]).length,(p.honors||[]).length]
+    .filter(v=>!!v&&v!==0).length;
+}
+/* 统一的解析回填入口：所有来源都走本机模型，结果在这里统一对齐到字段 */
+function applyParsedData(d,source){
+  lastProfile=d.job_profile||null;
+  renderParseResult(d);
+  updateAutoStatus(source);
+  return parsedFieldCount(lastProfile||{});
+}
+function updateAutoStatus(source){
+  const el=$('#insAutoStatus');if(!el)return;
+  const role=$('#insTargetRole').value.trim(),major=$('#insMajor').value.trim();
+  const salary=$('#insSalary').value.trim(),exp=$('#insResume').value.trim();
+  const filled=[role&&'求职意向：'+role,major&&'专业：'+major,salary&&'薪资意向：'+salary,
+    exp&&'项目/实习经历：'+exp.slice(0,60)+(exp.length>60?'…':'')].filter(Boolean);
+  el.innerHTML=filled.length?
+    '<b>'+esc(source||'岗位字段解析')+'</b> · 已自动带入：'+filled.map(esc).join(' ｜ ')+'<br>手工改过的字段不会被下一次解析覆盖。':
+    '<b>'+esc(source||'尚未解析')+'</b> · 未提取到岗位字段。请粘贴含「求职意向 / 专业 / 项目经历」的文本，或上传截图 / PDF / DOCX 后点「解析」。';
+}
+/* 统一解析入口：图片 / PDF / DOCX / 粘贴文本都交给本机视觉模型，点一次「解析」才跑。
+   文件在浏览器内读成 base64 上传，后端内存提取（PDF/DOCX）后由本机模型语义识别，不落盘不外发。 */
+const readAsB64=file=>new Promise((res,rej)=>{
+  const fr=new FileReader();fr.onload=()=>res(String(fr.result||'').split(',')[1]||'');
+  fr.onerror=()=>rej(new Error('READ_FAILED'));fr.readAsDataURL(file);
+});
+const ACCEPT_RE=/\.(png|jpe?g|webp|bmp|pdf|docx)$/i;
+const IMG_MIME_RE=/^image\/(png|jpeg|webp|bmp)$/;
+const IMG_EXT_MIME={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',bmp:'image/bmp'};
+let pickedFile=null;
+const PD_MAIN_DEFAULT='解析 ↗ · 点此选文件，或拖放文件至此';
+const PD_SUB_DEFAULT='支持 PNG / JPG / WEBP / BMP / PDF / DOCX ≤10MB，本机识别不外发 · 无文件时解析上方文本';
+function pdSetFile(f){
+  pickedFile=f||null;
+  if(pickedFile){
+    $('#inParseMain').textContent='解析 ↗ · '+pickedFile.name;
+    $('#inParseSub').textContent=(pickedFile.size/1024/1024).toFixed(2)+' MB · 点击解析 / 重新选或拖入新文件可替换';
+    $('#inClearFile').style.display='';
+  }else{
+    $('#inParseMain').textContent=PD_MAIN_DEFAULT;
+    $('#inParseSub').textContent=PD_SUB_DEFAULT;
+    $('#inClearFile').style.display='none';
+    $('#inResume').value='';
+  }
+}
+async function runParse(file){
+  const btn=$('#inParse');
+  const text=$('#inText').value.trim();
+  if(!file&&text.length<12){inNote('请粘贴至少 12 字的简历 / JD，或选择 / 拖放图片 · PDF · DOCX');return}
+  btn.disabled=true;inNote('本机模型识别中，约需数秒…');
   try{
-    const T=await loadOcr();
-    const res=await T.recognize(inBlobUrl,'chi_sim+eng');
-    const text=String(((res&&res.data)||{}).text||'').replace(/\u00a0/g,' ').replace(/[ \t]+\n/g,'\n').trim();
-    if(text.length<20){inNote('识别文字太少，请换清晰截图');return}
-    const ta=$('#inText');ta.value=ta.value.trim()?ta.value.trim()+'\n'+text:text;
-    inNote('识别完成 · '+text.length+' 字，已写入文本框，请核对后使用。位图未上传、未保存。');
-  }catch(err){inNote('本地 OCR 不可用（'+(err&&err.message||'unknown')+'）：可离线或 CDN 不可达。请直接粘贴文本。')}
-  finally{ocrBusy=false;$('#inOcr').disabled=false;$('#inOcr').textContent='② 截图本地 OCR ↗'}
+    let body;
+    if(file){
+      if(file.size>10*1024*1024){inNote('文件超过 10 MB');return}
+      if(!ACCEPT_RE.test(file.name||'')){inNote('只支持 PNG / JPG / WEBP / BMP 图片或 PDF / DOCX');return}
+      const b64=await readAsB64(file);
+      if(IMG_MIME_RE.test(file.type||'')||/\.(png|jpe?g|webp|bmp)$/i.test(file.name)){
+        const mime=IMG_MIME_RE.test(file.type||'')?file.type:(IMG_EXT_MIME[file.name.split('.').pop().toLowerCase()]||'image/jpeg');
+        body={mode:'image',image_base64:b64,image_mime:mime};
+      }else if(/\.(pdf|docx)$/i.test(file.name)){
+        body={mode:'file',file_base64:b64,file_name:file.name};
+      }else{inNote('只支持 PNG / JPG / WEBP / BMP 图片或 PDF / DOCX');return}
+    }else{
+      body={mode:'text',text};
+    }
+    const d=await api('/api/local-vlm/extract',body);
+    const n=applyParsedData(d,'本机模型解析');
+    inNote(n?'解析完成 · 已提取 '+n+' 类岗位字段并带入下方；原文 / 文件未留存、未外发，请核对后修改。':
+      '解析完成，但未命中岗位字段；请确认内容含求职意向 / 专业 / 项目经历，或换更清晰的图片。');
+  }catch(e){inNote('解析失败：'+(e&&e.message||'unknown')+(e&&e.code?'（'+e.code+'）':'')+'。请确认本机模型服务已启动，或直接手写下方字段。')}
+  finally{btn.disabled=false}
+}
+// 点按钮：已选文件→解析文件；无文件有文本→解析文本；都没有→打开文件选择器
+$('#inParse').onclick=()=>{
+  if(pickedFile){runParse(pickedFile);return}
+  if($('#inText').value.trim().length>=12){runParse(null);return}
+  $('#inResume').click();
 };
-$('#inParse').onclick=async()=>{
-  const f=$('#inResume').files&&$('#inResume').files[0];
-  if(!f){inNote('请先选择 PDF / DOCX 文件');return}
-  if(!/\.(pdf|docx)$/i.test(f.name)){inNote('只支持 pdf / docx');return}
-  if(f.size>3*1024*1024){inNote('文件超过 3 MB');return}
-  $('#inParse').disabled=true;inNote('内存解析中…');
-  try{
-    const fd=new FormData();fd.append('file',f);
-    const r=await fetch('/api/resume/parse',{method:'POST',body:fd});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(d.message||d.error||r.status);
-    $('#inResult').innerHTML='<div class="card"><div class="meta" style="margin-bottom:12px">简历解析结果 · 仅粗粒度岗位信息</div>'+
-      '<pre style="font-size:11px;white-space:pre-wrap">'+esc(pretty(d))+'</pre></div>';
-    inNote('解析完成 · 文件与原文未留存，仅返回岗位信息。');
-  }catch(e){inNote('解析失败：'+e.message)}
-  finally{$('#inParse').disabled=false}
-};
+// 文件选择器选中即解析
+$('#inResume').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;pdSetFile(f);runParse(f)};
+// 拖放文件到按钮即解析
+(function(){
+  const btn=$('#inParse');
+  ['dragenter','dragover'].forEach(t=>btn.addEventListener(t,e=>{e.preventDefault();e.stopPropagation();btn.classList.add('dragover')}));
+  ['dragleave','drop'].forEach(t=>btn.addEventListener(t,e=>{e.preventDefault();e.stopPropagation();btn.classList.remove('dragover')}));
+  btn.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(!f)return;pdSetFile(f);runParse(f)});
+})();
+// 清除已选文件
+$('#inClearFile').onclick=e=>{e.stopPropagation();pdSetFile(null);inNote('已清除文件；点按钮将解析上方文本，或重新选文件 / 拖放。')};
 $('#inSaveMat').onclick=()=>{
   const text=$('#inText').value.trim();if(!text){toast('请先填写文本');return}
   const r=getMat();r.unshift({title:(text.slice(0,24)||'未命名')+'…',tag:'输入解析',text,at:new Date().toLocaleDateString('zh-CN')});
   setMat(r);drawMat();toast('已存入本机材料库');
 };
-$('#inToInsight').onclick=()=>{
-  const text=$('#inText').value.trim();if(!text){toast('请先填写文本');return}
-  const jds=text.split(/\n\s*\n+/).filter(t=>t.trim().length>=12);
-  $('#insJds').value=jds.join('\n\n')||text;
-  go('insight');toast('已送入洞察对齐，可补充经历后生成');
-};
 
-/* ---- 03 定向学习（进度存本机） ---- */
+/* ---- 02 定向学习（缺口来自洞察对齐；进度存本机） ---- */
+let INSIGHT=null;              // 最近一次洞察结果提炼出的缺口：{gaps,source,role,major,at}
+const LR_AUTO={};              // 记录上次自动写入的缺口，重生成洞察时以最新结果同步
+function syncLearning(){
+  if(!INSIGHT)return;
+  const gaps=(INSIGHT.gaps||[]).slice(0,8).filter(Boolean).join('、');
+  // 以本次洞察结果为准：有则带入、无则清空，避免残留上一次的旧缺口
+  $('#lrGaps').value=gaps;LR_AUTO.gaps=gaps;
+  if(INSIGHT.role)autoSet('#lrGoal',INSIGHT.role,'goal');
+  $('#lrSource').innerHTML='<b>来自洞察对齐</b> · '+esc(INSIGHT.source||'自动带入')+
+    (gaps?'：<b>'+esc(gaps)+'</b>（可微调；重新生成洞察会以最新结果为准）':'（本次未得出补学清单，可手动填写）');
+}
 const getLearn=()=>{try{return JSON.parse(localStorage.getItem(LS.learn)||'{}')}catch(e){return{}}};
 const setLearn=v=>localStorage.setItem(LS.learn,JSON.stringify(v));
 $('#lrGen').onclick=async()=>{
   const gaps=($('#lrGaps').value||'').split(/[,，、\n]+/).map(s=>s.trim()).filter(Boolean);
-  if(!gaps.length){toast('请填写至少一个技能 / 差距项');return}
+  if(!gaps.length){toast(INSIGHT?'请先在「洞察对齐」生成结果':'请先在「洞察对齐」生成结果，缺口会自动带入');return}
   const btn=$('#lrGen');btn.disabled=true;
   const pace=$('#lrPace').value.trim()||'每周 6 小时', goal=$('#lrGoal').value.trim();
   try{
@@ -785,8 +1067,8 @@ $('#lrGen').onclick=async()=>{
   finally{btn.disabled=false}
 };
 
-/* ---- 04 模拟面试（四阶段 + 素材检索） ---- */
-let IV={mode:'standard',stage:0,stages:['自我介绍','项目追问','压力面','反问'],sid:null,qa:[],ack:false};
+/* ---- 03 模拟面试（四阶段 · 面试专家 agent：岗位索引 + 话术索引双路重排） ---- */
+let IV={mode:'standard',stage:0,stages:['自我介绍','项目追问','压力面','反问'],sid:null,qa:[],ack:false,materials:[],jobMats:[],talkMats:[],ivCtx:null};
 const STAGE_Q={
   standard:['请用一分钟做自我介绍，重点讲与目标岗位相关的经历。','说说你简历里最相关的项目，你具体负责什么？','如果重来，你会怎么改进这个项目？','你还有什么想问我们的？'],
   pressure:['你凭什么觉得自己适合这个岗位？','你项目里的数据结果有什么证据？别泛泛而谈。','你的方案失败了怎么办？你承担什么责任？','最后，你有什么问题？']
@@ -798,22 +1080,43 @@ $$('.iv-mode').forEach(b=>b.onclick=()=>{
 $('#ivStart').onclick=async()=>{
   if(!$('#ivAck').checked){toast('请先勾选用途确认');return}
   const role=$('#ivRole').value.trim()||'目标岗位', proj=$('#ivProj').value.trim();
-  IV.stage=0;IV.qa=[];IV.sid=null;IV.ack=true;
-  let support='';
+  IV.stage=0;IV.qa=[];IV.sid=null;IV.ack=true;IV.materials=[];IV.jobMats=[];IV.talkMats=[];IV.ivCtx=null;
+  $('#ivResult').innerHTML='';
+  const btn=$('#ivStart');btn.disabled=true;
   try{
-    const s=await api('/api/hybrid/search',{q:(role+' '+(proj||'')).slice(0,120)||role,top_k:3,use_dense:true});
-    support=(s.hits||[]).map(h=>h.title||h.text||'').filter(Boolean).join(' / ').slice(0,200);
-    $('#ivResult').insertAdjacentHTML('afterbegin','<div class="card" style="font-size:11px;color:var(--gray)">面试素材检索：'+(s.backend||'-')+' · '+esc(support||'无命中，按本地规则追问')+'</div>');
+    // 面试专家 RAG：岗位信息索引 + 面试话术索引，各自召回重排后合并给面试 agent
+    const ctx=await api('/api/expert/context',{
+      agent:'interview', target_role:role,
+      major:$('#insMajor').value.trim(),
+      skills:parsedSkillNames(),
+      experience:(proj||expertContextFromInputs()).slice(0,600),
+      focus:proj||role, stage:IV.stages[0], top_k:4});
+    IV.ivCtx=ctx;
+    IV.jobMats=(ctx.job_materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score,source_id:m.source}));
+    IV.talkMats=(ctx.talk_materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score,source_id:m.source}));
+    IV.materials=(ctx.materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score,source_id:m.source}));
+    $('#ivResult').insertAdjacentHTML('afterbegin','<div class="card" style="font-size:11px;color:var(--gray)">面试专家检索 · 岗位 '+IV.jobMats.length+' 条 / 话术 '+IV.talkMats.length+' 条'+
+      (IV.materials.length?'<br>岗位：'+esc(IV.jobMats.map(m=>m.title||m.source_id).join(' / ')||'无')+
+        '<br>话术：'+esc(IV.talkMats.map(m=>m.title||m.source_id).join(' / ')||'无'):'（无命中，按固定题追问）')+'</div>');
   }catch(e){}
-  drawIvQuestion(role,proj,support);
+  finally{btn.disabled=false}
+  await drawIvQuestion(role,proj);
 };
-function drawIvQuestion(role,proj,support){
+async function drawIvQuestion(role,proj){
   const stageName=IV.stages[IV.stage];
-  const base=(STAGE_Q[IV.mode][IV.stage]||stageName);
-  let q=base+(IV.stage===0?'（'+role+'）':'');
+  const fallback=STAGE_Q[IV.mode][IV.stage]||stageName;
+  let q=fallback;
+  if(IV.stage===0)q=fallback+'（'+role+'）';
+  try{
+    const d=await api('/api/llm',{task:'interview_question',payload:{
+      stage:stageName, mode:IV.mode==='pressure'?'pressure':'standard', role:role.slice(0,40),
+      last_answer:IV.qa.length?IV.qa[IV.qa.length-1].a.slice(0,200):'',
+      materials:IV.materials}});
+    if(d&&d.data&&d.data.question)q=d.data.question;
+  }catch(e){}
   $('#ivResult').innerHTML+='<div class="card dark" id="ivQ"><div class="meta">'+(IV.stage+1)+' / 4 · '+esc(stageName)+' · '+esc(IV.mode==='standard'?'标准面':'压力面')+'</div>'+
     '<div class="qa"><div class="qq" style="color:#f5f5f1">'+esc(q)+'</div>'+
-    (support?'<div class="dim" style="color:#8d8d88;border-color:#2a2a2a">素材支撑：'+esc(support)+'</div>':'')+'</div>'+
+    (IV.materials.length?'<div class="dim" style="color:#8d8d88;border-color:#2a2a2a">向量库素材：'+esc(IV.materials.map(m=>m.title||m.source_id).join(' / '))+'</div>':'')+'</div>'+
     '<div class="field" style="margin-top:18px"><label style="color:#c9c9c3">你的回答（引用自己的话，不用编）</label>'+
     '<textarea id="ivAns" rows="4" placeholder="说清：做了什么、为什么、结果如何。"></textarea></div>'+
     '<button class="btn btn-acid geo" id="ivSubmit">提交这一题 ↗</button></div>';
@@ -822,19 +1125,19 @@ function drawIvQuestion(role,proj,support){
 async function submitIv(q,ans){
   if((ans||'').trim().length<8){toast('请至少写 8 个字的具体回答');return}
   let fb=null;
-  try{fb=await api('/api/llm',{task:'answer_feedback',payload:{question:q.slice(0,200),answer:ans.slice(0,400),mode:IV.mode}})}catch(e){fb=null}
+  try{fb=await api('/api/llm',{task:'answer_feedback',payload:{question:q.slice(0,200),answer:ans.slice(0,400),mode:IV.mode,materials:IV.materials}})}catch(e){fb=null}
   const feedback=fb&&fb.data?fb.data.feedback:'已记录。建议按「背景 → 动作 → 结果」补一句可核对的产出。';
   const tip=fb&&fb.data?fb.data.tip:'下一题试着说清你当时的判断依据。';
   IV.qa.push({q,a:ans,feedback,tip});
   $('#ivQ').insertAdjacentHTML('afterend','<div class="card"><div class="meta" style="margin-bottom:10px">逐题反馈 · 只引用你的原话</div>'+
     '<div class="quote">“'+esc(ans.slice(0,120))+'”</div>'+
     '<div class="dim"><b>反馈</b>'+esc(feedback)+'</div><div class="dim"><b>下一步</b>'+esc(tip)+'</div></div>');
-  if(IV.stage<3){IV.stage++;drawIvQuestion($('#ivRole').value.trim()||'目标岗位',$('#ivProj').value.trim(),'')}
+  if(IV.stage<3){IV.stage++;await drawIvQuestion($('#ivRole').value.trim()||'目标岗位',$('#ivProj').value.trim())}
   else await finishIv();
 }
 async function finishIv(){
   let report=null;
-  try{report=await api('/api/llm',{task:'report',payload:{role:($('#ivRole').value.trim()||'目标岗位').slice(0,80),turns:IV.qa.length,mode:IV.mode}})}catch(e){report=null}
+  try{report=await api('/api/llm',{task:'report',payload:{role:($('#ivRole').value.trim()||'目标岗位').slice(0,80),turns:IV.qa.length,mode:IV.mode,materials:IV.materials}})}catch(e){report=null}
   const advice=report&&report.data?report.data.advice:['结构：每题按背景→动作→结果三段讲。','证据：给一个可核对的产出或指标。','复盘：准备一条你主动收敛范围的判断。'];
   const anchors=report&&report.data?report.data.anchors:['把「负责数据分析」改成「用 SQL 汇总三个月订单，输出区域看板」。'];
   const bars=IV.qa.map((x,i)=>'<div class="dim"><b>第 '+(i+1)+' 题</b>结构 '+Math.min(5,3+(x.a.length>60?1:0))+'/5 · 证据 '+Math.min(5,2+(/\d|%|结果|提升|完成/.test(x.a)?2:0))+'/5</div>').join('');
@@ -847,12 +1150,62 @@ async function finishIv(){
   toast('面试完成 · <b>'+IV.qa.length+'</b> 题');
 }
 
-/* ---- 05 AI 辅导 ---- */
-let coachSid=null;
+/* ---- AI 辅导：常驻侧栏（右下按钮召唤，任何视图可对话） ---- */
+const drawerEl=$('#coachDrawer'), headEl=$('#cdHead');
+function coachDrawer(open){
+  const on=(open===undefined)?!drawerEl.classList.contains('open'):!!open;
+  drawerEl.classList.toggle('open',on);
+  $('#coachBackdrop').classList.toggle('on',on);
+  $('#coachFab').classList.toggle('gone',on);
+  if(on)setTimeout(()=>$('#coachMsg').focus(),380);
+}
+$('#coachFab').onclick=()=>coachDrawer();          // 再点一次可收起
+$('#coachClose').onclick=()=>coachDrawer(false);
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&drawerEl.classList.contains('open'))coachDrawer(false);
+});
+/* 拖动：按住标题栏移动面板，松手靠近边缘自动吸附；窄屏保持停靠不拖 */
+let dragS=null;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+headEl.addEventListener('pointerdown',e=>{
+  if(window.innerWidth<860||e.target.closest('.cd-close'))return;
+  const r=drawerEl.getBoundingClientRect();
+  drawerEl.style.left=r.left+'px';drawerEl.style.top=r.top+'px';
+  drawerEl.style.right='auto';drawerEl.style.bottom='auto';
+  dragS={x:e.clientX,y:e.clientY,l:r.left,t:r.top};
+  drawerEl.classList.add('dragging');headEl.classList.add('grabbing');
+  e.preventDefault();
+});
+window.addEventListener('pointermove',e=>{
+  if(!dragS)return;
+  const r=drawerEl.getBoundingClientRect();
+  drawerEl.style.left=clamp(dragS.l+e.clientX-dragS.x,8,window.innerWidth-r.width-8)+'px';
+  drawerEl.style.top=clamp(dragS.t+e.clientY-dragS.y,8,window.innerHeight-r.height-8)+'px';
+});
+window.addEventListener('pointerup',()=>{
+  if(!dragS)return;dragS=null;
+  drawerEl.classList.remove('dragging');headEl.classList.remove('grabbing');
+  const r=drawerEl.getBoundingClientRect(),gap=52;
+  let x=r.left,y=r.top;
+  if(r.left<gap)x=8;else if(window.innerWidth-r.right<gap)x=window.innerWidth-r.width-8;
+  if(r.top<gap)y=8;else if(window.innerHeight-r.bottom<gap)y=window.innerHeight-r.height-8;
+  if(Math.abs(x-r.left)>1||Math.abs(y-r.top)>1){
+    drawerEl.classList.add('snapping');
+    drawerEl.style.left=x+'px';drawerEl.style.top=y+'px';
+    setTimeout(()=>drawerEl.classList.remove('snapping'),320);
+  }
+});
+window.addEventListener('resize',()=>{
+  if(!drawerEl.style.left)return;
+  const r=drawerEl.getBoundingClientRect();
+  drawerEl.style.left=clamp(parseFloat(drawerEl.style.left),8,Math.max(8,window.innerWidth-r.width-8))+'px';
+  drawerEl.style.top=clamp(parseFloat(drawerEl.style.top),8,Math.max(8,window.innerHeight-r.height-8))+'px';
+});
+let coachSid=null, coachHist=[], coachMats=[];
 async function coachSay(text,who){
   const log=$('#coachLog');
   if(log.querySelector('.empty'))log.innerHTML='';
-  const div=document.createElement('div');div.className='dim';
+  const div=document.createElement('div');div.className='dim msg-in';
   div.innerHTML='<b>'+who+'</b><span style="white-space:pre-wrap">'+esc(text)+'</span>';
   log.appendChild(div);log.scrollTop=log.scrollHeight;return div;
 }
@@ -861,19 +1214,48 @@ $('#coachSend').onclick=async()=>{
   await coachSay(msg,'你');$('#coachMsg').value='';
   const wait=await coachSay('思考中…','辅导');
   try{
-    const d=await api('/api/coach/chat',{session_id:coachSid||undefined,message:msg,purpose_ack:true});
-    coachSid=d.session_id;
-    wait.querySelector('span').textContent=d.reply;
-    $('#coachMeta').textContent='第 '+d.turn+' 轮 · '+(d.guardrail?'护栏提示':'规则引擎')+' · '+d.storage;
+    // 岗位专家 RAG：与洞察同一套岗位材料索引检索 / 融合重排 / 脱敏证据
+    let rag=null;
+    try{
+      rag=await api('/api/expert/context',{
+        agent:'coach', target_role:$('#insTargetRole').value.trim(),
+        major:$('#insMajor').value.trim(), focus:msg.slice(0,120),
+        skills:parsedSkillNames(),
+        experience:expertContextFromInputs(), jds:[], top_k:4});
+    }catch(e){rag=null}
+    coachMats=(rag&&rag.materials||[]).map(m=>({title:m.title,text:String(m.text||'').slice(0,180),kind:m.kind,score:m.score}));
+    const ctx=expertContextFromInputs();
+    let replied=false;
+    try{
+      // 优先走岗位专家 agent（用户自带 LLM / 服务端 qwen）
+      const d=await api('/api/llm',{task:'coach',payload:{
+        message:msg.slice(0,400), career_context:ctx, intent:msg.slice(0,120),
+        history:coachHist.slice(-6), materials:coachMats}});
+      if(d&&d.data&&d.data.answer){
+        wait.querySelector('span').textContent=d.data.answer;
+        const acts=(d.data.focus||[]).filter(Boolean);
+        if(acts.length)wait.insertAdjacentHTML('afterend','<div class="card" style="font-size:11px;color:var(--gray)">本周动作：'+esc(acts.join(' · '))+'</div>');
+        $('#coachMeta').textContent='岗位专家 · 检索 '+coachMats.length+' 条 · '+(d.model||'')+(coachMats.length?' · 已参考岗位样本':' · 仅按你填的背景');
+        replied=true;
+      }
+    }catch(e){/* llm 未启用时降级本地规则引擎 */}
+    if(!replied){
+      const d=await api('/api/coach/chat',{session_id:coachSid||undefined,message:msg,purpose_ack:true});
+      coachSid=d.session_id;
+      wait.querySelector('span').textContent=d.reply;
+      $('#coachMeta').textContent='本地规则引擎 · 第 '+d.turn+' 轮 · '+(d.guardrail?'护栏提示':'')+(coachMats.length?' · 检索 '+coachMats.length+' 条':'');
+    }
+    coachHist.push({q:msg,a:wait.querySelector('span').textContent});
   }catch(e){wait.querySelector('span').textContent='对话失败：'+e.message}
 };
 $('#coachClear').onclick=async()=>{
   if(coachSid){try{await api('/api/coach/delete',{session_id:coachSid})}catch(e){}}
-  coachSid=null;$('#coachLog').innerHTML='<div class="empty">会话已清除（只存在于内存）。发第一句话重新开始。</div>';
+  coachSid=null;coachHist=[];coachMats=[];
+  $('#coachLog').innerHTML='<div class="empty">会话已清除（只存在于内存）。发第一句话重新开始。</div>';
   $('#coachMeta').textContent='';toast('已清除会话');
 };
 
-/* ---- 06 材料检索 ---- */
+/* ---- 管理后台 / 向量库检索（仅管理员面板开放） ---- */
 $('#libRun').onclick=async()=>{
   const q=$('#libQ').value.trim();if(q.length<2){toast('检索词至少 2 字');return}
   const btn=$('#libRun');btn.disabled=true;
@@ -884,11 +1266,12 @@ $('#libRun').onclick=async()=>{
       ((d.hits||[]).length?d.hits.map(h=>'<div class="req"><div class="q"><b>'+esc(h.title||'（无标题）')+'</b>'+
         '<div class="why">'+esc((h.text||'').slice(0,180))+'</div></div>'+
         '<div><span class="tag">'+esc(h.channels?h.channels.join('+'):h.grade||'D')+'</span><br><span class="tag">'+(h.source_id||h.grade||'sample')+'</span></div></div>').join(''):
-        '<div class="empty">没有命中。可在「管理后台」由管理员入库岗位知识 / 面试素材。</div>')+'</div>';
+        '<div class="empty">没有命中。可先在本页「知识来源」入库岗位知识 / 面试素材。</div>')+'</div>';
     toast('检索完成');
   }catch(e){toast('检索失败：'+esc(e.message))}
   finally{btn.disabled=false}
 };
+/* ---- 01 本机材料库（不进向量库） ---- */
 const getMat=()=>{try{return JSON.parse(localStorage.getItem(LS.mat)||'[]')}catch(e){return[]}};
 const setMat=v=>localStorage.setItem(LS.mat,JSON.stringify(v));
 function drawMat(){
@@ -906,13 +1289,12 @@ $('#mAdd').onclick=()=>{
 };
 $('#mSearch').oninput=drawMat;
 
-/* ---- 07 隐私合规 ---- */
+/* ---- 个人中心 · 用户须知（隐私合规） ---- */
 async function renderPrivacy(){
   const [st,aud]=await Promise.all([getJson('/api/privacy/status'),getJson('/api/privacy/audit')]);
-  $('#pvStatus').textContent=pretty({cipher:st.cipher,key_source:st.key_source,key_persisted:st.key_persisted,
-    retention_days:st.retention_days,records:st.records,pii_ingest_open:st.pii_ingest_open,
-    resume_parse_open:st.resume_parse_open,resume_retention:st.resume_parse_retention,
-    screenshot_pii_to_store:st.screenshot_pii_to_store,audit_chain_ok:aud.chain_ok,audit_entries:aud.entries});
+  $('#pvStatus').innerHTML='<p style="margin:0 0 10px">'+
+    '当前采用 '+esc(st.cipher||'加密存储')+'，数据保留 '+esc(st.retention_days||'-')+' 天，已保存 '+esc(st.records??0)+' 条；审计链 '+esc(aud.chain_ok?'完整':'异常')+'，审计记录 '+esc(aud.entries??0)+' 条。'+
+    '</p><div>'+tags({'密钥来源':st.key_source,'密钥可跨重启':st.key_persisted?'是':'否','个人材料留存':st.resume_retention||'-','截图 PII 入库':st.screenshot_pii_to_store?'开启':'关闭'})+'</div>';
 }
 $('#pvStore').onclick=async()=>{
   const field=$('#pvField').value.trim(),value=$('#pvValue').value.trim();
@@ -962,7 +1344,15 @@ function drawBoard(){
 
 /* ---- 会话 / 个人菜单 ---- */
 async function loadSession(){
-  try{const r=await fetch('/api/auth/session');const d=await r.json();SESSION=d;renderAccount();}
+  try{
+    const r=await fetch('/api/auth/session');const d=await r.json();SESSION=d;
+    // 强制登录路由：服务端已对页面做 302 保护，这里作为前端兜底（如 hash 切换 / 缓存场景）
+    if(d.page_login_required&&!d.logged_in){
+      location.replace('/login.html?next='+encodeURIComponent(location.pathname||'/workbench.html'));
+      return;
+    }
+    renderAccount();
+  }
   catch(e){SESSION={logged_in:false};renderAccount()}
 }
 function renderAccount(){
@@ -988,17 +1378,69 @@ $('#acctBtn').onclick=e=>{e.stopPropagation();const m=$('#acctMenu');const open=
 document.addEventListener('click',e=>{if(!e.target.closest('.acct'))closeMenu()});
 $('#mLogin').onclick=()=>{closeMenu();location.href='/login.html'};
 $('#mLogout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-  SESSION={logged_in:false};renderAccount();closeMenu();toast('已退出登录');if(view==='admin'||view==='profile')go('insight')};
+  closeMenu();
+  if(SESSION.page_login_required){location.href='/login.html';return}
+  SESSION={logged_in:false};renderAccount();toast('已退出登录');if(view==='admin'||view==='profile')go('insight')};
 $('#mProfile').onclick=()=>{closeMenu();go('profile')};
 $('#mAdmin').onclick=()=>{closeMenu();go('admin')};
 function renderProfile(){
-  $('#pfLogin').textContent=SESSION.demo?'演示扫码 / 演示凭据':'登录态有效';
+  const prov=SESSION.provider||'';
+  $('#pfLogin').textContent=({local:'账号密码',github:'GitHub 快捷登录',wechat:'微信扫码',
+    admin:'管理员密码',demo:'演示身份'})[prov]||(SESSION.demo?'演示身份':'登录态有效');
   $('#pfRole').textContent=SESSION.role==='admin'?'管理员':(SESSION.role==='personal'?'个人':(SESSION.role||'未登录'));
-  $('#pfDemo').textContent=SESSION.demo?'演示身份（非真实微信 / 非生产凭据）':'正式身份';
+  $('#pfDemo').textContent=SESSION.demo?'演示身份（非真实第三方 / 非生产凭据）':'正式身份';
   $('#pfBoard').textContent=getBoard().length;$('#pfMat').textContent=getMat().length;
+  // 仅本地账号有密码可改；第三方 / 演示 / 管理员到此走各自入口
+  const canPw=!!SESSION.has_local_password;
+  $('#pfChangePw').style.display=canPw?'block':'none';
+  $('#pfSocialTip').textContent=canPw?'':
+    (SESSION.logged_in?'第三方 / 演示身份无本地密码，无需修改；如需换账号请退出后重新登录。':'');
+  loadMyLlm();
 }
+$('#pfChangePw').onclick=()=>{location.href='/login.html?next='+encodeURIComponent(location.pathname||'/workbench.html')+'&change=1'};
 $('#pfClear').onclick=()=>{if(!confirm('确定清空本机看板与材料？此操作不可撤销，且不影响账号。'))return;
   setBoard([]);setMat([]);setLearn({});renderProfile();drawBoard();drawMat();toast('已清空本机数据')};
+
+/* ---- 个人空间：自带大模型 API（密钥加密存服务端，页面只看得到形态） ---- */
+const LLM_PRESETS={qwen:{base:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus'},
+  deepseek:{base:'https://api.deepseek.com/v1',model:'deepseek-chat'},
+  moonshot:{base:'https://api.moonshot.cn/v1',model:'moonshot-v1-8k'},
+  openai:{base:'https://api.openai.com/v1',model:'gpt-4o-mini'},custom:{base:'',model:''}};
+function pfLlmMsg(t,bad){const m=$('#pfLlmMsg');m.textContent=t||'';m.style.color=bad?'#b00':'#0a7a00'}
+$('#pfLlmProvider').onchange=()=>{const p=LLM_PRESETS[$('#pfLlmProvider').value]||{};
+  if(p.base)$('#pfLlmBase').value=p.base; if(p.model)$('#pfLlmModel').value=p.model};
+async function loadMyLlm(){
+  const guest=!SESSION.logged_in;
+  $('#pfLlmNeedLogin').style.display=guest?'block':'none';
+  $('#pfLlmBody').style.opacity=guest?'0.5':'1';
+  ['#pfLlmProvider','#pfLlmModel','#pfLlmBase','#pfLlmKey','#pfLlmSave','#pfLlmTest','#pfLlmClear']
+    .forEach(s=>{const el=$(s);if(el)el.disabled=guest});
+  if(guest){$('#pfLlmStatus').textContent='登录后可配置';return}
+  try{const d=await getJson('/api/me/llm');
+    $('#pfLlmStatus').innerHTML='<p style="margin:0 0 10px">'+(d.configured?'已配置个人大模型 API。':'尚未配置个人 API，默认使用服务端兜底。')+'</p><div>'+
+      tags({'厂商':d.provider,'模型':d.model,'接口':d.base_url,'密钥状态':d.key_shape,'更新时间':d.updated_at,'跨重启保留':d.persistent?'是':'否','向量模型':d.embedding&&d.embedding.backend?d.embedding.backend+' '+d.embedding.dim+' 维':'服务器固定本地模型'})+'</div>';
+    if(d.provider){$('#pfLlmProvider').value=d.provider;}
+    if(d.model)$('#pfLlmModel').value=d.model;
+    if(d.base_url)$('#pfLlmBase').value=d.base_url;
+  }catch(e){$('#pfLlmStatus').textContent='读取失败：'+(e&&e.message||'unknown')}
+}
+$('#pfLlmSave').onclick=async()=>{
+  const key=$('#pfLlmKey').value.trim();
+  if(key.length<8){pfLlmMsg('请填写 API key（至少 8 位）',true);return}
+  pfLlmMsg('保存中…');
+  try{const d=await api('/api/me/llm/save',{provider:$('#pfLlmProvider').value,api_key:key,
+    base_url:$('#pfLlmBase').value.trim()||null,model:$('#pfLlmModel').value.trim()||null});
+    $('#pfLlmKey').value='';pfLlmMsg('已加密保存 · '+d.provider+' / '+d.model);loadMyLlm();toast('个人 API 已保存')}
+  catch(e){pfLlmMsg(e.message||'保存失败',true)}
+};
+$('#pfLlmTest').onclick=async()=>{pfLlmMsg('测试中…');
+  try{await api('/api/me/llm/test',{});pfLlmMsg('连通成功');toast('个人 API 测试通过')}
+  catch(e){pfLlmMsg('测试失败：'+(e.message||'unknown'),true)}
+};
+$('#pfLlmClear').onclick=async()=>{if(!confirm('确定清除个人大模型配置？此操作不可撤销。'))return;
+  try{await api('/api/me/llm/delete',{});$('#pfLlmKey').value='';pfLlmMsg('已清除');loadMyLlm();toast('已清除个人 API')}
+  catch(e){pfLlmMsg(e.message||'清除失败',true)}
+};
 
 /* ---- 管理后台 ---- */
 async function renderAdmin(){
@@ -1007,16 +1449,33 @@ async function renderAdmin(){
   const [authS,appr,guard,kb]=await Promise.all([
     getJson('/api/auth/status'),getJson('/api/approvals/status'),getJson('/api/vector/guard'),
     getJson('/api/admin/knowledge/status')]);
-  $('#adAuth').textContent=pretty({auth_mode:authS.auth_mode,wechat:authS.wechat?.mode,
-    admin_password_source:authS.admin?.password_source,secret_ephemeral:authS.secret_ephemeral});
-  $('#adApprovals').textContent=pretty({enabled:appr.enabled,pending:appr.pending,legal_opinion_received:appr.legal_opinion_received});
-  $('#adGuard').textContent=pretty({endpoint_ok:guard.endpoint_ok,ok:guard.ok,checks:guard.checks?Object.keys(guard.checks).length:undefined});
-  $('#adKnowledge').textContent=pretty({source_id:kb.source_id,origins:kb.origins,ocr_location:kb.ocr_location,
-    image_upload_endpoint:kb.image_upload_endpoint,pii_to_store:kb.pii_to_store,job_only:kb.job_only,
-    backend_in_use:kb.backend_in_use,cloud_writes_enabled:kb.cloud_writes_enabled,collection:kb.collection});
+  $('#adAuth').innerHTML='<p style="margin:0 0 10px">登录校验 '+esc(authS.auth_mode==='required'?'严格模式':authS.auth_mode==='off'?'已关闭':'兼容模式')+'；微信登录 '+esc(authS.wechat?.mode==='real'?'真实授权':'演示模式')+'。</p><div>'+
+    tags({'管理员密码来源':authS.admin?.password_source,'密钥跨重启':authS.secret_ephemeral?'否':'是'})+'</div>';
+  $('#adApprovals').innerHTML='<p style="margin:0">回执机制 '+esc(appr.enabled?'已启用':'未启用')+' · 待书面结论 '+esc(appr.pending??0)+' 项 · 法务意见 '+esc(appr.legal_opinion_received?'已收到':'未收到')+'。</p>';
+  $('#adGuard').innerHTML='<p style="margin:0">出境防护 '+esc(guard.ok?'正常':'未通过')+' · 云端连通 '+esc(guard.endpoint_ok?'正常':'异常')+' · 已执行 '+esc(guard.checks?Object.keys(guard.checks).length:0)+' 项检查。</p>';
+  $('#adKnowledge').innerHTML='<p style="margin:0 0 10px">知识库当前使用 '+esc(kb.backend_in_use||'-')+'，集合 '+esc(kb.collection||'-')+'，云端写入 '+esc(kb.cloud_writes_enabled?'已开启':'关闭')+'。</p><div>'+
+    tags({'来源标识':kb.source_id,'支持来源':kb.origins,'OCR 位置':kb.ocr_location,'图片上传接口':kb.image_upload_endpoint,'PII 入库':kb.pii_to_store?'开启':'关闭','岗位信息过滤':kb.job_only?'开启':'关闭'})+'</div>';
 }
 
 /* ---- 管理员知识入库：本地 OCR / CSV 解析 / 面试素材 ---- */
+/* 管理员专属 OCR：仅用于把截图转成入库文本，与用户洞察解析入口互不影响。 */
+const KB_OCR_CDN='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const OCR_MAX_BYTES=8*1024*1024;
+let kbOcrScriptEl=null;
+function loadOcr(){
+  if(window.Tesseract&&typeof window.Tesseract.recognize==='function')return Promise.resolve(window.Tesseract);
+  return new Promise((resolve,reject)=>{
+    if(kbOcrScriptEl&&kbOcrScriptEl.parentNode){
+      kbOcrScriptEl.addEventListener('load',()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR_ENGINE_INVALID')));
+      kbOcrScriptEl.addEventListener('error',()=>reject(new Error('OCR_CDN_FAILED')));return;
+    }
+    const s=document.createElement('script');kbOcrScriptEl=s;s.src=KB_OCR_CDN;s.async=true;
+    const timer=setTimeout(()=>{s.remove();reject(new Error('OCR_CDN_TIMEOUT'))},20000);
+    s.onload=()=>{clearTimeout(timer);window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR_ENGINE_INVALID'))};
+    s.onerror=()=>{clearTimeout(timer);s.remove();reject(new Error('OCR_CDN_FAILED'))};
+    document.head.appendChild(s);
+  });
+}
 let kbBlobUrl=null,kbCsvText='',kbBusy=false;
 function kbNote(msg,warn){const el=$('#kbMsg');el.textContent=msg;el.style.color=warn?'#b00':'#0a7a00'}
 $('#kbFile').onchange=e=>{
@@ -1092,9 +1551,8 @@ $('#kbIngest').onclick=async()=>{
     if(!r.ok){msg.textContent='失败：'+(d.message||d.error||r.status);return}
     msg.style.color='#0a7a00';
     msg.textContent='入库 Qdrant 成功 · '+d.chunks+' 个切片 / '+d.batches+' 批 · 后端 '+d.backend+' · 脱敏 '+d.pii_redacted+' 处 · '+(d.job_only?'仅岗位信息':'面试素材全文(已脱敏)');
-    $('#kbResult').textContent=pretty({doc_id:d.doc_id,chunk_ids:d.chunk_ids,chunks:d.chunks,batches:d.batches,
-      backend:d.backend,collection:d.collection,origin:d.origin,job_only:d.job_only,pii_redacted:d.pii_redacted,
-      outbound_guard:d.outbound_guard&&{guard_id:d.outbound_guard.guard_id,points:d.outbound_guard.points}});
+    $('#kbResult').innerHTML='<p style="margin:0 0 10px">入库完成：'+esc(d.chunks||0)+' 个切片，'+esc(d.batches||0)+' 批；脱敏 '+esc(d.pii_redacted??0)+' 处，'+(d.job_only?'仅保留岗位信息':'保留已脱敏面试素材')+'。</p><div>'+
+      tags({'记录编号':d.doc_id,'切片编号':(d.chunk_ids||[]).join(' / '),'后端':d.backend,'集合':d.collection,'入库方式':d.origin,'出境闸门':d.outbound_guard&&d.outbound_guard.guard_id?d.outbound_guard.guard_id+' · '+d.outbound_guard.points+' 条':'已通过'})+'</div>';
     $('#kbText').value='';$('#kbTitle').value='';$('#kbFile').value='';$('#kbCsv').value='';$('#kbAck').checked=false;$('#kbInterview').checked=false;kbCsvText='';
     if(kbBlobUrl){URL.revokeObjectURL(kbBlobUrl);kbBlobUrl=null}
   }catch(err){msg.textContent='请求失败：'+String(err)}

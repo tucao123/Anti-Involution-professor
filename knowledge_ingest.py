@@ -146,6 +146,7 @@ def prepare(text: str, origin: str, title: str = "管理员知识条目",
         "pii_kinds": kinds,
         "lines_kept": len(kept),
         "job_only": job_only,
+        "material_kind": "job_info" if job_only else "interview_talk",
     }
 
 
@@ -163,7 +164,8 @@ def ingest(text: str, origin: str = "admin_text", title: str = "管理员知识�
         for i, chunk in enumerate(batch):
             cid = "%s-%d" % (doc_id, batch_no * MAX_BATCH + i)
             chunk_ids.append(cid)
-            items.append({"id": cid, "text": chunk, "title": prep["title"]})
+            items.append({"id": cid, "text": chunk, "title": prep["title"],
+                          "material_kind": prep["material_kind"]})
         results.append(vector_store.ingest(items, scope="public", source_id=SOURCE_ID))
 
     backends = sorted({r.get("backend") for r in results})
@@ -179,6 +181,7 @@ def ingest(text: str, origin: str = "admin_text", title: str = "管理员知识�
         "pii_redacted": prep["pii_redacted"],
         "pii_kinds": prep["pii_kinds"],
         "job_only": prep["job_only"],
+        "material_kind": prep["material_kind"],
         "source_id": SOURCE_ID,
         "grade": "D",
         "backend": ",".join(backends),
@@ -210,6 +213,7 @@ def status() -> dict[str, Any]:
                      "job-info-only filter", "chunk", "vectorize", "Qdrant cloud RAG"],
         "pii_to_store": False,
         "job_only": True,
+        "material_kinds": ["job_info", "interview_talk"],
         "grade": "D",
         "collection": vs.get("qdrant", {}).get("collection"),
         "cloud_writes_enabled": vs.get("cloud_writes_enabled"),

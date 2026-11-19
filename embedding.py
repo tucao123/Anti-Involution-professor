@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""职引者 ZHIYIN · Embedding 适配层（BGE → DashScope → 本地 hash 降级）
+"""职引者 ZHIYIN · Embedding 适配层（服务端固定本地 BGE → 本地 hash 降级）
 
 设计原则：
 1. 统一接口 embed(texts, scope) -> {vectors, backend, dim, semantic, cloud_used, note}。
    上层（vector_store / orchestration）不关心后端，只按 dim 建 Qdrant 集合。
-2. scope 是合规参数，不是性能参数：
-   - scope="public"：D 级公开岗位样本 / 脱敏技能标签，允许走云端 embedding。
-   - scope="user"  ：C 级用户自带 JD / 简历 / 截图 OCR，**永远只走本地后端**，
-     除非 ALLOW_CLOUD_FOR_USER_DATA 显式为 true（默认 false，且需法务书面结论）。
-3. hash 后端复用 rag_store._features（字符 2/3-gram + 技能本体 TF-IDF），
+2. Embedding 是**服务器侧固定能力**，不向用户开放选择：
+   - 语义向量统一走本地 BGE（BAAI/bge-small-zh-v1.5，512 维），不依赖云端 embedding-v3；
+   - 本地 BGE 不可用时降级为确定性 hash 投影，并如实标注 semantic=False；
+   - 用户可在个人中心选择「语言模型 API」，但**无法选择 / 覆盖 embedding 模型**。
+3. scope 仍是合规参数：scope="user"（C 级用户自带 JD / 简历 / OCR）永远只走本地后端，
+   与固定本地 embedding 策略一致；scope="public" 同样不再调用云端 embedding。
+4. hash 后端复用 rag_store._features（字符 2/3-gram + 技能本体 TF-IDF），
    用 hashing trick 投影成稠密向量并 L2 归一化。它**不是语义向量**，
    semantic=False 会在状态和检索结果里如实标注，绝不冒充 BGE。
-4. 任何后端失败都降级，不抛到 HTTP 层；密钥不打印、不落盘、不进异常消息。
+5. 任何后端失败都降级，不抛到 HTTP 层；不产生任何 embedding 云端请求。
 """
 from __future__ import annotations
 
@@ -34,18 +36,14 @@ if _BGE_ENV.is_dir() and str(_BGE_ENV) not in sys.path:
     sys.path.insert(0, str(_BGE_ENV))
 
 import hashlib
-import json
 import math
-import urllib.error
-import urllib.request
 from typing import Any
 
 import rag_store
-from secure_config import cfg, qwen_gate, secret
+from secure_config import cfg
 
 _BGE: Any = None
 _BGE_TRIED = False
-_DASHSCOPE_FAILED = False
 
 
 def _features(text: str) -> dict[str, float]:
@@ -125,62 +123,16 @@ def _bge_embed(texts: list[str]) -> list[list[float]]:
     return [[float(x) for x in row] for row in arr]
 
 
-def _dashscope_allowed(scope: str) -> bool:
-    if scope == "user" and not cfg.flag("ALLOW_CLOUD_FOR_USER_DATA"):
-        return False
-    if scope == "public" and not cfg.flag("ALLOW_PUBLIC_SAMPLE_TO_CLOUD", True):
-        return False
-    # 端点不可信（key 形态不符且未自定义 base_url）时不发起请求，直接降级，
-    # 避免误把文本发给不匹配的网关，也避免健康检查被无谓超时拖住。
-    return qwen_gate()["can_call_embedding"]
-
-
-def _dashscope_embed(texts: list[str]) -> list[list[float]]:
-    """DashScope OpenAI 兼容 /embeddings；纯标准库 HTTP，无需 SDK。"""
-    global _DASHSCOPE_FAILED
-    base = cfg.get("QWEN_BASE_URL").rstrip("/")
-    key = secret("QWEN_API_KEY")
-    if not key:
-        raise RuntimeError("NO_KEY")
-    body = json.dumps({"model": cfg.get("QWEN_EMBED_MODEL"), "input": texts},
-                      ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        base + "/embeddings", data=body,
-        headers={"Content-Type": "application/json",
-                 "Authorization": "Bearer " + key,
-                 "Accept": "application/json"},
-        method="POST",
-    )
-    # embedding 探测用短超时，避免健康检查 / 首次向量化被不可达端点拖住
-    timeout = min(cfg.integer("QWEN_TIMEOUT", 30), 8)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-    rows = sorted(data.get("data", []), key=lambda d: d.get("index", 0))
-    out = [[float(x) for x in r["embedding"]] for r in rows]
-    if len(out) != len(texts):
-        raise RuntimeError("BAD_SHAPE")
-    return out
-
-
 def embed(texts: list[str], scope: str = "public") -> dict[str, Any]:
-    """统一入口。scope 必须是 public 或 user；user 默认禁止任何云端外发。"""
-    global _DASHSCOPE_FAILED
+    """统一入口：服务端固定本地 BGE，失败降级本地 hash；无论 scope 都不外发。
+
+    scope 保留在签名中兼容上层调用，但不再改变 embedding 后端：
+    public / user 均使用同一本地 512 维口径，与 Qdrant 集合一致。
+    """
     if scope not in ("public", "user"):
         scope = "user"  # 未知范围按最严格处理
-    chosen = cfg.get("EMBED_BACKEND", "auto").lower()
-    if chosen == "auto":
-        # 维度一致性约束：现有 Qdrant 集合 zhiyin_public_d 是按 DashScope
-        # text-embedding-v3 的 1024 维建立的，BGE 是 512 维。public 样本优先
-        # 沿用 1024 维后端，避免 BGE 恢复后把 512 维向量写进 1024 维集合而
-        # 被云端拒绝、静默降级；user（C 级）数据必须留在本机，优先本地 BGE。
-        candidates = (["dashscope", "bge", "hash"] if scope == "public"
-                      else ["bge", "dashscope", "hash"])
-    elif chosen == "hash":
-        candidates = ["hash"]
-    else:
-        candidates = [chosen, "hash"]
     last_note = ""
-    for backend in candidates:
+    for backend in ("bge", "hash"):
         try:
             if backend == "bge":
                 if not _bge_available():
@@ -188,26 +140,12 @@ def embed(texts: list[str], scope: str = "public") -> dict[str, Any]:
                     continue
                 vectors = _bge_embed(texts)
                 return _pack(vectors, "bge", True, False,
-                             "BGE 本地语义向量；用户数据全程不出本机")
-            if backend == "dashscope":
-                if not _dashscope_allowed(scope) or _DASHSCOPE_FAILED:
-                    last_note = "DashScope embedding 未获授权或此前调用失败"
-                    continue
-                vectors = _dashscope_embed(texts)
-                return _pack(vectors, "dashscope-text-embedding-v3", True, True,
-                             "云端语义向量；仅用于 D 级公开样本或已显式授权的数据")
-            if backend == "hash":
-                dim = cfg.integer("EMBED_DIM", 512)
-                vectors = [_hash_vector(t, dim) for t in texts]
-                return _pack(vectors, "local-hash-ngram", False, False,
-                             "确定性字符 n-gram 投影（非语义向量）；与本地稀疏检索同口径")
-        except urllib.error.HTTPError as exc:
-            if backend == "dashscope":
-                _DASHSCOPE_FAILED = True
-            last_note = "后端 %s 返回 HTTP %d" % (backend, exc.code)
-        except Exception as exc:  # 不回显上游细节，避免泄露请求头 / 凭据
-            if backend == "dashscope":
-                _DASHSCOPE_FAILED = True
+                             "服务端固定本地 BGE 512 维语义向量；embedding 全程不出本机")
+            dim = cfg.integer("EMBED_DIM", 512)
+            vectors = [_hash_vector(t, dim) for t in texts]
+            return _pack(vectors, "local-hash-ngram", False, False,
+                         "确定性字符 n-gram 投影（非语义向量）；与本地稀疏检索同口径")
+        except Exception as exc:  # 不回显上游细节
             last_note = "后端 %s 不可用（%s）" % (backend, type(exc).__name__)
     # 理论不可达（hash 必然成功），保留兜底以满足 fail-closed
     dim = cfg.integer("EMBED_DIM", 512)
@@ -230,54 +168,41 @@ def _pack(vectors: list[list[float]], backend: str, semantic: bool,
 
 def status() -> dict[str, Any]:
     """可观测状态：纯推导，不触发任何网络调用（健康检查必须快）。"""
-    from secure_config import public_view
     bge_ok = _bge_available()
-    key_ok = bool(secret("QWEN_API_KEY"))
-    cloud_ok = (key_ok and cfg.flag("ALLOW_PUBLIC_SAMPLE_TO_CLOUD", True)
-                and qwen_gate()["can_call_embedding"] and not _DASHSCOPE_FAILED)
-    chosen = cfg.get("EMBED_BACKEND", "auto").lower()
-    HASH, DASHSCOPE = "local-hash-ngram", "dashscope-text-embedding-v3"
-
-    def pick(scope: str) -> str:
-        allow_cloud = cloud_ok and (scope == "public" or
-                                    cfg.flag("ALLOW_CLOUD_FOR_USER_DATA"))
-        if chosen == "hash":
-            return HASH
-        if chosen == "bge":
-            return "bge" if bge_ok else HASH
-        if chosen == "dashscope":
-            return DASHSCOPE if allow_cloud else HASH
-        # auto：public 优先维持 1024 维（与既有 Qdrant 集合一致）；user 优先本地 BGE
-        if scope == "public":
-            return DASHSCOPE if allow_cloud else ("bge" if bge_ok else HASH)
-        return "bge" if bge_ok else (DASHSCOPE if allow_cloud else HASH)
+    configured = cfg.get("EMBED_BACKEND", "bge").lower()
+    # 服务端固定：bge（本地语义）→ hash（本地确定性投影）。用户无法选择 / 覆盖。
+    effective = ("bge" if configured == "bge" and bge_ok else "local-hash-ngram")
+    HASH = "local-hash-ngram"
 
     return {
         "ok": True,
-        "configured_backend": chosen,
+        "configured_backend": configured,
+        "server_fixed": True,
+        "user_selectable": False,
         "bge_model": cfg.get("BGE_MODEL"),
+        "bge_dim": cfg.integer("BGE_DIM", 512),
         "bge_available": bge_ok,
         "bge_package_installed": _bge_package_installed(),
-        "bge_autoload": cfg.flag("BGE_AUTOLOAD", False),
+        "bge_autoload": cfg.flag("BGE_AUTOLOAD", True),
         "bge_runtime": ("isolated:.bge_env（transformers 4.49.0 / ST 3.4.1，"
                         "避开主环境 4.x-5.x 混合损坏）" if _BGE_ENV.is_dir()
                         else "main-site-packages（独立目录不存在）"),
         "bge_model_source": ("local_hub_snapshot（按官方 modules.json 加载 CLS pooling）"
                              if _bge_model_path() != str(cfg.get("BGE_MODEL") or "")
                              else "huggingface_repo_id"),
-        "dimension_policy": "public 优先 1024 维 DashScope（与既有 Qdrant 集合一致）；"
-                            "user 优先本地 BGE 512 维，避免维度不匹配导致云写入静默降级",
+        "dimension_policy": "服务端固定本地 BGE 512 维（集合 zhiyin_public_d_bge）；"
+                            "不再使用云端 embedding-v3，避免维度不一致",
         "bge_reason": ("已加载本地权重（独立依赖目录）" if bge_ok and _BGE_ENV.is_dir() else
                        "已加载本地权重" if bge_ok else
                        "BGE_AUTOLOAD=false，未加载权重（避免健康检查触发下载）"
-                       if not cfg.flag("BGE_AUTOLOAD", False) else
+                       if not cfg.flag("BGE_AUTOLOAD", True) else
                        "sentence-transformers 未安装" if not _bge_package_installed() else
                        "本地权重或依赖加载失败，已自动降级（不冒充语义向量）"),
-        "dashscope_configured": key_ok,
-        "dashscope_key_verified": public_view()["llm_key_verified"],
+        "cloud_embedding_used": False,
         "hash_dim": cfg.integer("EMBED_DIM", 512),
-        "selected_backend": {"public": pick("public"), "user": pick("user")},
-        "semantic": {"bge": True, DASHSCOPE: True, HASH: False},
+        "selected_backend": {"public": effective, "user": effective},
+        "semantic": {"bge": True, HASH: False},
         "user_data_stays_local": not cfg.flag("ALLOW_CLOUD_FOR_USER_DATA"),
-        "note": "hash 后端是确定性字符 n-gram 投影，不是语义向量；状态如实标注，不冒充 BGE",
+        "note": "embedding 为服务器固定本地能力；hash 后端是确定性字符 n-gram 投影，"
+                "不是语义向量，状态如实标注，不冒充 BGE",
     }

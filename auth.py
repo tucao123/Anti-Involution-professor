@@ -126,20 +126,29 @@ def revoke(token: str | None) -> None:
             _REVOKED.clear()
 
 
+# 哈希前缀保留历史标签 pbkdf2_sha256（兼容已有 ADMIN_PASSWORD_HASH 与回归断言），
+# 底层一律用 Python 标准库 hashlib.pbkdf2_hmac：此前依赖定制环境注入的
+# hashlib.pbkdf2_hmac 别名，部署到标准服务器 Python 会 AttributeError 崩溃，属部署阻塞隐患。
+_PW_SCHEME = "pbkdf2_sha256"
+
+
+def _pbkdf2(password: str, salt: bytes, iterations: int) -> bytes:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+
+
 def _hash_pw(password: str, iterations: int = 180_000, salt: bytes | None = None) -> str:
     salt = salt or secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-    return "pbkdf2_sha256$%d$%s$%s" % (iterations, salt.hex(), digest.hex())
+    digest = _pbkdf2(password, salt, iterations)
+    return "%s$%d$%s$%s" % (_PW_SCHEME, iterations, salt.hex(), digest.hex())
 
 
 def _verify_pw(password: str, stored: str) -> bool:
     """校验 pbkdf2_sha256 哈希；恒定时间比较，永不回显哈希或明文。"""
     try:
         scheme, iters, salt_hex, digest_hex = stored.strip().split("$", 3)
-        if scheme != "pbkdf2_sha256":
+        if scheme != _PW_SCHEME:
             return False
-        digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"),
-                                     bytes.fromhex(salt_hex), int(iters))
+        digest = _pbkdf2(password, bytes.fromhex(salt_hex), int(iters))
         return hmac.compare_digest(digest.hex(), digest_hex)
     except Exception:
         return False
@@ -160,6 +169,14 @@ def _wechat_config() -> dict[str, str]:
         "appid": (secure_config.secret("WECHAT_APPID") or "").strip(),
         "secret": (secure_config.secret("WECHAT_APPSECRET") or "").strip(),
         "redirect": (secure_config.secret("WECHAT_REDIRECT_URI") or "").strip(),
+    }
+
+
+def _github_config() -> dict[str, str]:
+    return {
+        "client_id": (secure_config.secret("GITHUB_CLIENT_ID") or "").strip(),
+        "secret": (secure_config.secret("GITHUB_SECRET") or "").strip(),
+        "redirect": (secure_config.secret("GITHUB_REDIRECT_URI") or "").strip(),
     }
 
 
@@ -259,12 +276,104 @@ def exchange_code(code: str, state: str) -> dict[str, Any]:
     return {"role": ROLE_PERSONAL, "sub": sub, "name": name, "demo": False}
 
 
+# ---------------------------------------------------------------------------
+# GitHub OAuth2：真实授权码流程 + 演示降级（与微信同口径，绝不伪装）
+# ---------------------------------------------------------------------------
+def github_mode() -> dict[str, Any]:
+    c = _github_config()
+    real = bool(c["client_id"] and c["secret"] and c["redirect"]
+                and c["redirect"].startswith("https://"))
+    return {
+        "mode": "real" if real else "demo",
+        "real_oauth_ready": real,
+        "demo_allowed": cfg.flag("AUTH_DEMO_ENABLED", True),
+        "configured": {"client_id": bool(c["client_id"]),
+                       "secret": bool(c["secret"]), "redirect_uri": bool(c["redirect"])},
+        "reason": ("GitHub OAuth App 配置齐全，走标准授权码登录" if real else
+                   "未配置 GITHUB_CLIENT_ID / GITHUB_SECRET / GITHUB_REDIRECT_URI(https)，"
+                   "降级为本地演示授权（非真实 GitHub 登录）"),
+    }
+
+
+def github_authorize_url(state: str) -> str:
+    c = _github_config()
+    if not github_mode()["real_oauth_ready"]:
+        raise AuthError("GITHUB_NOT_CONFIGURED", "GitHub OAuth 未配置，不能生成真实授权 URL", 503)
+    from urllib.parse import urlencode
+    qs = urlencode({
+        "client_id": c["client_id"],
+        "redirect_uri": c["redirect"],
+        "scope": "read:user user:email",
+        "state": state,
+        "allow_signup": "true",
+    })
+    return "https://github.com/login/oauth/authorize?" + qs
+
+
+def _github_http_json(url: str, data: dict[str, str] | None = None,
+                      headers: dict[str, str] | None = None, timeout: int = 8) -> dict[str, Any]:
+    """GitHub token/user 端点调用：POST 用 urlencode，Accept: application/json。"""
+    from urllib.parse import urlencode
+    body = urlencode(data or {}).encode("utf-8") if data is not None else None
+    hdr = {"Accept": "application/json", "User-Agent": "zhiyin-auth/2.0"}
+    if body is not None:
+        hdr["Content-Type"] = "application/x-www-form-urlencoded"
+    hdr.update(headers or {})
+    req = urllib.request.Request(url, data=body, headers=hdr, method="POST" if body is not None else "GET")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", errors="ignore"))
+
+
+def exchange_github_code(code: str, state: str) -> dict[str, Any]:
+    """真实 GitHub OAuth：code → access_token → user。只留 id 截断哈希与昵称。"""
+    consume_state(state, "github-real")
+    c = _github_config()
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{6,256}", code or ""):
+        raise AuthError("INVALID_CODE", "GitHub 回调 code 形态非法", 400)
+    try:
+        tok = _github_http_json("https://github.com/login/oauth/access_token", {
+            "client_id": c["client_id"], "client_secret": c["secret"],
+            "code": code, "redirect_uri": c["redirect"],
+        })
+    except Exception as exc:
+        raise AuthError("GITHUB_TOKEN_FAILED", "GitHub 换取 access_token 失败：%s" % type(exc).__name__, 502) from exc
+    access = str(tok.get("access_token") or "")
+    if not access or tok.get("error"):
+        raise AuthError("GITHUB_TOKEN_INVALID", "GitHub 未返回 access_token", 502)
+    info: dict[str, Any] = {}
+    try:
+        info = _github_http_json(
+            "https://api.github.com/user",
+            headers={"Authorization": "Bearer " + access},
+        )
+    except Exception:
+        pass  # user 端点失败不影响登录，昵称留空
+    gid = str(info.get("id") or info.get("login") or "")
+    if not gid:
+        raise AuthError("GITHUB_ID_MISSING", "GitHub 未返回可用用户标识", 502)
+    sub = "gh:" + hashlib.sha256(("github:" + str(gid)).encode("utf-8")).hexdigest()[:16]
+    name = str(info.get("name") or info.get("login") or "")[:40]
+    return {"role": ROLE_PERSONAL, "sub": sub, "name": name, "demo": False}
+
+
+def github_demo_confirm(state: str) -> dict[str, Any]:
+    """演示 GitHub 授权：校验 state 后签发【演示个人身份】，按会话隔离 sub。"""
+    if not cfg.flag("AUTH_DEMO_ENABLED", True):
+        raise AuthError("DEMO_DISABLED", "演示授权已关闭", 403)
+    rec = consume_state(state, "github-demo")
+    sub = "gh-demo:" + hashlib.sha256((state + "|" + str(rec["exp"])).encode("utf-8")).hexdigest()[:12]
+    return {"role": ROLE_PERSONAL, "sub": sub, "name": "GitHub 演示用户", "demo": True}
+
+
 def demo_confirm(state: str) -> dict[str, Any]:
     """演示扫码：校验 state 后签发【演示个人身份】，与真实微信严格区分。"""
     if not cfg.flag("AUTH_DEMO_ENABLED", True):
         raise AuthError("DEMO_DISABLED", "演示扫码已关闭", 403)
-    consume_state(state, "demo")
-    return {"role": ROLE_PERSONAL, "sub": "demo: personal", "name": "演示用户", "demo": True}
+    rec = consume_state(state, "demo")
+    # 演示身份也要按会话隔离：个人空间的自带 API 配置按 sub 存储，
+    # 若所有演示用户共用同一 sub，会互相看到对方的设置。用一次性 state 派生唯一 sub。
+    sub = "demo:" + hashlib.sha256((state + "|" + str(rec["exp"])).encode("utf-8")).hexdigest()[:12]
+    return {"role": ROLE_PERSONAL, "sub": sub, "name": "演示用户", "demo": True}
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +449,9 @@ def status() -> dict[str, Any]:
         "session_ttl": cfg.integer("AUTH_SESSION_TTL", 86400),
         "secret_ephemeral": _SECRET_EPHEMERAL,
         "wechat": wechat_mode(),
+        "github": github_mode(),
+        "local_accounts": {"enabled": cfg.flag("AUTH_LOCAL_ACCOUNTS", True)},
+        "page_login_required": cfg.flag("AUTH_REQUIRE_LOGIN", True),
         "admin": admin_status(),
         "roles": [ROLE_PERSONAL, ROLE_ADMIN],
         "cookie_name": COOKIE_NAME,

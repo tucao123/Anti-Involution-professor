@@ -910,7 +910,7 @@ h2.display .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
           <div class="panel-title"><h3>Qwen 叙述层</h3><span class="meta" id="insightLlmMeta">MODEL / QWEN</span></div>
           <div id="insightLlmBody"><p class="disclaimer" style="margin:0">统计数值由确定性管道给出；语言模型只负责叙述性解读与可行动项，不生成或改写任何数值。</p></div>
           <button class="btn btn-ghost geo" id="runInsightLlm" style="margin-top:18px">生成 AI 解读 ↗</button>
-          <p class="data-source">模型输出经服务端 Pydantic / JSON Schema 校验后才渲染，校验失败自动降级；事实性数值均带来源与时间戳。凭据仅由本地 BFF 持有，前端不接触密钥。</p>
+          <p class="data-source">模型输出先经服务端校验再渲染，异常时自动降级；事实性数值均带来源与时间戳。凭据仅由本地 BFF 持有，前端不接触密钥。</p>
         </div>
 
         <div class="panel" style="margin-bottom:52px">
@@ -1196,7 +1196,7 @@ h2.display .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
             <ul class="report-list" id="reportAnchors"></ul>
           </div>
         </div>
-        <p class="data-source">本报告由规则引擎基于本轮文本回答生成，用于练习反馈，不预测面试结果、不替代用户决策。模型补充字段经服务端 JSON Schema 校验后渲染，评分本身不交给模型。</p>
+        <p class="data-source">本报告由规则引擎基于本轮文本回答生成，用于练习反馈，不预测面试结果、不替代用户决策。模型补充字段先经服务端校验后渲染，评分本身不交给模型。</p>
       </div>
 
       <!-- ============ Phase 3 · 零密钥本地实验能力 ============ -->
@@ -1402,7 +1402,7 @@ h2.display .acid{color:var(--acid);-webkit-text-stroke:1px var(--ink)}
       <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:20px"><strong>能力对齐</strong>新增「用户自带 JD」（C 级）：粘贴你有权使用的目标岗位 JD，由确定性规则抽取必备 / 加分 / 隐含三级技能，可选项填简历要点后计算加权覆盖率与差距雷达。全文在抽取前自动脱敏手机号、邮箱、身份证号与联系人标签；<strong>原文零落盘、不外发云端模型</strong>，内存会话只保留脱敏后的结构化结果，服务重启即清空，也可随时撤回删除。本版本不提供匿名聚合，不会用于统计或模型训练；未填简历要点时不推断覆盖率，不编造分数。未连接本地服务时可在浏览器内做「本地预览」，文本不上传、不落盘、无服务端留痕。若调用语言模型给出准备建议，只发送技能名、级别与覆盖率等结构化字段，JD 原文与证据短句一律不外发。</p>
       <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:20px"><strong>截图只是输入形态，不是合规豁免。</strong>系统<strong>不会</strong>自动打开招聘网站截图，也不提供定时或批量截图；采集设置集中在<strong>管理员视图</strong>，默认关闭、逐次手动开关，开关打开也不代表会发起第三方请求；把抓取 HTML 改成截图 + OCR 不改变自动化访问第三方页面的性质，若为绕过字体反爬或登录校验而截图，反而可能构成避开技术措施。唯一开放的截图路径是你自己手动截取、主动上传你有权查看的岗位 JD 或本人简历：图片仅以浏览器内存中的 blob 存在，本地 OCR 后<strong>用完即释放</strong>，不上传、不落盘、不发往云端模型或第三方识别服务；识别结果写进可编辑文本框，由你核对后才提交，提交时只发送文本并沿用上述全部 C 级控制点。截图结果不进入行业洞察，不产生任何市场级数值。</p>
       <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:20px"><strong>本地研究检索索引</strong>把这条 C 级链路再往下延伸一步：已核对的文本经 PII 脱敏、分块、字符 n-gram 稀疏向量化后存入本机索引，可按技能词检索原文片段。服务端<strong>不接收截图位图 / 音频</strong>，位图自始不离开浏览器内存；B1 虽新增文件上传端点，但只收 pdf / docx 且在内存解析完即释放，不落盘、不入库。<strong>截图 / 爬取链路的隐私信息整行剔除、不入库</strong>，只保留岗位信息用于提供大致岗位信息；该链路不产出个人画像，个人画像由用户主动提供 JD / 简历的本地「能力对齐」链路提供。向量<strong>不等同于匿名化</strong>（存在反演风险），因此片段用 AES-256-GCM 加密落盘，默认 30 天留存、可按文档删除或整库清空，并全程写入审计哈希链；未配置持久密钥时服务重启即自动清空。每条检索结果都带数据分级与禁止结论，C / D 级片段不得据此推断国内就业形势、同比、薪资或蓝海岗位。研究用途不解锁国内市场洞察，也不改变上述任何采集红线。</p>
-      <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:44px">定向学习与面试评分的底表仍为内置演示数据集；公开数据源不可用时洞察页自动降级为演示集。检索已形成双链路：本地稀疏索引（字符 n-gram + 技能本体 TF-IDF，C 级用户数据专用、片段加密、可撤回删除）与 Qdrant 云向量库（只收 D 级公开岗位样本，BGE 语义向量未就绪时降级为确定性投影并如实标注）；LangGraph 编排、PostgreSQL / Redis / Neo4j、Celery 均以「可选依赖 + 本地降级」接入，任一服务缺失都不影响页面功能。简历 PII 的字段级加密、脱敏、一键删除与审计哈希链已在本地落地，B1 简历上传 / 解析已按项目所有者 2026-11-16 回执开放：仅 pdf / docx、纯内存解析、不留存、只输出大致岗位信息、不提取隐私信息、有撤回与删除入口；工程开关不等于法务书面结论（Q19 仍待回）。C 级原文仍零落盘、默认不出本机。语言模型层默认 qwen：凭据只由本地 BFF 在服务端持有，页面不接触任何密钥；未配置或未启用时自动降级为规则引擎，数值与流程始终走确定性管道，模型输出经 JSON Schema 校验。</p>
+      <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:44px">定向学习与面试评分的底表仍为内置演示数据集；公开数据源不可用时洞察页自动降级为演示集。检索已形成双链路：本地稀疏索引（字符 n-gram + 技能本体 TF-IDF，C 级用户数据专用、片段加密、可撤回删除）与 Qdrant 云向量库（只收 D 级公开岗位样本，BGE 语义向量未就绪时降级为确定性投影并如实标注）；LangGraph 编排、PostgreSQL / Redis / Neo4j、Celery 均以「可选依赖 + 本地降级」接入，任一服务缺失都不影响页面功能。简历 PII 的字段级加密、脱敏、一键删除与审计哈希链已在本地落地，B1 简历上传 / 解析已按项目所有者 2026-11-16 回执开放：仅 pdf / docx、纯内存解析、不留存、只输出大致岗位信息、不提取隐私信息、有撤回与删除入口；工程开关不等于法务书面结论（Q19 仍待回）。C 级原文仍零落盘、默认不出本机。语言模型层默认 qwen：凭据只由本地 BFF 在服务端持有，页面不接触任何密钥；未配置或未启用时自动降级为规则引擎，数值与流程始终走确定性管道，模型输出先经服务端校验。</p>
 
       <div class="panel-title"><h3>本地偏好</h3><span class="meta">LOCAL UI STATE</span></div>
       <p style="font-size:13px;line-height:1.9;max-width:760px;color:var(--graphite);margin-bottom:20px">为避免刷新后丢失进度，浏览器仅在本机保存<strong>非敏感界面状态</strong>：学习阶段勾选、当前视图、当前 JD 标签、面试语气模式。<strong>不保存</strong> JD 原文、简历要点、OCR 文本、面试回答、面试报告与任何个人信息——这些内容仍只在内存中使用，刷新即清空，与上文 C 级链路的承诺一致。研究索引的留存由服务端单独控制，与此处的界面偏好无关。</p>
@@ -2076,8 +2076,8 @@ const ARCH = {
     ['数据','PostgreSQL · Neo4j（Phase 2）· Redis + Celery + Celery Beat · 对象存储'],
     ['知识来源 / 语音','自动爬取与截图执行体已整体移除，系统不访问任何第三方页面；知识只由管理员提供文本或截图（浏览器本地 OCR），经脱敏 + 仅岗位信息后入 Qdrant（见工作台 /workbench.html）；语音走浏览器 Web Speech API，逐次授权、服务端零音频上传、无音频上传端点；浏览器 ASR 可能由厂商云端完成，已在界面如实告知'],
     ['部署','Phase 1 单机 / 容器；Phase 2 服务水平扩展，语音网关独立部署'],
-    ['语言模型（当前实现）','qwen / qwen-plus · DashScope OpenAI 兼容端点 · 本机实测 200 且 LLM_ENABLED=true（mode=live；把 .env 改回 false 即回到离线规则引擎）· 凭据仅存服务端进程内存 · 前端零密钥 · PII 与 C 级原文字段前置拦截 · 输出经 JSON Schema 校验 · 云端只收结构化技能字段，Q19 书面结论仍待回'],
-    ['应用服务层（当前实现）','FastAPI BFF（server.py）+ Pydantic v2 / JSON Schema 输出校验 · /api/health · /api/config · /api/llm · /api/schema · /api/market · /api/sources · /api/capture/policy · /api/research/policy · /api/insight/modes · /api/jd/* · /api/rag/* · /api/vector/* · /api/graph/* · /api/stores/status · /api/tasks/* · /api/coach/* · /api/voice/policy · /api/github/* · /api/hybrid/* · /api/phase3/status · /api/approvals/status · /api/resume/* · /api/admin/knowledge/{status,ingest,delete} · /api/vector/guard · /api/vector/guard/check · /api/project/usage · /metrics · 仅绑定 127.0.0.1 · 无截图图片 / 音频上传端点（extra=forbid 拒绝 image / audio 字段）；B1 文件上传端点仅收 pdf / docx、纯内存解析、不落盘、不入库 · 自动爬取 / 执行体端点已整体移除'],
+    ['语言模型（当前实现）','qwen / qwen-plus · DashScope OpenAI 兼容端点 · 本机实测 200 且 LLM_ENABLED=true（mode=live；把 .env 改回 false 即回到离线规则引擎）· 凭据仅存服务端进程内存 · 前端零密钥 · PII 与 C 级原文字段前置拦截 · 输出先经服务端校验 · 云端只收结构化技能字段，Q19 书面结论仍待回'],
+    ['应用服务层（当前实现）','FastAPI BFF（server.py）+ 服务端输出校验 · /api/health · /api/config · /api/llm · /api/market · /api/sources · /api/capture/policy · /api/research/policy · /api/insight/modes · /api/jd/* · /api/rag/* · /api/vector/* · /api/graph/* · /api/stores/status · /api/tasks/* · /api/coach/* · /api/voice/policy · /api/github/* · /api/hybrid/* · /api/phase3/status · /api/approvals/status · /api/resume/* · /api/admin/knowledge/{status,ingest,delete} · /api/vector/guard · /api/vector/guard/check · /api/project/usage · /metrics · 仅绑定 127.0.0.1 · 无截图图片 / 音频上传端点（extra=forbid 拒绝 image / audio 字段）；B1 文件上传端点仅收 pdf / docx、纯内存解析、不落盘、不入库 · 自动爬取 / 执行体端点已整体移除'],
     ['Phase 2 组件（当前实现）','Qdrant Cloud REST 适配器（只收 D 级公开样本；2026-11-16 依据回执 OWNER-2026-11-16-Q18 + 代码级双闸门开启云写入，法务书面结论仍待回）· 本地 BGE 512 维语义向量优先 / DashScope / 确定性 hash 三级 embedding · LangGraph 状态图（未安装时用同语义兼容实现）· PostgreSQL / Redis / Neo4j 适配器（缺失时降级 SQLite / 内存 TTL / 本地邻接表）· Celery（无 broker 时 eager）· Next.js 控制台 web/ · Prometheus 指标与 SLO · 任一组件缺失均不影响 7 个视图'],
     ['Phase 3 组件（当前实现）','A1 coach.py 本地多轮辅导（会话仅内存 / 原文零落盘 / 零云调用 / 可撤回 / 固定护栏）· A2 浏览器 Web Speech 语音输入与朗读（逐次授权、不支持时降级文字；服务端零音频上传，浏览器 ASR 可能由厂商云端完成）· A3 github_meta.py 公开仓库匿名只读元数据（限频 / 回链 / 不落盘 / 不构成能力评分 / 法务 Q21 待回）· A4 hybrid.py 稀疏 + 稠密双路 RRF(k=60) 融合与重排（C 级仅本地稀疏路）· GET /api/phase3/status 汇总真实状态'],
 
@@ -2762,7 +2762,7 @@ async function jdAiAdvice(){
     boundary:'只针对这一份用户提供的 JD 做能力准备建议；不得输出任何市场级结论或数值。'
   };
   const d=await LLM.ask('report',payload);
-  if(!d){body.innerHTML='<p class="disclaimer">模型未返回有效建议（或输出未通过 JSON Schema 校验），已保留确定性抽取结果。</p>';return;}
+  if(!d){body.innerHTML='<p class="disclaimer">模型未返回有效建议，已保留确定性抽取结果。</p>';return;}
   const advice=Array.isArray(d.advice)?d.advice:[],anchors=Array.isArray(d.anchors)?d.anchors:[];
   body.innerHTML=(advice.length?`<h4 style="font-size:11px;letter-spacing:.14em;margin-bottom:10px">改进建议</h4><ul style="font-size:12px;line-height:1.9;padding-left:18px">`+
     advice.map(x=>`<li>${esc(x)}</li>`).join('')+`</ul>`:'')+

@@ -1,6 +1,8 @@
 # 职引者 ZHIYIN · Phase 2 部署编排
 #
-# 启动前：把 .env.example 复制为 .env，按需填写 QWEN_/QDRANT_/POSTGRES_/NEO4J_ 项。
+# 启动前：把 .env.example 复制为 .env，按需填写 QDRANT_/POSTGRES_/NEO4J_ 项；
+# 语言模型 API 由用户在「个人中心」自带配置（服务端 QWEN_* 仅作可选兜底）。
+# embedding 为服务器固定本地 BGE 512 维，不提供用户选择。
 #   cp .env.example .env        (Git Bash)   /   copy .env.example .env  (CMD)
 # ⚠ 不要挂载个人桌面上的 key.env：容器只能读取显式写进 .env / 环境变量的凭据。
 #
@@ -29,9 +31,13 @@ services:
       QWEN_MODEL: ${QWEN_MODEL:-qwen-plus}
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-zhiyin_public_d}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-zhiyin_public_d_bge}
       QDRANT_ALLOW_WRITE: ${QDRANT_ALLOW_WRITE:-false}
-      EMBED_BACKEND: ${EMBED_BACKEND:-auto}
+      EMBED_BACKEND: bge
+      BGE_MODEL: BAAI/bge-small-zh-v1.5
+      BGE_DIM: 512
+      EMBED_DIM: 512
+      BGE_AUTOLOAD: true
       ALLOW_CLOUD_FOR_USER_DATA: ${ALLOW_CLOUD_FOR_USER_DATA:-false}
       ALLOW_PUBLIC_SAMPLE_TO_CLOUD: ${ALLOW_PUBLIC_SAMPLE_TO_CLOUD:-true}
       POSTGRES_HOST: postgres

@@ -56,7 +56,7 @@ check("host-redacted" in str(_qurl.get("shape", "")) and "value" not in _qurl
 print("=== 2. 状态端点全部可用 ===")
 for path in ("/api/llm/status", "/api/embedding/status", "/api/vector/status",
              "/api/vector/probe", "/api/graph/status", "/api/stores/status",
-             "/api/tasks/status", "/api/slo", "/api/schema"):
+             "/api/tasks/status", "/api/slo", "/api/routes"):
     s, j = req(path)
     check(s == 200, "GET %s" % path, str(j)[:100])
 

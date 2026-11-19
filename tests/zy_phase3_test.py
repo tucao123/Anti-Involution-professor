@@ -134,5 +134,36 @@ check("job_info" in srv or "job_info" in (ROOT / "resume_parse.py").read_text(en
 check("SpeechRecognition" in html and "speechSynthesis" in html, "语音走浏览器 Web Speech")
 check("音频可能离开设备" in html, "语音边界如实声明，不虚报音频不出设备")
 
+print("=== 6. 专家 agent RAG 接线（岗位专家 / 面试专家双索引） ===")
+import hybrid as HB
+hst = HB.status()
+check("job_expert" in hst["expert_agents"] and "interview_expert" in hst["expert_agents"],
+      "混合检索声明两类专家 agent")
+check(set(hst["material_kinds"]) == {"job_info", "interview_talk"},
+      "两个逻辑索引 material_kind 已注册")
+check("coach" in llm.TASK_KINDS and "coach" in llm.SCHEMAS,
+      "岗位专家 coach 任务与输出契约已注册")
+check("interview_question" in llm.TASK_SYSTEM_PROMPTS and
+      "interview_talk" in llm.TASK_SYSTEM_PROMPTS["interview_question"],
+      "面试专家提示词区分岗位 / 话术两路材料")
+# 两个入口返回结构（无网络：字段为空时走 empty context，不抛异常）
+_empty = {}
+cjob = HB.for_expert(_empty, scene="coach")
+check(cjob.get("ok") and cjob.get("trace", {}).get("scene") == "coach" and cjob.get("count") == 0,
+      "岗位专家入口空字段返回空证据、不编造")
+civ = HB.for_interview(_empty)
+check(civ.get("ok") and civ.get("agent") == "interview_expert" and
+      "job_materials" in civ and "talk_materials" in civ,
+      "面试专家入口返回岗位 + 话术双路结构")
+# 服务端与前端接线标记
+check('"/api/expert/context"' in srv, "服务端注册统一专家 context 端点")
+check("coach" in srv.split("class LLMRequest", 1)[1].split("class", 1)[0],
+      "LLM 请求白名单接受 coach 任务")
+wb = (ROOT / "workbench.html").read_text(encoding="utf-8", errors="ignore")
+mirror = (ROOT / "web" / "public" / "workbench.html").read_text(encoding="utf-8", errors="ignore")
+for token in ("agent:'coach'", "agent:'interview'", "job_materials", "talk_materials", "task:'coach'"):
+    check(token in wb, "工作台前端含 %s" % token)
+check(wb == mirror, "两份前端完全一致（含专家 RAG 接线）")
+
 print("\n=== Phase 3 单元回归：PASS %d  FAIL %d ===" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)

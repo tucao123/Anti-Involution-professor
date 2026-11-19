@@ -41,10 +41,12 @@
     硬条件单独阻断、无百分比总分、「没提供」一律标未知。看板 / 材料库存浏览器 localStorage。
     旧单页 index.html 保留为 /index.html 与 /legacy/index.html，仅供既有 E2E 契约与历史回放，
     不是并行产品；两套页面共用同一后端 API，不重复实现业务逻辑。
-13. 登录与分角色鉴权（auth.py）：个人微信扫码（真实 OAuth / 演示降级）+ 管理员密码登录。
-    /login.html 登录页；工作台右上角个人按钮进个人中心 / 管理后台。会话令牌存 httpOnly cookie；
+13. 登录与分角色鉴权：个人账号密码（local_accounts.py 注册/登录/改密，恒 personal）、
+    微信扫码与 GitHub 授权快捷登录（auth.py 真实 OAuth / 演示降级）、管理员独立密码入口。
+    页面级强制登录（AUTH_REQUIRE_LOGIN）：未登录访问工作台/首页 302 到 /login.html?next=，登录完才能操作。
+    /login.html 为 Tab 式登录/注册/改密/管理员页；会话令牌存 httpOnly cookie；
     写端点角色映射集中在 _ROLE_FOR_WRITE，由中间件统一鉴权（off / optional / required）。
-    真实微信凭据缺失时明确降级并全程标注「演示 / 非真实微信」，绝不伪装。
+    第三方凭据缺失时明确降级并全程标注「演示 / 非真实登录」，绝不伪装。
 
 启动：python server.py                    （默认端口 8848）
       python server.py --port 9000
@@ -69,13 +71,15 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import approval_gate    # 书面结论回执闸门（只读 / 双闸门 / fail-closed）
-import auth             # 认证与分角色鉴权（微信 OAuth 真实/演示 / 管理员密码 / 会话）
+import auth             # 认证与分角色鉴权（微信/GitHub OAuth 真实/演示 / 管理员密码 / 会话）
+import local_accounts   # 本地账号体系（注册 / 密码登录 / 改密），恒为 personal
 import embedding        # BGE / DashScope / hash 统一 embedding 适配层
 import job_info         # 仅岗位信息粗粒度抽取（不提个人信息 / 不做用户画像）
 import jtbd             # JTBD v2.0 决策工作台（本地规则 / 三态对照 / 行动分流）
 import knowledge_ingest # 管理员知识库入库（文本 / 截图 OCR 文本 → 脱敏 → 岗位信息 → Qdrant）
 import resume_parse     # B1 文件解析（不留存 / 可撤回删除 / 云端逐次单独同意）
 import llm              # qwen 语言模型层 + 结构化输出契约
+import local_vlm        # 本地多模态模型层（Ollama / Qwen3-VL，图片不出机）
 import market           # 公开数据适配层（仅标准库）
 import privacy          # PIPL 合规基础设施（AES-256-GCM / 脱敏 / 删除 / 审计链）
 import rag_store        # 本地研究检索库（稀疏 TF-IDF / 加密 / TTL / 可删除）
@@ -84,6 +88,7 @@ import secure_config    # 统一安全配置（凭据仅在内存）
 import sources          # 数据源注册 / fail-closed 合规闸门 / 数据分级
 import usage_policy     # 全项目「仅限研究学习 / 禁止商业行为」统一条款
 import user_jd          # 用户自带 JD（C 级）：确定性抽取 / PII 脱敏 / 原文零落盘
+import user_llm         # 个人空间自带大模型 API（加密存储 / 仅本人可读写 / 不下发密钥）
 import vector_store     # Qdrant Cloud 适配（D 级公开样本）+ 本地降级索引
 
 try:
@@ -101,6 +106,7 @@ except ImportError as exc:  # pragma: no cover
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 192 * 1024  # 研究文本最长 12000 字，UTF-8 + JSON 转义后留足余量
 RESUME_UPLOAD_MAX_BODY = 4 * 1024 * 1024  # 仅 /api/resume/parse 放行 multipart（文件上限 3 MiB + 开销）
+LOCAL_VLM_MAX_BODY = 15 * 1024 * 1024     # 本地 VLM 图片/PDF/DOCX base64（原文件 ≤ 10 MiB，编码后留余量）
 
 # 结构化输出契约统一由 llm.py 提供，避免模型侧与校验侧口径漂移
 SCHEMAS = llm.SCHEMAS
@@ -127,8 +133,30 @@ LongText = Annotated[str, Field(min_length=10, max_length=900)]
 
 class LLMRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    task: Literal["insight", "interview_question", "answer_feedback", "report"]
+    task: Literal["insight", "coach", "interview_question", "answer_feedback", "report"]
     payload: dict[str, Any] = Field(default_factory=dict, description="只含演示数据或用户文本，不含凭据")
+
+
+class LocalVLMExtractRequest(BaseModel):
+    """本地 VLM 统一解析：图片 / PDF / DOCX（均 base64）或文本，绝不接收凭据 / 远程地址。
+    所有字段语义抽取都由本机模型完成，后端不做正则字段抽取、不落盘。"""
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["image", "text", "file"]
+    # 图片 / PDF / DOCX 三种二进制输入统一上限：10 MiB 文件 base64 后约 13.3 MiB，留足余量。
+    image_base64: str | None = Field(default=None, max_length=14 * 1024 * 1024)
+    image_mime: Literal["image/jpeg", "image/png", "image/webp", "image/bmp"] = "image/jpeg"
+    text: str | None = Field(default=None, max_length=12000)
+    file_base64: str | None = Field(default=None, max_length=14 * 1024 * 1024)
+    file_name: str | None = Field(default=None, max_length=200)
+
+
+class UserLLMConfigRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider: Literal["qwen", "deepseek", "moonshot", "openai", "custom"]
+    api_key: str = Field(min_length=8, max_length=512)
+    base_url: str | None = Field(default=None, max_length=300)
+    model: str | None = Field(default=None, max_length=80)
+    timeout: int | None = Field(default=30, ge=3, le=60)
 
 
 class StoreRequest(BaseModel):
@@ -146,6 +174,13 @@ class ResumeSessionRequest(BaseModel):
     """B1 撤回 / 删除：只带会话 id，不含任何文件内容或个人信息。"""
     model_config = ConfigDict(extra="forbid")
     session_id: str = Field(min_length=1, max_length=64)
+
+
+class ResumeTextRequest(BaseModel):
+    """浏览器 OCR / 用户粘贴文本的字段抽取：只提取岗位相关结构化字段。"""
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=12, max_length=20000)
+    purpose: Literal["resume", "jd"] = "resume"
 
 
 class KnowledgeIngestRequest(BaseModel):
@@ -274,6 +309,36 @@ class HybridCompareRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=10)
 
 
+class InsightContextRequest(BaseModel):
+    """洞察对齐的 RAG 输入：岗位字段只作检索条件，不入库不落盘。"""
+    model_config = ConfigDict(extra="forbid")
+    target_role: str = Field(default="", max_length=80)
+    major: str = Field(default="", max_length=80)
+    skills: list[str] = Field(default_factory=list, max_length=20)
+    experience: str = Field(default="", max_length=1200)
+    jds: list[str] = Field(default_factory=list, max_length=5)
+    top_k: int = Field(default=6, ge=1, le=10)
+
+
+class ExpertContextRequest(BaseModel):
+    """所有专家 agent 共用的 RAG 上下文入口。
+
+    agent=insight/coach：岗位专家，走岗位信息索引；
+    agent=interview：面试专家，走岗位信息 + 面试话术双索引各自重排。
+    岗位字段与用户问题只作检索条件，不入库不落盘不进画像。
+    """
+    model_config = ConfigDict(extra="forbid")
+    agent: Literal["insight", "coach", "interview"] = "coach"
+    target_role: str = Field(default="", max_length=80)
+    major: str = Field(default="", max_length=80)
+    skills: list[str] = Field(default_factory=list, max_length=20)
+    experience: str = Field(default="", max_length=1200)
+    jds: list[str] = Field(default_factory=list, max_length=5)
+    focus: str = Field(default="", max_length=120)
+    stage: str = Field(default="", max_length=60)
+    top_k: int = Field(default=6, ge=1, le=10)
+
+
 # --- JTBD v2.0 决策工作台（C 级文本仅本次请求内存处理，不落盘不外发） ---
 class JtbdJdItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -339,10 +404,53 @@ class AuthAdminLoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class AuthRegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    identifier: str = Field(min_length=3, max_length=120, description="用户名或邮箱")
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(default="", max_length=40)
+
+
+class AuthPasswordLoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    identifier: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AuthPasswordChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class AuthGithubDemoConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    state: str = Field(min_length=16, max_length=80)
+
+
 # ---------------------------------------------------------------------------
 # FastAPI 应用
 # ---------------------------------------------------------------------------
-app = FastAPI(title="职引者 ZHIYIN · BFF", version="2.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="职引者 ZHIYIN · BFF", version="2.0",
+              docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@app.get("/api/routes", include_in_schema=False)
+def route_manifest():
+    """只给回归脚本核对路由是否注册，不返回任何 JSON Schema / 字段定义。"""
+    paths: dict[str, dict[str, Any]] = {}
+    for route in app.routes:
+        path = getattr(route, "path", "")
+        methods = getattr(route, "methods", None) or set()
+        if not path.startswith("/api") and path not in ("/metrics", "/"):
+            continue
+        entry = paths.setdefault(path, {})
+        for method in methods:
+            if method in ("HEAD", "OPTIONS"):
+                continue
+            entry[method.lower()] = {"registered": True}
+    return {"ok": True, "paths": paths}
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -371,7 +479,8 @@ _WRITE_PERSONAL = [
     "/api/graph/run", "/api/tasks/dispatch",
     "/api/hybrid/search", "/api/hybrid/compare",
     "/api/vector/search",
-    "/api/resume/parse", "/api/resume/withdraw", "/api/resume/delete",
+    "/api/resume/parse", "/api/resume/parse-text", "/api/resume/withdraw", "/api/resume/delete",
+    "/api/me/llm/save", "/api/me/llm/delete", "/api/me/llm/test",
 ]
 _WRITE_ADMIN = [
     "/api/admin/knowledge/ingest", "/api/admin/knowledge/delete",
@@ -403,9 +512,19 @@ async def guard(request: Request, call_next):
             r.headers["Cache-Control"] = "no-store"
             return r
 
+    # ---- 页面级强制登录：未登录访问应用页面 → 302 到登录页并带回跳地址 ----
+    # 只针对精确的应用页面路径，API / 登录页 / 静态资源 / 指标一律放行。
+    if request.method == "GET" and _page_needs_login(request.url.path):
+        if not auth.identity(request.cookies.get(auth.COOKIE_NAME)):
+            from urllib.parse import quote
+            from fastapi.responses import RedirectResponse
+            nxt = quote(request.url.path, safe="")
+            return RedirectResponse(url="/login.html?next=" + nxt, status_code=302)
+
     if request.method == "POST":
         # 文件上传端点单独放宽；其余 POST 仍按研究文本上限收紧
         limit = (RESUME_UPLOAD_MAX_BODY if request.url.path == "/api/resume/parse"
+                 else LOCAL_VLM_MAX_BODY if request.url.path == "/api/local-vlm/extract"
                  else MAX_BODY)
         try:
             length = int(request.headers.get("content-length") or 0)
@@ -436,6 +555,25 @@ async def auth_error(_request: Request, exc: auth.AuthError):
     return fail(exc.status, exc.code, exc.message)
 
 
+@app.exception_handler(local_accounts.AccountError)
+async def account_error(_request: Request, exc: local_accounts.AccountError):
+    """账号层错误：只回显稳定错误码 + 提示，绝不回显账号 / 密码 / 哈希。"""
+    return fail(exc.status, exc.code, exc.message)
+
+
+# 页面级强制登录：仅保护应用页面，放行登录页 / API / 静态资源 / 指标端点。
+# 与 AUTH_MODE 解耦：页面是否需要登录由 AUTH_REQUIRE_LOGIN 单独开关控制，
+# 便于本地回归（AUTH_MODE=optional）时也能演示强制登录路由；正式部署两者都开。
+# 仅保护当前产品页面（工作台）；旧版单页 / /index.html / /legacy/index.html 保留为
+# E2E 契约与历史回放，不纳入强制登录，避免破坏历史页面契约。
+_PROTECTED_PAGES = {"/workbench", "/workbench.html"}
+
+
+def _page_needs_login(path: str) -> bool:
+    return (secure_config.cfg.flag("AUTH_REQUIRE_LOGIN", True)
+            and path in _PROTECTED_PAGES)
+
+
 # ---------------------------------------------------------------------------
 # 认证与会话：微信扫码（真实 OAuth + 演示降级）/ 管理员密码 / 分角色
 # 令牌只存 httpOnly cookie；响应体不返回令牌本身，避免被 JS/XSS 读取。
@@ -459,12 +597,21 @@ def auth_status():
 @app.get("/api/auth/session")
 def auth_session(request: Request):
     ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    page_required = secure_config.cfg.flag("AUTH_REQUIRE_LOGIN", True)
     if not ident:
-        return {"ok": True, "logged_in": False, "role": None}
+        return {"ok": True, "logged_in": False, "role": None,
+                "page_login_required": page_required}
+    sub = ident.get("sub", "")
     return {
         "ok": True, "logged_in": True,
         "role": ident.get("role"), "name": ident.get("name", ""),
         "demo": bool(ident.get("demo")),
+        "page_login_required": page_required,
+        "has_local_password": sub.startswith("acct:"),
+        "provider": ("local" if sub.startswith("acct:") else
+                     "github" if sub.startswith("gh") else
+                     "wechat" if sub.startswith("wx:") else
+                     "admin" if ident.get("role") == auth.ROLE_ADMIN else "demo"),
     }
 
 
@@ -516,6 +663,92 @@ def auth_admin_login(req: AuthAdminLoginRequest, request: Request):
     return r
 
 
+@app.get("/api/auth/providers")
+def auth_providers():
+    """登录页据此渲染可用的登录方式；只返回形态与是否就绪，不含任何密钥。"""
+    a = auth.status()
+    return {
+        "ok": True,
+        "providers": {
+            "local_accounts": a["local_accounts"],
+            "wechat": {"mode": a["wechat"]["mode"],
+                       "ready": a["wechat"]["real_oauth_ready"],
+                       "demo_allowed": a["wechat"]["demo_allowed"]},
+            "github": {"mode": a["github"]["mode"],
+                       "ready": a["github"]["real_oauth_ready"],
+                       "demo_allowed": a["github"]["demo_allowed"]},
+            "admin": {"mode": "password", "demo": a["admin"]["demo_credential"]},
+        },
+        "page_login_required": a["page_login_required"],
+    }
+
+
+@app.post("/api/auth/register")
+def auth_register(req: AuthRegisterRequest):
+    ident = local_accounts.register(req.identifier, req.password, req.name)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=False)
+    r = JSONResponse(content={"ok": True, "logged_in": True, "role": ident["role"],
+                              "name": ident["name"], "demo": False,
+                              "notice": "注册即登录；账号仅用于鉴权，不产出用户画像"})
+    _set_session_cookie(r, token)
+    return r
+
+
+@app.post("/api/auth/password/login")
+def auth_password_login(req: AuthPasswordLoginRequest):
+    ident = local_accounts.login(req.identifier, req.password)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=False)
+    r = JSONResponse(content={"ok": True, "logged_in": True, "role": ident["role"],
+                              "name": ident["name"], "demo": False})
+    _set_session_cookie(r, token)
+    return r
+
+
+@app.post("/api/auth/password/change")
+def auth_password_change(req: AuthPasswordChangeRequest, request: Request):
+    # 该端点在 /api/auth/ 下（公开前缀），须在端点内自行强制登录态
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    if not ident:
+        raise auth.AuthError("AUTH_REQUIRED", "请先登录后再修改密码", 401)
+    result = local_accounts.change_password(ident["sub"], req.old_password, req.new_password)
+    return {"ok": True, "changed_at": result["changed_at"]}
+
+
+@app.post("/api/auth/github/authorize")
+def auth_github_authorize():
+    gm = auth.github_mode()
+    state = auth.new_state("github-real" if gm["real_oauth_ready"] else "github-demo")
+    if gm["real_oauth_ready"]:
+        return {"ok": True, "mode": "real", "authorize_url": auth.github_authorize_url(state),
+                "state": state}
+    if not gm["demo_allowed"]:
+        return fail(403, "DEMO_DISABLED", "演示授权已关闭，且未配置 GitHub OAuth 凭据")
+    return {"ok": True, "mode": "demo", "authorize_url": None, "state": state,
+            "demo_notice": "未配置 GitHub OAuth 凭据，当前为本地演示授权，非真实 GitHub 登录"}
+
+
+@app.post("/api/auth/github/demo/confirm")
+def auth_github_demo_confirm(req: AuthGithubDemoConfirmRequest):
+    ident = auth.github_demo_confirm(req.state)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=True)
+    r = JSONResponse(content={"ok": True, "logged_in": True, "role": ident["role"],
+                              "name": ident["name"], "demo": True,
+                              "notice": "GitHub 演示身份，不代表真实 GitHub 用户"})
+    _set_session_cookie(r, token)
+    return r
+
+
+@app.post("/api/auth/github/callback")
+def auth_github_callback(req: AuthWechatCallbackRequest):
+    # 复用 code+state 结构；真实 GitHub 授权码回调由前端读 query 后 POST 到此
+    ident = auth.exchange_github_code(req.code, req.state)
+    token = auth.issue(ident["role"], ident["sub"], ident["name"], demo=False)
+    r = JSONResponse(content={"ok": True, "logged_in": True, "role": ident["role"],
+                              "name": ident["name"], "demo": False})
+    _set_session_cookie(r, token)
+    return r
+
+
 @app.post("/api/auth/logout")
 def auth_logout(request: Request):
     auth.revoke(request.cookies.get(auth.COOKIE_NAME))
@@ -533,9 +766,13 @@ def health():
         "phase": 2,
         "provider": "qwen",
         "model": ls["model"],
-        "configured": ls["configured"],     # 前端据此决定是否走在线模型
+        "configured": ls["configured"],     # 服务端兜底是否就绪；用户自带 API 另按会话判定
         "mode": ls["mode"],
         "credential_source": ls["credential_source"],
+        "llm_credential_scope": "user_configurable_or_server_fallback",
+        "user_llm_configurable": True,
+        "embedding_scope": "server_fixed_local_bge",
+        "embedding_user_selectable": False,
         "framework": "fastapi",
         "schema_validation": True,
         "source_gate": "fail-closed",
@@ -564,14 +801,73 @@ def health():
 @app.get("/api/config")
 def config_view():
     """配置状态视图：只有是否配置 / 来源类别 / 形态，绝不含任何密钥值。"""
-    return secure_config.public_view()
+    view = secure_config.public_view()
+    view["credential_boundary"] = {
+        "llm": "用户个人空间自带 API（加密存储，按登录身份隔离）；服务端 qwen 仅可选兜底",
+        "embedding": "服务器固定本地 BGE 512 维，用户不可选择 / 覆盖",
+        "user_llm_configurable": True,
+        "embedding_user_selectable": False,
+    }
+    view["user_llm_providers"] = list(user_llm.PROVIDERS)
+    return view
 
 
-@app.get("/api/schema")
-def schema():
-    """对外暴露真正生效的 JSON Schema，便于前端与测试核对。"""
-    return {"ok": True,
-            "schemas": {name: model.model_json_schema() for name, model in SCHEMAS.items()}}
+# ---------------------------------------------------------------------------
+# 个人空间 · 自带大模型 API（BYOK）
+# 按 session sub 隔离；密钥加密落盘、永不下发浏览器；embedding 不在此配置范围。
+# ---------------------------------------------------------------------------
+def _require_identity(request: Request) -> dict[str, Any]:
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    if not ident:
+        raise auth.AuthError("AUTH_REQUIRED", "请先登录，再在个人空间配置自己的大模型 API", 401)
+    return ident
+
+
+@app.get("/api/me/llm")
+def my_llm_status(request: Request):
+    ident = _require_identity(request)
+    return user_llm.public_view(ident["sub"])
+
+
+@app.get("/api/me/llm/providers")
+def my_llm_providers():
+    return user_llm.providers_view()
+
+
+@app.post("/api/me/llm/save")
+def my_llm_save(req: UserLLMConfigRequest, request: Request):
+    ident = _require_identity(request)
+    try:
+        return user_llm.save(
+            ident["sub"], provider=req.provider, api_key=req.api_key,
+            base_url=req.base_url, model=req.model, timeout=req.timeout)
+    except user_llm.UserLLMError as exc:
+        return fail(exc.status, exc.code, exc.message)
+
+
+@app.post("/api/me/llm/delete")
+def my_llm_delete(request: Request):
+    ident = _require_identity(request)
+    user_llm.delete(ident["sub"])
+    return {"ok": True, "configured": False}
+
+
+@app.post("/api/me/llm/test")
+def my_llm_test(request: Request):
+    """用本人配置跑一次最小结构化生成；只回成功与否，不回显上游响应。"""
+    ident = _require_identity(request)
+    conn = user_llm.get(ident["sub"])
+    if not conn:
+        return fail(404, "USER_LLM_NOT_CONFIGURED", "尚未配置个人大模型 API")
+    try:
+        llm.generate("interview_question",
+                     {"role": "测试岗位", "stage": "自我介绍", "question": "请用一句话自我介绍。"},
+                     connection=conn)
+    except llm.LLMUnavailable as exc:
+        return fail(502, str(exc), "个人 API 调用未成功；密钥不会被回显")
+    except Exception:
+        return fail(502, "USER_LLM_TEST_FAILED", "个人 API 调用未成功；密钥不会被回显")
+    return {"ok": True, "tested": True}
 
 
 @app.get("/api/llm/status")
@@ -590,12 +886,7 @@ def source_registry():
 @app.get("/api/market")
 def market_insight(major: str = "计算机科学与技术"):
     major = (major or "").strip()[:40] or "计算机科学与技术"
-    try:
-        result = market.get_market_profile(major)
-    except Exception:
-        return {"ok": False, "error": "PUBLIC_SOURCE_UNAVAILABLE", "fallback": "sample",
-                "message": "公开招聘数据源暂不可用，已切换到内置演示数据集"}
-    return {"ok": True, **result}
+    return {"ok": True, **market.get_market_profile(major)}
 
 
 @app.get("/api/insight/modes")
@@ -860,28 +1151,41 @@ def privacy_audit():
 # qwen 语言模型：PII / C 级数据前置拦截 → 结构化生成 → JSON Schema 校验
 # ---------------------------------------------------------------------------
 @app.post("/api/llm")
-def llm_route(req: LLMRequest):
+def llm_route(req: LLMRequest, request: Request):
     found = privacy.scan_pii(req.payload)
     if found:
         privacy.audit("llm_pii_blocked", detail="拦截字段：" + ",".join(found))
         return fail(403, "PII_BLOCKED", "检测到个人信息，按合规策略不外发至云端模型；本地模型路由尚未配置")
+    # 登录用户优先用个人空间自带 API；否则回落到服务端 qwen（可选）。
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    conn = user_llm.get(ident["sub"]) if ident else None
+    if conn:
+        try:
+            user_llm.validate_endpoint(conn.get("base_url", ""))
+        except user_llm.UserLLMError:
+            conn = None  # 端点被新规则否定，安全回落到服务端链路
     try:
-        raw = llm.generate(req.task, req.payload)
+        raw = llm.generate(req.task, req.payload, connection=conn)
     except llm.LLMUnavailable as exc:
         code = str(exc)
         if code in ("PII_BLOCKED", "USER_DATA_BLOCKED"):
             privacy.audit("llm_user_data_blocked", detail=code)
             return fail(403, code, "C 级用户自带数据按默认策略不出本机")
-        if not llm.qwen_gate()["can_call_chat"]:
+        if conn and code == "USER_LLM_CONFIG_INVALID":
+            return fail(400, code, "个人 API 配置不合法，请到个人空间检查")
+        if not conn and not llm.qwen_gate()["can_call_chat"]:
             return fail(503, "LLM_NOT_ENABLED",
-                        "qwen 未启用或 key 形态待确认；已自动降级到离线规则引擎")
+                        "未配置个人 API 且服务端 qwen 未启用；已自动降级到离线规则引擎")
         return fail(502, code, "模型调用未成功，已切换到离线演示模式")
     try:
         data = llm.validate_output(req.task, raw)
     except ValidationError:
         return fail(502, "SCHEMA_VALIDATION_FAILED", "模型输出未通过结构化校验，已切换到离线演示模式")
-    return {"ok": True, "provider": "qwen", "model": llm.status()["model"],
-            "validated": True, "schema": SCHEMAS[req.task].__name__, "data": data}
+    return {"ok": True,
+            "provider": (conn.get("provider") if conn else "qwen"),
+            "credential_scope": "user" if conn else "server",
+            "model": (conn.get("model") if conn else llm.status()["model"]),
+            "validated": True, "data": data}
 
 
 # ---------------------------------------------------------------------------
@@ -1112,6 +1416,72 @@ def hybrid_compare(req: HybridCompareRequest):
         return fail(400, str(exc), "检索词过短，已拒绝")
 
 
+@app.post("/api/insight/context")
+def insight_context(req: InsightContextRequest, request: Request):
+    """洞察 RAG：岗位字段 → 检索意图 → 双路召回 → 精排 → D 级脱敏证据。
+    仅本次请求内存处理；字段是查询条件，不写库、不落盘、不进用户画像。"""
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    if not ident:
+        return fail(401, "LOGIN_REQUIRED", "请先登录后再生成洞察")
+    mod, err = _need("hybrid")
+    if err:
+        return err
+    payload = {
+        "target_role": req.target_role, "major": req.major, "skills": req.skills,
+        "experience": req.experience, "jds": req.jds,
+    }
+    try:
+        result = mod.for_insight(payload, top_k=req.top_k)
+    except Exception:
+        # 检索失败不阻断洞察：返回空证据，前端仍可用静态统计生成
+        result = {"ok": True, "materials": [], "count": 0,
+                  "trace": {"retrieval": "检索暂不可用", "rerank": "未执行",
+                            "data_policy": mod.DATA_POLICY_NOTE},
+                  "disclaimer": "检索暂不可用，改用样本统计；用户字段未入库未落盘。"}
+    privacy.audit("insight_context", detail="意图 %d 条 · 证据 %d 条" % (
+        len(result.get("trace", {}).get("queries", [])), result.get("count", 0)))
+    return result
+
+
+@app.post("/api/expert/context")
+def expert_context(req: ExpertContextRequest, request: Request):
+    """所有专家 agent 的统一 RAG 证据入口（登录用户）。
+
+    - agent=insight / coach：岗位专家，检索岗位信息索引；
+    - agent=interview：面试专家，岗位信息索引 + 面试话术索引双路各自召回重排。
+
+    岗位字段与用户问题只作检索条件，不写库、不落盘、不进用户画像。
+    检索失败只返回空证据，不阻断专家生成（与洞察端点同策略）。
+    """
+    ident = auth.identity(request.cookies.get(auth.COOKIE_NAME))
+    if not ident:
+        return fail(401, "LOGIN_REQUIRED", "请先登录后再使用专家解读")
+    mod, err = _need("hybrid")
+    if err:
+        return err
+    payload = {
+        "target_role": req.target_role, "major": req.major, "skills": req.skills,
+        "experience": req.experience, "jds": req.jds,
+    }
+    try:
+        if req.agent == "interview":
+            result = mod.for_interview(payload, top_k=req.top_k,
+                                       focus=req.focus, stage=req.stage)
+            scene = "interview"
+        else:
+            result = mod.for_expert(payload, top_k=req.top_k, focus=req.focus,
+                                    scene=req.agent)
+            scene = req.agent
+    except Exception:
+        result = {"ok": True, "materials": [], "count": 0,
+                  "trace": {"scene": req.agent, "retrieval": "检索暂不可用", "rerank": "未执行",
+                            "data_policy": mod.DATA_POLICY_NOTE},
+                  "disclaimer": "检索暂不可用；用户字段未入库未落盘。"}
+    privacy.audit("expert_context", detail="场景 %s · 证据 %d 条" % (
+        scene, result.get("count", 0)))
+    return result
+
+
 @app.get("/api/github/status")
 def github_status():
     mod, err = _need("github_meta")
@@ -1199,6 +1569,20 @@ async def resume_parse_endpoint(file: UploadFile = File(...), cloud_enrich: bool
         del data
 
 
+@app.post("/api/resume/parse-text")
+def resume_parse_text(req: ResumeTextRequest):
+    """OCR / 粘贴文本的岗位字段抽取：返回结构化摘要，不接收文件、不写原文与向量库。"""
+    try:
+        return resume_parse.parse_text(req.text, req.purpose)
+    except resume_parse.ResumeRejected as exc:
+        code = str(exc)
+        if code == "NO_TEXT_EXTRACTED":
+            return fail(400, code, "未提取到可解析文本")
+        if code == "OUTPUT_CONTAINS_PERSONAL_OR_PROFILING_DATA":
+            return fail(400, code, "输出中检出个人信息或画像语义，整批拒绝")
+        return fail(400, code, "文本解析失败")
+
+
 @app.post("/api/resume/withdraw")
 def resume_withdraw(req: ResumeSessionRequest):
     return resume_parse.withdraw(req.session_id)
@@ -1208,6 +1592,204 @@ def resume_withdraw(req: ResumeSessionRequest):
 def resume_delete(req: ResumeSessionRequest):
     return resume_parse.delete(req.session_id)
 
+
+# ---------------------------------------------------------------------------
+# 本地多模态模型（Ollama / Qwen3-VL）：图片与文字都只在本机推理，绝非外发。
+# 输出仍复用 job_info 的 PII / 画像词双闸门 + 字段白名单，fail-closed。
+# ---------------------------------------------------------------------------
+def _coerce_vlm_profile(data: dict[str, Any]) -> dict[str, Any]:
+    """把本地 VLM 的语义抽取结果收敛成与 to_coarse_job_profile 一致的岗位字段，
+    并做输出 fail-closed：命中 PII / 画像词 / 越界字段整批拒绝。"""
+    import hashlib as _hl
+
+    allowed_mime = None
+    # 字段白名单：只保留岗位颗粒度字段，杜绝模型夹带身份 / 评分字段
+    target = str(data.get("target_role") or "")[:40]
+    salary = str(data.get("salary_expectation") or "")[:30]
+    major = str(data.get("major") or "")[:40]
+    education = str(data.get("education") or "")[:40]
+    certs = [str(x)[:40] for x in (data.get("certificates") or []) if isinstance(x, str)][:20]
+    honors = [str(x)[:40] for x in (data.get("honors") or []) if isinstance(x, str)][:20]
+    skills_raw = [str(x)[:30] for x in (data.get("skills") or []) if isinstance(x, str)][:20]
+    exp_raw = [str(x)[:120] for x in (data.get("experience_context") or []) if isinstance(x, str)][:12]
+    level = str(data.get("level_hint") or "unspecified")
+    if level not in ("junior", "senior", "unspecified"):
+        level = "unspecified"
+
+    # 技能方向 = 粗粒度类别 + 模型识别出的具体技术栈原词。
+    # 用户要的是「各个技术栈」都保留，不能只留合并后的大类（PyTorch/TensorFlow/CNN
+    # 不该被压成一条「机器学习」）。先做词典归类，再把未被类别字面覆盖的具体栈词补进去。
+    known: list[dict[str, str]] = []
+    seen_cat: set[str] = set()
+    covered_words: set[str] = set()   # 已被某个类别字面命中的原词，避免重复
+    for w in skills_raw:
+        low = w.lower()
+        for s in user_jd.SKILLS:
+            if s["name"] in seen_cat:
+                continue
+            if low == s["name"].lower() or any(k in low for k in s["words"]):
+                known.append({"name": s["name"], "category": s["cat"], "level": "mentioned"})
+                seen_cat.add(s["name"])
+                covered_words.add(w)
+                break
+    # 具体技术栈原词：模型输出的、且不是某个类别名本身的，全部保留为 stack 项。
+    # 仅剔除已被类别语义覆盖的泛化词（机器学习/深度学习等），保留真正的技术栈名。
+    cat_names_l = {s["name"].lower() for s in user_jd.SKILLS}
+    generic_words = {"机器学习", "深度学习", "自然语言处理", "数据分析", "数据处理",
+                     "编程", "开发", "工程技术", "算法"}
+    seen_stack: set[str] = {s["name"].lower() for s in known}
+    stacks: list[dict[str, str]] = []
+    for w in skills_raw:
+        key = w.lower().strip()
+        if (not w or w in covered_words or key in seen_stack or key in cat_names_l
+                or w.strip() in generic_words):
+            continue
+        stacks.append({"name": w, "category": "stack", "level": "mentioned"})
+        seen_stack.add(key)
+    skill_areas = known + stacks
+    names = [s["name"] for s in skill_areas[:12]] or skills_raw[:8]
+    summary = ("该简历大致涉及 %s 等技能方向（本地模型抽取的粗粒度岗位信息，"
+               "不含个人信息与能力评估）。" % ("、".join(names) if names else "通用方向"))
+
+    context_parts: list[str] = []
+    if target:
+        context_parts.append("求职意向：" + target)
+    if salary:
+        context_parts.append("薪资意向（用户自填，仅作约束不预测）：" + salary)
+    if major:
+        context_parts.append("专业：" + major)
+    if education:
+        context_parts.append("学历：" + education)
+    if exp_raw:
+        context_parts.append("项目/实习上下文：" + "；".join(exp_raw[:5]))
+    if certs:
+        context_parts.append("证书：" + "、".join(certs))
+    if honors:
+        context_parts.append("荣誉/奖项：" + "、".join(honors))
+    if skill_areas:
+        context_parts.append("技能方向：" + "、".join(names))
+    if level != "unspecified":
+        context_parts.append("级别：" + level)
+    expert_context = "；".join(context_parts)[:1400]
+
+    profile = {
+        "job_title_hint": target,
+        "target_role": target,
+        "salary_expectation": salary,
+        "major": major,
+        "education": education,
+        "certificates": certs,
+        "honors": honors,
+        "experience_context": exp_raw,
+        "skill_areas": skill_areas[:20],
+        "level_hint": level,
+        "coarse_summary": summary,
+        "expert_context": expert_context,
+        "source_lines_kept": 0,
+    }
+    # fail-closed：任一字段含 PII 或画像语义，整批拒绝
+    if privacy.scan_pii(profile) or job_info._PROFILING_WORDS.search(str(profile)):
+        raise job_info.JobInfoRejected("OUTPUT_CONTAINS_PERSONAL_OR_PROFILING_DATA")
+    profile["policy"] = {
+        "pii_extraction": False, "pii_to_store": False,
+        "user_profiling_in_this_path": False, "user_profiling_project_wide": True,
+        "profiling_path": job_info.POLICY["profiling_path"],
+        "raw_text_returned": False, "output_scope": job_info.POLICY["output_scope"],
+        "expert_context_scope": "仅本次请求内作为专家解读上下文；不写向量库、不落盘",
+        "user_data_vectorized": False,
+    }
+    return profile
+
+
+def _local_vlm_unavailable_message(code: str) -> str:
+    return {
+        "UNREACHABLE": "本机 Ollama 服务未启动或连接中断，请确认服务在运行后重试",
+        "TIMEOUT": "本机模型处理超时（GPU 繁忙或内容过长），请稍后重试或改用文本粘贴",
+        "ENDPOINT_NOT_LOOPBACK": "本地模型端点被配置为非本机地址，已拒绝以防数据外发",
+        "IMAGE_MISSING": "未提供图片数据",
+        "IMAGE_MIME_UNSUPPORTED": "图片格式不支持",
+        "NOT_JSON": "模型未返回合法结构化结果",
+        "SCHEMA_VALIDATION_FAILED": "模型输出未通过结构化校验",
+        "UNKNOWN_TASK": "不支持的本地模型任务",
+        "LOCAL_VLM_ERROR": "本机模型调用异常，请重试；若持续失败请把下方错误码发给管理员",
+    }.get(code, "本地模型调用失败")
+
+
+@app.get("/api/local-vlm/status")
+def local_vlm_status():
+    return local_vlm.status()
+
+
+@app.post("/api/local-vlm/extract")
+def local_vlm_extract(req: LocalVLMExtractRequest):
+    """统一解析入口：图片 / PDF / DOCX / 文本都只在本机模型里做语义抽取。
+    图片直接视觉识别；PDF/DOCX 先在内存提取纯文本再交模型；后端不做正则字段抽取。
+    不落盘、不外发；输出过 PII + 画像词双闸门，命中即整批拒绝。"""
+    import base64 as _b64
+
+    file_bytes: bytes = b""
+    raw_text = ""
+    payload: dict[str, Any] = {}
+    try:
+        if req.mode == "image":
+            if not req.image_base64:
+                return fail(400, "IMAGE_MISSING", "未提供图片数据")
+            payload = {"image_base64": req.image_base64, "image_mime": req.image_mime}
+            task = "resume_extract_image"
+        elif req.mode == "file":
+            # PDF / DOCX：内存解码 + 文本提取，绝不落盘；文本再交本机模型做语义抽取
+            name = req.file_name or ""
+            ext = resume_parse._ext(name)
+            if ext not in ("pdf", "docx") or not req.file_base64:
+                return fail(400, "FILE_TYPE_NOT_ALLOWED", "仅支持 pdf / docx 文件")
+            try:
+                file_bytes = _b64.b64decode(req.file_base64, validate=True)
+            except Exception:
+                return fail(400, "FILE_DECODE_FAILED", "文件内容无法解码")
+            if not file_bytes or len(file_bytes) > 10 * 1024 * 1024:
+                return fail(413, "FILE_SIZE_INVALID", "文件需在 1 B – 10 MiB 之间")
+            try:
+                resume_parse._check_magic(ext, file_bytes)
+                raw_text = resume_parse._extract_text(ext, file_bytes)
+            except resume_parse.ResumeRejected as exc:
+                return fail(400, str(exc), "文件不合规或无法提取文本")
+            if not raw_text.strip():
+                return fail(400, "NO_TEXT_EXTRACTED", "未提取到可解析文本")
+            payload = {"resume_text": raw_text[:12000]}
+            task = "resume_extract_text"
+        else:
+            if not req.text or len(req.text.strip()) < 12:
+                return fail(400, "NO_TEXT_EXTRACTED", "至少提供 12 字的简历 / JD 文本")
+            payload = {"resume_text": req.text.strip()}
+            task = "resume_extract_text"
+        data = local_vlm.extract(task, payload)
+        profile = _coerce_vlm_profile(data)
+    except local_vlm.LocalVLMUnavailable as exc:
+        code = str(exc)
+        privacy.audit("local_vlm_unavailable", detail=code)
+        return fail(503, code, _local_vlm_unavailable_message(code))
+    except job_info.JobInfoRejected:
+        privacy.audit("local_vlm_output_rejected", detail="PII_OR_PROFILING")
+        return fail(400, "OUTPUT_CONTAINS_PERSONAL_OR_PROFILING_DATA",
+                    "模型输出含个人信息或画像语义，已整批拒绝")
+    finally:
+        raw_text = ""
+        file_bytes = b""
+        payload = {}
+        req.image_base64 = None
+        req.file_base64 = None
+    return {
+        "ok": True,
+        "engine": "local-vlm",
+        "model": local_vlm.model_name(),
+        "data_leaves_device": False,
+        "job_profile": profile,
+        "data_minimization": job_info.POLICY,
+        "retention": {"raw_text": "none", "image": "none", "file": "none",
+                      "derived_profile_ttl_s": 0},
+        "note": "本机模型完成识别，图片 / 文件 / 原文不落盘、不入库、不上传；"
+                "字段已过个人信息与画像语义双校验。请核对结果后再使用。",
+    }
 
 
 @app.get("/api/phase3/status")
@@ -1287,10 +1869,11 @@ def main():
     ls = llm.status()
     es = embedding.status()
     print("职引者 ZHIYIN · FastAPI BFF Phase 2  ->  http://%s:%d" % (args.host, args.port))
-    print("语言模型   : qwen / %s · %s · %s" %
+    print("语言模型   : qwen 兜底 / %s · %s · %s" %
           (ls["model"], ls["mode"], ls["gate"]["reason"]))
+    print("个人 LLM   : 用户个人空间自带 API（加密存储 / 按身份隔离 / 密钥不下发）")
     print("输出校验   : Pydantic JSON Schema（4 个任务）· 校验失败自动降级")
-    print("Embedding  : %s · public=%s / user=%s" %
+    print("Embedding  : 服务器固定本地 %s · public=%s / user=%s · 用户不可选择" %
           (es["configured_backend"], es["selected_backend"]["public"],
            es["selected_backend"]["user"]))
     print("向量库     : Qdrant %s · 云写入 %s · 不可达自动降级本地内存索引" %

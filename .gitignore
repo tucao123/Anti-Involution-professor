@@ -17,7 +17,6 @@ __pycache__/
 .probe*
 
 # 运行时产生的聚合快照与隐私数据（不含原始 JD / 不含密钥）
-.market_snapshots.jsonl
 .privacy/
 .rag/
 .stores/
@@ -27,6 +26,9 @@ tests/out/
 tests/.cache/
 *.log
 .pytest_cache/
+
+# 种子数据入库断点（稳定 key，无原文；运行时产物）
+ingest_seed_progress.json
 
 # Next.js 控制台（依赖与构建产物不入库；public/legacy 是源码副本，需入库）
 web/node_modules/
@@ -40,3 +42,32 @@ web/next-env.d.ts
 
 # BGE 独立依赖目录（pip --target 生成，本机环境修复产物，不入库）
 .bge_env/
+
+# 本地多模态模型：运行时二进制与模型权重体积大、环境相关，绝不入库
+.ollama-win.zip
+.ollama-runtime/
+.ollama-models/
+
+# 本机环境相关的本地 VLM 模型目录覆盖（默认留空走 Ollama 自身配置，不放绝对路径）
+# 说明：如本机模型不在 Ollama 默认目录，请用 OLLAMA_MODELS 环境变量或 .env 指定。
+
+# 外部参考素材 / 与本平台无关的设计稿（非本项目文档，不入库）
+参考素材-*.html
+
+# 本地凭据变体（示例模板除外）
+.env.local
+.env.*.local
+
+# 编辑器 / 操作系统生成文件
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 其他语言 / 工具缓存
+.mypy_cache/
+.ruff_cache/
+node_modules/
+*.tsbuildinfo

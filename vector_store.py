@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import math
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -64,6 +65,18 @@ FORBIDDEN_CLAIMS = [
     "不得据此得出蓝海岗位 / 被替代风险排序",
     "全球远程岗样本，不代表国内市场",
 ]
+
+# 同一集合内用 payload 字段区分两个逻辑索引；旧数据没有该字段时按标题前缀归类。
+MATERIAL_KINDS = ("job_info", "interview_talk")
+_TALK_TITLE_PREFIXES = ("话术·", "流程·")
+
+
+def material_kind_of(title: str = "", explicit: str = "") -> str:
+    """把入库条目标成岗位信息索引或面试话术索引（只存枚举，不存用户文本）。"""
+    value = str(explicit or "").strip()
+    if value in MATERIAL_KINDS:
+        return value
+    return "interview_talk" if str(title).strip().startswith(_TALK_TITLE_PREFIXES) else "job_info"
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +253,8 @@ def ingest(items: list[dict[str, Any]], scope: str = "public",
             "embedding_backend": packed["backend"],
             "semantic": packed["semantic"],
             "scope": scope,
+            "material_kind": material_kind_of(
+                str(it.get("title", "")), str(it.get("material_kind", ""))),
             "ingested_at": datetime.now(timezone.utc).isoformat(),
         }
         points.append({"id": pid, "vector": vec, "payload": payload})
@@ -314,13 +329,18 @@ def search(q: str, top_k: int = 5, scope: str = "public") -> dict[str, Any]:
     hits: list[dict[str, Any]] = []
     detail = ""
     if cloud_writes_allowed() and probe()["reachable"]:
-        try:
-            data = _request("POST", "/collections/%s/points/search" % cfg.get("QDRANT_COLLECTION"),
-                            {"vector": vec, "limit": top_k, "with_payload": True})
-            hits = data.get("result", [])[:top_k]
-            backend = "qdrant-cloud"
-        except VectorUnavailable as exc:
-            detail = "云端检索失败已降级本地：%s" % exc
+        # 境外链路偶发 URLError（首包常失败），短超时 + 有限重试，避免慢等
+        for attempt in range(2):
+            try:
+                data = _request("POST", "/collections/%s/points/search" % cfg.get("QDRANT_COLLECTION"),
+                                {"vector": vec, "limit": top_k, "with_payload": True}, timeout=6)
+                hits = data.get("result", [])[:top_k]
+                backend = "qdrant-cloud"
+                break
+            except VectorUnavailable as exc:
+                detail = "云端检索失败已降级本地：%s" % exc
+                if attempt < 1:
+                    time.sleep(0.2)
     if not hits:
         hits = _local_search(vec, top_k)
         if not detail:
@@ -338,6 +358,8 @@ def search(q: str, top_k: int = 5, scope: str = "public") -> dict[str, Any]:
             "applicability": p.get("applicability", "全球远程岗样本 · 非国内市场"),
             "forbidden_claims": p.get("forbidden_claims", FORBIDDEN_CLAIMS),
             "semantic": p.get("semantic", False),
+            "material_kind": material_kind_of(
+                str(p.get("title", "")), str(p.get("material_kind", ""))),
         })
     return {
         "ok": True, "backend": backend, "hits": out, "count": len(out),
@@ -393,6 +415,8 @@ def guard_check(items: list[dict[str, Any]], source_id: str = "jobicy",
             "forbidden_claims": FORBIDDEN_CLAIMS,
             "embedding_backend": "dry-run", "semantic": False,
             "scope": scope,
+            "material_kind": material_kind_of(
+                str(it.get("title", "")), str(it.get("material_kind", ""))),
             "ingested_at": datetime.now(timezone.utc).isoformat(),
         }
         points.append({"id": "dry-run", "vector": [0.0], "payload": payload})
@@ -432,6 +456,7 @@ def status() -> dict[str, Any]:
         "collection_dim": _COLLECTION_DIM,
         "embedding": embedding.status(),
         "allowed_scope": "D 级公开岗位样本 / 脱敏技能标签（grade D）",
+        "material_kinds": list(MATERIAL_KINDS),
         "user_data_to_cloud": cfg.flag("ALLOW_CLOUD_FOR_USER_DATA"),
         "pii_policy": "逐条扫描 + 脱敏；命中即整批拒绝；向量不等于匿名化",
         "outbound_guard": outbound_guard.status(),

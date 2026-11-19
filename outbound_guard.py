@@ -64,7 +64,7 @@ OUTBOUND_POLICY: dict[str, Any] = {
     "payload_key_allowlist": frozenset({
         "text", "title", "grade", "region", "source_id", "source_name",
         "attribution", "attribution_url", "applicability", "forbidden_claims",
-        "embedding_backend", "semantic", "scope", "ingested_at",
+        "embedding_backend", "semantic", "scope", "ingested_at", "material_kind",
     }),
     "required_payload_keys": frozenset({
         "text", "title", "grade", "region", "source_id", "scope",
@@ -159,6 +159,9 @@ def validate_point(point: dict[str, Any], *, scope: str, grade: str,
         raise OutboundBlocked("PAYLOAD_SCOPE_OR_GRADE_MISMATCH")
     if payload.get("source_id") != source_id:
         raise OutboundBlocked("PAYLOAD_SOURCE_MISMATCH")
+    material_kind = payload.get("material_kind")
+    if material_kind is not None and material_kind not in ("job_info", "interview_talk"):
+        raise OutboundBlocked("MATERIAL_KIND_NOT_ALLOWED")
     text = str(payload.get("text", ""))
     title = str(payload.get("title", ""))
     if not text.strip():

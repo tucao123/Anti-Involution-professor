@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 项目内回归用例（由临时验证脚本参数化迁移而来）。
 # 路径 / 端口可通过 ZHIYIN_BASE_URL、ZHIYIN_CHROME 覆盖，换机器可复现。
-import pathlib, tempfile, sys, json
+import pathlib, sys, json
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -32,15 +32,15 @@ r = sources.inspect_robots("http://127.0.0.1:9", "/")
 print("  reachable:", r["reachable"], "can_fetch:", r["can_fetch"])
 
 print("=== market._compute with synthetic jobs (no network) ===")
-market.SNAP_FILE = pathlib.Path(tempfile.gettempdir()) / "zy_verify_snapshots.jsonl"
-fake = [{"title": "Backend Engineer", "text": "python sql docker api communication analytics", "cats": ["engineering"]}
+fake = [{"title": "后端工程师", "text": "python sql docker api communication analytics", "cats": ["工程与开发"]}
         for _ in range(20)]
-res = market._compute("验证占位", fake, {"name": "Jobicy Public Job Board API", "url": "https://jobicy.com/api/", "provider": "jobicy"})
+res = market._compute("验证占位", fake, {"name": "国内岗位样本", "url": "", "provider": "local_cn_sample"})
 p, m = res["profile"], res["meta"]
 print("  grade/region/representative_of_cn:", p["data_grade"], p["region"], p["representative_of_cn"])
 print("  forbidden:", m["applicability"]["forbidden_claims"])
-print("  attribution:", m["source"]["attribution"])
-print("  job basis:", p["jobs"][0].get("basis"), "| summary mentions CN caveat:", "不代表中国境内招聘市场" in p["summary"])
+print("  source:", m["source"]["name"], "/", m["source"]["provider"])
+print("  job basis:", p["jobs"][0].get("basis"), "| summary has market caveat:", "不代表全国就业市场" in p["summary"])
+print("  no network: trend is None ->", p["trend"] is None)
 
 print("=== server import ===")
 try:

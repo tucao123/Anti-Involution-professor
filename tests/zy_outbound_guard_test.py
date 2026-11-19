@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import outbound_guard as g
+import secure_config
 import vector_store as v
 
 PASS = 0
@@ -143,21 +144,22 @@ def main() -> int:
     check("outbound_guard" in v.status(), "vector 状态暴露防护块")
 
     # 8) Embedding 维度一致性（patch probe，不联网）
-    #    BGE 恢复后 user 侧为 512 维，既有 Qdrant 集合为 DashScope 1024 维；
-    #    ensure_collection 必须明确抛错，不能把错误维度发给云端后静默降级。
+    #    统一口径：当前集合 zhiyin_public_d_bge 为本地 BGE 512 维；
+    #    ensure_collection 必须明确拒绝错误维度，不能把错误维度发给云端后静默降级。
     from unittest.mock import patch
-    fake_probe = {"reachable": True, "collections": ["zhiyin_public_d"],
-                  "target_collection": {"dim": 1024, "distance": "Cosine",
+    current_collection = secure_config.cfg.get("QDRANT_COLLECTION")
+    fake_probe = {"reachable": True, "collections": [current_collection],
+                  "target_collection": {"dim": 512, "distance": "Cosine",
                                         "status": "green"}}
     with patch.object(v, "probe", return_value=fake_probe):
         if v.cloud_writes_allowed():
-            check(v.ensure_collection(1024)["ok"] is True, "维度一致（1024）时允许写入")
+            check(v.ensure_collection(512)["ok"] is True, "维度一致（512）时允许写入")
             try:
-                v.ensure_collection(512)
+                v.ensure_collection(1024)
                 check(False, "维度不符必须明确拒绝")
             except v.VectorUnavailable as exc:
                 check("COLLECTION_DIM_MISMATCH" in str(exc),
-                      "512 维写入 1024 维集合被 COLLECTION_DIM_MISMATCH 拒绝")
+                      "1024 维写入 512 维集合被 COLLECTION_DIM_MISMATCH 拒绝")
         else:
             check(True, "云写入闸门关闭时跳过维度校验（fail-closed 优先）")
 

@@ -49,15 +49,15 @@ export default async function Page() {
     {
       title: '语言模型',
       value: llm ? `${llm.provider} / ${llm.mode}` : '未连接',
-      note: llm?.gate?.reason || 'qwen 未配置时自动降级为离线规则引擎',
+      note: '服务端 qwen 仅作兜底；登录用户可在个人中心自带 API（加密存储、按身份隔离）',
       warn: !llm?.configured,
     },
     {
       title: 'Embedding',
       value: embed?.selected_backend?.public || '未连接',
       note: embed?.bge_available
-        ? `BGE 本地 512 维语义向量已恢复 · ${embed.bge_runtime || '独立依赖目录'} · 用户侧向量不外发云端`
-        : (embed?.bge_reason || '本地语义模型未就绪；按配置降级，后端如实标注'),
+        ? `服务器固定本地 BGE 512 维 · ${embed.bge_runtime || '独立依赖目录'} · 用户不可选择，无云端 embedding`
+        : (embed?.bge_reason || '本地语义模型未就绪；降级为本地 hash 投影，后端如实标注'),
       warn: !embed?.bge_available,
     },
     {
@@ -182,7 +182,7 @@ export default async function Page() {
           这一页只做状态观测，包含 Phase 3 的 A1–A4 与决策落地（回执闸门 / B1 文件解析 /
           管理员知识入库 / 项目性质与使用限制条款 / Q18 出境写入防护 / BGE 恢复）。
           自动爬取与截图执行体已整体移除，知识只由管理员提供文本 / 截图（浏览器本地 OCR）/ CSV。
-          面向用户的主入口是 <b>决策工作台</b>（洞察对齐 → 输入解析 → 定向学习 → 模拟面试 → AI 辅导 → 材料检索 → 隐私合规，按功能以及实现流程.md 的 7 模块重组，视觉沿用 HOMETRY）；
+          面向用户的主入口是 <b>决策工作台</b>（左侧 3 步：洞察对齐（含输入解析）→ 定向学习 → 模拟面试；AI 辅导为右下常驻侧栏、随时召唤，隐私合规并入个人中心「用户须知」；定向学习的缺口由洞察对齐结果自动带入，视觉沿用 HOMETRY）；
           知识入库稠密路全部走 Qdrant、本地仅降级。既有 8 视图单页保留为 legacy，仅供历史回放与 E2E 契约，二者共用同一个 FastAPI BFF。
         </p>
         <p className="meta">
@@ -192,7 +192,7 @@ export default async function Page() {
 
       <div className="actions">
         <Link className="btn btn-primary" href="/workbench.html">打开决策工作台 →</Link>
-        <Link className="btn btn-ghost" href="/login.html">登录（微信扫码 / 管理员密码）</Link>
+        <Link className="btn btn-ghost" href="/login.html">登录 / 注册（账号密码 · 微信 · GitHub · 管理员）</Link>
         <Link className="btn btn-ghost" href="/legacy/index.html">旧版视图</Link>
         <Link className="btn btn-ghost" href="/health">查看健康详情</Link>
         <a className="btn btn-ghost" href="/metrics">Prometheus 指标</a>
@@ -213,10 +213,11 @@ export default async function Page() {
       <div className="notice">
         <strong>数据边界（不因架构升级而放宽）</strong>
         <ul>
-          <li><b>决策工作台</b>（<code>/workbench.html</code>）：按功能以及实现流程.md 的 7 模块重组（洞察对齐 / 输入解析 / 定向学习 / 模拟面试 / AI 辅导 / 材料检索 / 隐私合规）。C 级 JD / 经历文本只在本次请求内存里推导，零落盘、零外发、不进 RAG / 向量库；结论限定在样本内、硬条件单独阻断。投递看板 / 材料库 / 学习进度只存浏览器 localStorage，由用户自己保存 / 删除。</li>
+          <li><b>决策工作台</b>（<code>/workbench.html</code>）：左侧 3 步主流程（洞察对齐（含输入解析） / 定向学习 / 模拟面试）；<b>AI 辅导</b>为右下常驻按钮召唤的功能侧栏，任何视图都能随时对话、会话只在内存；<b>隐私合规</b>并入个人中心「用户须知」。粘贴 JD / 截图 OCR / 简历解析后自动带入洞察与面试字段，<b>定向学习要补的技能由「洞察对齐」的缺口结果自动带入、不用用户自己判断</b>，手改字段不被覆盖。前端洞察统一以国内样本口径呈现，已移除原「样本口径」字段与冗长免责文字。<b>向量库检索 / 入库 / 删除只在管理员后台</b>，用户侧不开放入口。C 级 JD / 经历文本只在本次请求内存里推导，零落盘、零外发、不进 RAG / 向量库；结论限定在样本内、硬条件单独阻断。投递看板 / 材料库 / 学习进度只存浏览器 localStorage，由用户自己保存 / 删除。</li>
+          <li><b>模拟面试深化接入向量库</b>：开局检索脱敏岗位片段，素材参与动态出题（<code>interview_question</code>）、逐题反馈（<code>answer_feedback</code>）与最终报告（<code>report</code>）三个环节；LLM 不可用时回退固定四阶段题。只把向量库 D 级脱敏片段与岗位 / 阶段元数据外发模型，用户项目 / 回答原文不作为用户数据字段上传。</li>
           <li>C 级用户自带 JD / 简历 / 本地 OCR 文本：原文零落盘、PII 前置脱敏、可撤回删除，默认不出本机。</li>
           <li>云向量库只收 D 级公开岗位样本；Q18 写入依据项目所有者回执开启（<code>legal_review=pending</code>），叠加配置 + 回执双闸门与 <code>outbound_guard.py</code> 出站硬校验：端点官方域 / 集合名 / 分级 D / 已批准来源 / 字段白名单 / 逐字段 PII / 体积批量上限，凭据与原文不回显。</li>
-          <li>D 级样本为全球远程岗，<b>不代表中国境内招聘市场</b>；国内市场洞察仍为 pending_license、零数值。</li>
+          <li>D 级样本为中国公共招聘网计算机类岗位精选 3000（采集时已 PII 清洗），<b>仅用于国内样本内的技能出现率与学习方向参考</b>；市场级统计 / 薪资洞察未开放，零数值、不下岗位判决。</li>
           <li><b>全项目条款：本项目仅用于研究与学习，不得用于任何商业行为。</b>对 B1 / B2 / Q18 / Q19 / Q21 / B3 同理适用，禁止商业化、对外分发与商业决策用途；该条款只收紧用途，不构成合规豁免、不改变任何回执闸门状态，也不减少待回的书面结论。</li>
           <li><b>自动爬取与截图执行体已整体移除</b>：<code>research_capture.py</code> / <code>capture_executor.py</code> / <code>production_capture.py</code> 与所有 <code>/api/capture/*</code> 执行端点全部删除，系统不再访问任何第三方页面、不再有生产采集请求。原 B2 放行 / 限速契约 / 测试目标白名单随执行体一并移除；使用限制条款仍对全部事项统一适用，不因移除而改变任何回执状态。</li>
           <li><b>知识只由管理员提供</b>：在决策工作台 <code>/workbench.html</code> 的「知识入库」面板粘贴文本、上传截图由 <b>Tesseract.js 浏览器本地 OCR</b> 识别，或上传 <b>CSV</b>（浏览器本地解析成文本）；位图只在浏览器内存处理，<b>不上传、不落盘</b>，服务端自始至终只接收文本。还可勾选「模拟面试素材」关闭岗位行过滤（仍强制 PII 脱敏）入库 STAR 案例。<code>/api/admin/knowledge/*</code> 按管理员角色鉴权，切片向量化全部写入 Qdrant。</li>
