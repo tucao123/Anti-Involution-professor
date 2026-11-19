@@ -32,6 +32,9 @@ from typing import Annotated, Any
 from pydantic import Field, ValidationError, field_validator
 
 import llm  # 复用结构化输出契约，避免重复造轮子
+import job_info    # fail-closed：画像词闸门（coerce_profile 输出校验）
+import privacy     # fail-closed：PII 扫描（coerce_profile 输出校验）
+import user_jd     # 技能词典：粗粒度类别 + 具体技术栈原词归类
 from secure_config import cfg, note_qwen_call
 
 DEFAULT_BASE = "http://127.0.0.1:11434"          # 原生根地址（无 /v1）
@@ -512,3 +515,118 @@ def extract(task: str, payload: dict[str, Any]) -> dict[str, Any]:
         print("[local_vlm] LOCAL_VLM_ERROR %s: %s" %
               (type(exc).__name__, str(exc)[:200]), file=sys.stderr, flush=True)
         raise LocalVLMUnavailable("LOCAL_VLM_ERROR") from None
+
+
+def coerce_profile(data: dict[str, Any]) -> dict[str, Any]:
+    """把本地 VLM 的语义抽取结果收敛成与 to_coarse_job_profile 一致的岗位字段，
+    并做输出 fail-closed：命中 PII / 画像词 / 越界字段整批拒绝。"""
+    allowed_mime = None
+    # 字段白名单：只保留岗位颗粒度字段，杜绝模型夹带身份 / 评分字段
+    target = str(data.get("target_role") or "")[:40]
+    salary = str(data.get("salary_expectation") or "")[:30]
+    major = str(data.get("major") or "")[:40]
+    education = str(data.get("education") or "")[:40]
+    certs = [str(x)[:40] for x in (data.get("certificates") or []) if isinstance(x, str)][:20]
+    honors = [str(x)[:40] for x in (data.get("honors") or []) if isinstance(x, str)][:20]
+    skills_raw = [str(x)[:30] for x in (data.get("skills") or []) if isinstance(x, str)][:20]
+    exp_raw = [str(x)[:120] for x in (data.get("experience_context") or []) if isinstance(x, str)][:12]
+    level = str(data.get("level_hint") or "unspecified")
+    if level not in ("junior", "senior", "unspecified"):
+        level = "unspecified"
+
+    # 技能方向 = 粗粒度类别 + 模型识别出的具体技术栈原词。
+    # 用户要的是「各个技术栈」都保留，不能只留合并后的大类（PyTorch/TensorFlow/CNN
+    # 不该被压成一条「机器学习」）。先做词典归类，再把未被类别字面覆盖的具体栈词补进去。
+    known: list[dict[str, str]] = []
+    seen_cat: set[str] = set()
+    covered_words: set[str] = set()   # 已被某个类别字面命中的原词，避免重复
+    for w in skills_raw:
+        low = w.lower()
+        for s in user_jd.SKILLS:
+            if s["name"] in seen_cat:
+                continue
+            if low == s["name"].lower() or any(k in low for k in s["words"]):
+                known.append({"name": s["name"], "category": s["cat"], "level": "mentioned"})
+                seen_cat.add(s["name"])
+                covered_words.add(w)
+                break
+    # 具体技术栈原词：模型输出的、且不是某个类别名本身的，全部保留为 stack 项。
+    # 仅剔除已被类别语义覆盖的泛化词（机器学习/深度学习等），保留真正的技术栈名。
+    cat_names_l = {s["name"].lower() for s in user_jd.SKILLS}
+    generic_words = {"机器学习", "深度学习", "自然语言处理", "数据分析", "数据处理",
+                     "编程", "开发", "工程技术", "算法"}
+    seen_stack: set[str] = {s["name"].lower() for s in known}
+    stacks: list[dict[str, str]] = []
+    for w in skills_raw:
+        key = w.lower().strip()
+        if (not w or w in covered_words or key in seen_stack or key in cat_names_l
+                or w.strip() in generic_words):
+            continue
+        stacks.append({"name": w, "category": "stack", "level": "mentioned"})
+        seen_stack.add(key)
+    skill_areas = known + stacks
+    names = [s["name"] for s in skill_areas[:12]] or skills_raw[:8]
+    summary = ("该简历大致涉及 %s 等技能方向（本地模型抽取的粗粒度岗位信息，"
+               "不含个人信息与能力评估）。" % ("、".join(names) if names else "通用方向"))
+
+    context_parts: list[str] = []
+    if target:
+        context_parts.append("求职意向：" + target)
+    if salary:
+        context_parts.append("薪资意向（用户自填，仅作约束不预测）：" + salary)
+    if major:
+        context_parts.append("专业：" + major)
+    if education:
+        context_parts.append("学历：" + education)
+    if exp_raw:
+        context_parts.append("项目/实习上下文：" + "；".join(exp_raw[:5]))
+    if certs:
+        context_parts.append("证书：" + "、".join(certs))
+    if honors:
+        context_parts.append("荣誉/奖项：" + "、".join(honors))
+    if skill_areas:
+        context_parts.append("技能方向：" + "、".join(names))
+    if level != "unspecified":
+        context_parts.append("级别：" + level)
+    expert_context = "；".join(context_parts)[:1400]
+
+    profile = {
+        "job_title_hint": target,
+        "target_role": target,
+        "salary_expectation": salary,
+        "major": major,
+        "education": education,
+        "certificates": certs,
+        "honors": honors,
+        "experience_context": exp_raw,
+        "skill_areas": skill_areas[:20],
+        "level_hint": level,
+        "coarse_summary": summary,
+        "expert_context": expert_context,
+        "source_lines_kept": 0,
+    }
+    # fail-closed：任一字段含 PII 或画像语义，整批拒绝
+    if privacy.scan_pii(profile) or job_info._PROFILING_WORDS.search(str(profile)):
+        raise job_info.JobInfoRejected("OUTPUT_CONTAINS_PERSONAL_OR_PROFILING_DATA")
+    profile["policy"] = {
+        "pii_extraction": False, "pii_to_store": False,
+        "user_profiling_in_this_path": False, "user_profiling_project_wide": True,
+        "profiling_path": job_info.POLICY["profiling_path"],
+        "raw_text_returned": False, "output_scope": job_info.POLICY["output_scope"],
+        "expert_context_scope": "仅本次请求内作为专家解读上下文；不写向量库、不落盘",
+        "user_data_vectorized": False,
+    }
+    return profile
+
+def unavailable_message(code: str) -> str:
+    return {
+        "UNREACHABLE": "本机 Ollama 服务未启动或连接中断，请确认服务在运行后重试",
+        "TIMEOUT": "本机模型处理超时（GPU 繁忙或内容过长），请稍后重试或改用文本粘贴",
+        "ENDPOINT_NOT_LOOPBACK": "本地模型端点被配置为非本机地址，已拒绝以防数据外发",
+        "IMAGE_MISSING": "未提供图片数据",
+        "IMAGE_MIME_UNSUPPORTED": "图片格式不支持",
+        "NOT_JSON": "模型未返回合法结构化结果",
+        "SCHEMA_VALIDATION_FAILED": "模型输出未通过结构化校验",
+        "UNKNOWN_TASK": "不支持的本地模型任务",
+        "LOCAL_VLM_ERROR": "本机模型调用异常，请重试；若持续失败请把下方错误码发给管理员",
+    }.get(code, "本地模型调用失败")

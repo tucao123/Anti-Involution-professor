@@ -51,6 +51,61 @@ SKILLS = (
 
 _STOP = re.compile(r"[\s,，。；;、:：/|（）()【】\[\]\-—_]+")
 
+# 语义相似度兜底：关键词未命中时，用服务端固定本地 BGE 算「要求行 ↔ 简历行」余弦相似度，
+# 超过阈值判为「待核实 probe」而非「明确缺口 gap」——不编造、只提示可能存在同义表述。
+# 仅在 embedding 返回 semantic=True（真正的语义向量）时启用；hash 降级时不做语义判断。
+_SEMANTIC_THRESHOLD = 0.62
+
+
+def _semantic_cfg() -> tuple[bool, float]:
+    """从统一配置读取开关与阈值；配置不可用时用代码默认，保持 fail-safe。"""
+    try:
+        import secure_config
+        enabled = secure_config.cfg.flag("JTBD_SEMANTIC_FALLBACK", True)
+        raw = secure_config.cfg.get("JTBD_SEMANTIC_THRESHOLD", "")
+        threshold = float(raw) if raw else _SEMANTIC_THRESHOLD
+    except Exception:
+        enabled, threshold = True, _SEMANTIC_THRESHOLD
+    return enabled, max(0.0, min(1.0, threshold))
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def _semantic_scores(requirements: list[str], resume_lines: list[str]) -> list[tuple[float, str]]:
+    """批量算「每条要求 ↔ 最相近简历行」的相似度，一次编码复用，避免逐条跑模型。
+
+    返回与 requirements 等长的 (最高相似度, 命中行) 列表。纯本地内存计算，不外发不落盘。
+    任一环节失败返回空列表，上层保持原有关键词判定——语义兜底只增线索，不改确定性结论。
+    """
+    enabled, _threshold = _semantic_cfg()
+    if not enabled or not requirements or not resume_lines:
+        return []
+    try:
+        import embedding
+        packed = embedding.embed(list(requirements) + list(resume_lines), scope="user")
+        if not packed.get("semantic") or not packed.get("ok"):
+            return []  # hash 降级非语义向量，不做相似度判断
+        vectors = packed["vectors"]
+        req_vecs, resume_vecs = vectors[:len(requirements)], vectors[len(requirements):]
+        out: list[tuple[float, str]] = []
+        for rv in req_vecs:
+            best, best_line = 0.0, ""
+            for line, sv in zip(resume_lines, resume_vecs):
+                score = _cosine(rv, sv)
+                if score > best:
+                    best, best_line = score, line
+            out.append((best, best_line[:60]))
+        return out
+    except Exception:
+        return []
+
 
 class InvalidInput(ValueError):
     """输入不合规：长度不足 / 没有可辨识的要求行。"""
@@ -88,6 +143,55 @@ def _split_lines(text: str) -> list[str]:
 
 def _is_hard(line: str) -> bool:
     return any(t in line for t in HARD_TERMS)
+
+
+# 学历层级：用于「JD 要求 vs 你提供的学历」真实比较，不因简历出现某个学历词就一刀切
+_EDU_LEVEL = {"大专": 1, "专科": 1, "本科": 2, "学士": 2, "硕士": 3, "研究生": 3, "博士": 4}
+
+
+def _edu_levels(text: str) -> list[int]:
+    """从文本中识别学历层级（去重升序）。"""
+    return sorted({lvl for word, lvl in _EDU_LEVEL.items() if word in text})
+
+
+def _hard_condition_state(line: str, resume: str) -> tuple[str, str, str]:
+    """硬条件三态判断：返回 (state, explanation, question)。
+
+    - 学历：比较 JD 要求下限与简历最高学历，真正判断满足/不足/待核实。
+    - 届别：简历出现同一年份/届别词才标待核实，否则未知。
+    - 其它（地点/证书/年限）：不编造，一律未知并给出针对性追问。
+    """
+    edu_req = _edu_levels(line)
+    if edu_req:
+        need = edu_req[0]  # 要求下限（如「本科及以上，硕士优先」取本科）
+        have = _edu_levels(resume)
+        if have:
+            top = have[-1]
+            if top >= need:
+                return ("evidenced",
+                        "按你提供的内容，学历满足这条要求（你：%s；要求：%s及以上）。" %
+                        (_edu_word(top), _edu_word(need)),
+                        "")
+            return ("gap",
+                    "按你提供的内容，学历低于这条要求（你：%s；要求：%s及以上）；若已更新请改写这条。" %
+                    (_edu_word(top), _edu_word(need)),
+                    "请确认你的最高学历，若与提供内容不符可直接改写。")
+        return ("unknown", "这条要求涉及学历，但你没有提供学历信息，不判断你是否满足。",
+                "你的最高学历是什么？是否满足这条要求？")
+    # 届别：仅当简历出现同一年份 / 「应届」时标待核实
+    years = set(re.findall(r"20\d{2}", line))
+    if "届" in line or "应届" in line or years:
+        if "应届" in resume or any(y in resume for y in years):
+            return ("probe", "简历里出现相关届别线索，但无法确认是否匹配这一条。",
+                    "你的届别是否满足这一条？请自行核实。")
+        return ("unknown", "这条要求涉及届别，你没有提供可核对的信息。",
+                "你的届别是什么？是否满足这一条？")
+    return ("unknown", "这条属于硬性条件，需要你自行核对，系统不据此推断。",
+            "请自行确认是否满足这一条，不满足就调整目标或找替代路径。")
+
+
+def _edu_word(level: int) -> str:
+    return {1: "大专", 2: "本科", 3: "硕士", 4: "博士"}.get(level, "未知")
 
 
 def _digest(text: str) -> str:
@@ -186,6 +290,9 @@ def evidence(jd_text: str, resume_text: str = "") -> dict[str, Any]:
     resume = _norm(resume_text)
     resume_lines = [ln for ln in _split_lines(resume) if len(ln) >= 4]
     rskills = _skill_set(resume)
+    # 语义兜底：一次性批量算所有要求行与简历行的相似度（只在 BGE 可用时生效）
+    sem = _semantic_scores(lines, resume_lines) if resume_lines else []
+    _enabled, sem_threshold = _semantic_cfg()
 
     rows, blocked = [], []
     for i, ln in enumerate(lines):
@@ -193,10 +300,10 @@ def evidence(jd_text: str, resume_text: str = "") -> dict[str, Any]:
         skills = sorted(_skill_set(ln))
         hit = sorted(set(skills) & rskills)
         if _is_hard(ln):
-            # 硬条件永远单列，不用其他技能抵消
-            state = "probe" if any(w in resume for w in ("本科", "硕士", "博士", "应届", "2026", "2027")) else "unknown"
+            # 硬条件永远单列，不用其他技能抵消；逐条按语义比较，不一刀切
+            state, ex, question = _hard_condition_state(ln, resume)
             blocked.append({"ref": ref, "term": ln[:80], "state": state,
-                            "question": "你的学历 / 届别 / 地点是否满足这一条？请自行核实。"})
+                            "explanation": ex, "question": question})
             continue
         if not resume:
             state, ex = "unknown", "未提供简历要点，不判断你会不会。"
@@ -207,7 +314,14 @@ def evidence(jd_text: str, resume_text: str = "") -> dict[str, Any]:
                 state = "probe"
                 ex = "提到过 %s，但没有说明你在其中做了什么、结果如何。" % "、".join(hit)
         elif skills:
-            state, ex = "gap", "这条要求涉及 %s，你的经历要点里没有对应表述。" % "、".join(skills)
+            # 关键词未命中：语义相近只标「待核实」候选召回，不直接判「明确缺口」
+            score, near = sem[i] if i < len(sem) else (0.0, "")
+            if score >= sem_threshold:
+                state = "probe"
+                ex = ("关键词未直接命中，但你写过相近的「%s」（语义相似度 %.2f）；"
+                      "请用你自己的话确认是否对应这条要求。" % (near, score))
+            else:
+                state, ex = "gap", "这条要求涉及 %s，你的经历要点里没有对应表述。" % "、".join(skills)
         else:
             state, ex = "unknown", "这条要求无法用关键词核对，需要你自己判断。"
         rows.append({"id": "r%d" % (i + 1), "requirement": ln[:160], "skills": skills,

@@ -187,7 +187,7 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 | 步骤 | 前端 | 后端 API | 关键约束 |
 |---|---|---|---|
 | 01 找方向 | 粘 5–10 份 JD 比较 | `POST /api/jtbd/compare` | 只在样本内比较，输出共同要求 / 各自特有 / 补证据成本最低的 2–3 个方向 |
-| 02 做核对 | 要求—证据三态对照 | `POST /api/jtbd/evidence` | 有证据 / 待核实 / 明确缺口 / 未知四态；学历届别地点等硬条件单独阻断；**无百分比总分**；每条可反驳 |
+| 02 做核对 | 要求—证据三态对照 | `POST /api/jtbd/evidence` | 有证据 / 待核实 / 明确缺口 / 未知四态；关键词命中照旧（可反驳），未命中时用服务端固定本地 BGE 算相似度、超阈值标「待核实」而非「明确缺口」（`JTBD_SEMANTIC_FALLBACK`，hash 降级时自动关闭）；学历按「JD 要求 vs 你提供的学历」真实比较，届别地点等硬条件单独阻断；**无百分比总分**；每条可反驳 |
 | 03 定行动 | 按差距类型分流 | `POST /api/jtbd/actions`、`/diagnose` | 缺表达 / 缺证据 / 缺能力 / 缺硬条件四类动作不同；「先投」与「放弃」都是合法结论；简历诊断两栏「JD 要你没写」/「你写了 JD 不看」 |
 | 04 过追问 | 针对一个缺口三层追问 | `POST /api/jtbd/drill`、`/review` | 反馈引用用户原话，三维（表达 / 判断 / 证据）不打分；压力模式可选 |
 | 05 记看板 | 投递记录 + 材料库 | 纯前端 `localStorage` | 只存本机，由用户自己保存 / 删除；不上传服务端 |
@@ -316,9 +316,13 @@ Phase 2 新增 `zy_phase2_test.py`（单元）与 `zy_phase2_http.py`（HTTP）�
 workbench.html        主入口「决策工作台」（洞察对齐 → 定向学习 → 模拟面试，解析框三合一按钮）
 index.html            旧版 8 视图单页（E2E 契约保留），零构建
 demo-config.js        演示集展示口径（时间戳 / 来源标签），外置可改
-server.py             FastAPI BFF / 服务端校验 / 登录与管理员入库 / 全部路由
+server.py             FastAPI BFF 组装：app / 中间件（鉴权闸门 + body 限额）/ 异常兜底 / 静态页 / 启动
+routers/              按域拆分的 API 路由（8 域：auth/jtbd/privacy/resume/vector/knowledge/expert/ops）
+  common.py           共享层：请求模型 / 共享 helper / 业务模块导入（各域 from common 复用）
+  <域>.py             各域 APIRouter；@app 路由在拆分后统一为 @router，路径与鉴权完全不变
 secure_config.py      统一安全配置（凭据仅在内存，视图不泄露值）
 local_vlm.py          本机 Qwen3-VL 视觉模型解析（双接口 ollama/openai，图片不出机）
+                      + coerce_profile 字段白名单闸门（VLM 输出收敛为岗位字段）
 llm.py                用户自带 LLM + 云端专家 agent prompt / 结构化输出契约 / 外发前置拦截
 user_llm.py           用户自带 LLM 配置：厂商预设 / AES 加密存储 / 端点闸门
 local_accounts.py     本机账号存储（PBKDF2 + AES-256-GCM）

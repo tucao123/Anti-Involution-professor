@@ -91,6 +91,10 @@ DEFAULTS: dict[str, str] = {
     # 会话 cookie 传输属性：本地 http 保持 secure=false；正式 https 部署须置 true。
     "AUTH_COOKIE_SECURE": "false",
     "AUTH_COOKIE_SAMESITE": "lax", # 跨站部署 + https 时可改为 none（须同时 secure=true）
+    # JTBD 技能语义兜底：关键词未命中时用服务端固定本地 BGE 算相似度，超阈值标「待核实」。
+    # 仅当 embedding 返回语义向量时生效；hash 降级时自动关闭，不编造结论。
+    "JTBD_SEMANTIC_FALLBACK": "true",
+    "JTBD_SEMANTIC_THRESHOLD": "0.62",
 }
 
 SECRET_KEYS = frozenset({
