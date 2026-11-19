@@ -2926,6 +2926,7 @@ function startInterview(){
   $('#ivLive').textContent='● 会话进行中';
   $('#ivLive').style.color='#E4FF00';
   $('#answerInput').disabled=false;
+  $('#answerInput').dataset.sample='';   // 新一轮：清除示例标记
   $('#sendAnswer').disabled=false;
   $('#ivStageLabel').textContent='STAGE 01 / 自我介绍';
   $('#toneReadout').innerHTML='TONE <b>'+ivTone()+'</b>';
@@ -2952,10 +2953,22 @@ function verdictFor(score){
   if(score>=40)return '反馈：偏概括，缺少「我负责哪一段 / 怎么验证」的证据。';
   return '反馈：信息量不足，建议用结论 + 一个证据 + 一句收束重新组织。';
 }
+/* 示例回答只供参考，不能当真实回答提交：
+   1) 规范化(去空白/标点)后与任一示例相同 → 拦；
+   2) 仍处于「点了填入示例、尚未编辑」状态 → 拦（dataset.sample=1）。
+   只在用户真正改成自己的话之后才放行。 */
+function normAnswerText(s){return String(s||'').replace(/[\s，,。.、；;：:！!？?（）()「」“”"'~·—_-]/g,'')}
+function isSampleAnswer(t){
+  const n=normAnswerText(t);
+  return !!n&&SAMPLE_ANSWERS.some(s=>normAnswerText(s)===n);
+}
 function sendAnswer(raw){
   if(ivFinished)return;
   const text=(raw||$('#answerInput').value).trim();
   if(!text){toast('先写点什么再发送');return;}
+  if(isSampleAnswer(text)||$('#answerInput').dataset.sample==='1'){
+    toast('这是示例回答，请改成你自己的话再发送');return;
+  }
   const stage=INTERVIEW[ivStep];
   const score=scoreAnswer(text,ivStep);
   ivScores.push({label:stage.label,dim:stage.dim,score,len:text.replace(/\s/g,'').length});
@@ -3125,10 +3138,13 @@ function init(){
   $('#resetIv').addEventListener('click',()=>{startInterview();toast('面试已重置');});
   $('#sendAnswer').addEventListener('click',()=>sendAnswer());
   $('#answerInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAnswer();}});
+  // 用户实际输入/改动时，视为已在示例基础上编辑，解除"未编辑"标记
+  $('#answerInput').addEventListener('input',()=>{$('#answerInput').dataset.sample='';});
   $('#fillSample').addEventListener('click',()=>{
     const t=SAMPLE_ANSWERS[Math.min(ivStep,3)];
     $('#answerInput').value=t;$('#answerInput').focus();
-    toast('已填入示例回答，可修改后发送');
+    $('#answerInput').dataset.sample='1';   // 标记为"刚填入、尚未编辑"，防止原文直接发送
+    toast('示例仅供改写参考，请换成你自己的话再发送');
   });
   const toggle=$('#toggleBtn');
   toggle.addEventListener('click',()=>{
