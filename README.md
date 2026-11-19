@@ -249,6 +249,7 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 | Q18 云写入 | `QDRANT_ALLOW_WRITE=true` + `Q18.json` 回执 + 双闸门；实测真实写入成功 | 已做（法务结论待回） |
 | **管理员知识入库** | `knowledge_ingest.py` + `/api/admin/knowledge/{status,ingest,delete}`（管理员角色鉴权）：文本 / 截图 OCR 文本 → PII 脱敏 → 仅岗位信息 → 切片 → 向量化 → Qdrant；无图片上传端点；可按 chunk id 删除 | 已做（`admin_curated` / D 级 / 浏览器本地 OCR） |
 | **种子数据切片入库** | `ingest_seed_data.py`：读国内岗位精选3000（拆长句走 `job_only=True`）+ 面试话术库.md / 通用话术.csv / 质询流程.csv（`job_only=False`），复用 `knowledge_ingest` 的脱敏 / 过滤 / 闸门，批量写本地 BGE 512 维集合 `zhiyin_public_d_bge`；带 `--dry-run` / `--resume` / `--only` / `--limit`，断点只记稳定 key 不记原文 | 已入库：岗位 2022 条 + 话术 84 条，共 2280 chunk，0 失败 |
+| **新增全量岗位入库** | `ingest_jobs_full.py`：读 `岗位数据_全量_20261119.csv`（8993 条唯一岗位），按岗位ID去重、默认跳过与此前批次重复的 1997 条，仅写 6996 条新增；复用同一脱敏/过滤/闸门链路，按块数攒批（≤20 点）并对境外链路抖动做强制探测+重试，拒绝降级假入库；独立断点 `ingest_jobs_full_progress.json`（已 gitignore）；带 `--dry-run` / `--resume` / `--limit` / `--no-skip-existing` | 全量 6996 新增，dry-run 0 失败 |
 | ~~B2 采集设置~~ | ~~`/api/capture/admin` 默认不自动爬取、逐次手动开关~~ | **已移除**（端点删除） |
 | Q19 / Q21 材料 | `数据出境与公开元数据条款清单.md`：GitHub ToS §H / AUP §5·§6 等需核对条款、单独告知同意模板、DPA 条款清单 | 已做（结论待回） |
 | **全项目使用限制条款** | `usage_policy.py` + `GET /api/project/usage`：条款 `USAGE-RESTRICTION-2026-11-16`，5 份回执顶层 / 状态端点 / 文档 / 界面统一标注；`changes_gate_state=false` | 已做（B1 / Q18 仍启用，Q19 / Q21 / B3 仍 CLOSED） |
@@ -344,6 +345,7 @@ user_jd.py            C 级用户自带 JD：技能抽取 / PII 脱敏 / 原文�
 rag_store.py          本地研究检索：稀疏 TF-IDF / 加密片段 / TTL / 删除
 knowledge_ingest.py   管理员知识入库：文本 / OCR / CSV / 面试话术 → PII 脱敏 → 切片 → 本地 BGE → Qdrant
 ingest_seed_data.py    国内岗位样本种子数据入库脚本
+ingest_jobs_full.py    新增全量岗位CSV入库脚本（岗位ID去重 / 跳过已入库 / 链路抖动重试）
 hybrid.py             混合检索：TF-IDF 稀疏 + BGE 稠密 + RRF 融合 + 精排（洞察/专家/面试三类上下文）
 outbound_guard.py     Q18 出境写入防护：目标 / 集合 / 分级 / 字段 / PII / 体积锁定
 privacy.py            AES-256-GCM / 脱敏 / 一键删除 / 审计哈希链

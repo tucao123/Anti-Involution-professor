@@ -29,6 +29,7 @@ tests/.cache/
 
 # 种子数据入库断点（稳定 key，无原文；运行时产物）
 ingest_seed_progress.json
+ingest_jobs_full_progress.json
 
 # Next.js 控制台（依赖与构建产物不入库；public/legacy 是源码副本，需入库）
 web/node_modules/
