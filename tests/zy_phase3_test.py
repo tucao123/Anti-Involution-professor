@@ -120,10 +120,9 @@ print("  INFO BGE: package=%s autoload=%s loaded=%s backend=%s" %
        es["selected_backend"]["user"]))
 uv = embedding.embed(["用户自带的岗位描述片段"], scope="user")
 check(uv["cloud_used"] is False, "用户侧向量未外发云端")
-html = (ROOT / "index.html").read_text(encoding="utf-8", errors="ignore")
-for token in ('id="p3Wrap"', 'id="coachLog"', 'id="hybridOut"', 'id="ghOut"',
-              'id="voiceMic"', 'id="voiceRead"', 'window.PHASE3',
-              'api/coach/chat', 'api/hybrid/search', 'api/github/repo', 'api/voice/policy'):
+html = (ROOT / "workbench.html").read_text(encoding="utf-8", errors="ignore")
+for token in ('id="insResult"', 'id="coachLog"', 'id="ivResult"', 'id="lrResult"',
+              'id="topoCanvas"', 'id="inParse"', 'api/coach/chat', 'api/hybrid/search'):
     check(token in html, "前端含 %s" % token)
 srv = (ROOT / "server.py").read_text(encoding="utf-8", errors="ignore")
 check('"/api/resume/parse"' in srv and "UploadFile" in srv,
@@ -131,8 +130,8 @@ check('"/api/resume/parse"' in srv and "UploadFile" in srv,
 check("RESUME_UPLOAD_MAX_BODY" in srv, "上传端点有独立体积上限")
 check("job_info" in srv or "job_info" in (ROOT / "resume_parse.py").read_text(encoding="utf-8"),
       "文件解析只走岗位信息抽取")
-check("SpeechRecognition" in html and "speechSynthesis" in html, "语音走浏览器 Web Speech")
-check("音频可能离开设备" in html, "语音边界如实声明，不虚报音频不出设备")
+check("data-view" in html and "logoFloat" in html, "每视图动态拓扑主题 + 保留等距 logo")
+check("不预测薪资" in html and "不承诺录用" in html, "边界声明如实保留在工作台")
 
 print("=== 6. 专家 agent RAG 接线（岗位专家 / 面试专家双索引） ===")
 import hybrid as HB

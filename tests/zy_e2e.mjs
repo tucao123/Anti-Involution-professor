@@ -8,6 +8,10 @@ import { writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
+if (!existsSync(join(ROOT, 'index.html'))) {
+  console.log('SKIP BROWSER: 旧版单页已删除，本用例随旧版退役');
+  process.exit(0);
+}
 const OUT = join(ROOT, 'tests', 'out');
 mkdirSync(OUT, { recursive: true });
 const CHROME = process.env.ZHIYIN_CHROME || [

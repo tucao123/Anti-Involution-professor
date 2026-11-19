@@ -6,6 +6,9 @@ import re, pathlib, collections
 from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+if not (ROOT / "index.html").exists():
+    print("SKIP BROWSER: 旧版单页已删除，本静态审计随旧版退役")
+    raise SystemExit(0)
 TMP = ROOT / "tests" / "out"
 TMP.mkdir(parents=True, exist_ok=True)
 s = (ROOT / "index.html").read_text(encoding="utf-8")

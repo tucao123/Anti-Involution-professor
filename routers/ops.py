@@ -86,7 +86,7 @@ def health():
             "graph": "adapter+local-fallback",
             "orchestration": "langgraph-or-compat",
             "celery": "eager-fallback",
-            "frontend": "workbench.html (JTBD) + index.html (legacy) + web/ (Next.js)",
+            "frontend": "workbench.html (JTBD, 唯一前端) + web/ (Next.js 组件控制台)",
         },
         "cloud_user_data_allowed": secure_config.cfg.flag("ALLOW_CLOUD_FOR_USER_DATA"),
     }

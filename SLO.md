@@ -38,7 +38,7 @@
 | 编排 | LangGraph | 同语义标准库状态图 | `/api/graph/status` |
 | 异步任务 | Celery + Redis | eager 同步执行 | `/api/tasks/status` |
 | 语言模型 | qwen | 规则引擎 | `/api/llm/status` |
-| 前端 | Next.js 控制台 | 直接访问 `index.html` | 两者共用同一 BFF |
+| 前端 | 决策工作台 `workbench.html` | 直接访问 `workbench.html` | 两者共用同一 BFF |
 
 **任一外部依赖缺失都不得让既有 7 个视图失效**；降级必须在状态接口与
 `zhiyin_component_up` 指标中如实标注，不把降级实现冒充为已连接的真服务。
@@ -89,7 +89,7 @@ docker compose --profile monitoring up -d
 | 服务 | 地址 | 说明 |
 | --- | --- | --- |
 | BFF | `http://127.0.0.1:8848` | 容器内监听 0.0.0.0，宿主机仅映射 127.0.0.1 |
-| 控制台 | `http://127.0.0.1:3000` | `/legacy/index.html` 为完整应用 |
+| 控制台 | `http://127.0.0.1:3000` | 完整应用在 `http://127.0.0.1:8848/workbench.html` |
 | Prometheus | `http://127.0.0.1:9090` | `--profile monitoring` |
 | Grafana | `http://127.0.0.1:3001` | `--profile monitoring` |
 | Neo4j Browser | `http://127.0.0.1:7474` | 开发用 |

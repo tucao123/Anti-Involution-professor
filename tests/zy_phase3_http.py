@@ -138,7 +138,7 @@ for path in ("/", "/api/sources", "/api/rag/status", "/api/jd/status", "/api/pri
     s, _ = req(path)
     check(s == 200, "既有端点 %s 仍可用" % path)
 s, page = req("/")
-check(isinstance(page, str) and 'id="p3Wrap"' in page, "页面已含 Phase 3 面板")
+check(isinstance(page, str) and 'id="topoCanvas"' in page, "首页即唯一新版工作台（含动态拓扑）")
 
 print("\n=== Phase 3 HTTP 回归：PASS %d  FAIL %d ===" % (PASS, FAIL))
 raise SystemExit(1 if FAIL else 0)

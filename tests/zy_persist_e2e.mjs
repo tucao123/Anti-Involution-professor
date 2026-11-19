@@ -7,6 +7,10 @@ import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
+if (!existsSync(join(ROOT, 'index.html'))) {
+  console.log('SKIP BROWSER: 旧版单页已删除，本用例随旧版退役');
+  process.exit(0);
+}
 const CHROME = process.env.ZHIYIN_CHROME || [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',

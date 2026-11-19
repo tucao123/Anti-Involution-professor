@@ -41,7 +41,7 @@ AI 辅导改为右下角常驻按钮召唤的功能侧栏、任何视图都能�
 > （HOMETRY 极简等距视觉，左侧步骤轨道 + 右侧工作区 + 底部操作条），
 > 实现三态对照（有证据 / 待核实 / 明确缺口 / 未知）、硬条件单独阻断、无百分比总分、
 > 按差距类型分流、针对单个缺口的追问演练与投递看板。
-> 根路径 `/` 与 `/index.html`、`/legacy/index.html` 保留既有 8 视图单页，仅供历史回放与 E2E 契约；
+> 根路径 `/` 与 `/index.html` 均指向唯一新版决策工作台；旧版 8 视图单页已删除。
 > 二者共用同一 BFF，不是两套并行产品。详细设计见 `技术文档.md` 的 JTBD 章节。
 
 > **当前状态**：可运行的产品原型 + 本地 FastAPI BFF + 合规闸门 + 可选组件适配层。
@@ -62,7 +62,7 @@ python -m pip install -r requirements.txt
 python server.py
 ```
 
-- 访问 **<http://127.0.0.1:8848/workbench.html>** 进入主入口「决策工作台」；旧版 8 视图单页在 `/`。
+- 访问 **<http://127.0.0.1:8848/workbench.html>** 进入唯一前端「决策工作台」；根路径 `/` 也指向它。
 - 端口 / 地址：`python server.py --port 8849` 改端口；容器内 `--host 0.0.0.0 --port 8848`。
 - **先登录再用**：登录页支持「微信扫码演示」与「管理员密码」。未配 `ADMIN_PASSWORD_HASH` 时使用页面标注的本机演示密码（仅 127.0.0.1/::1 可用）。用户 LLM 在「个人中心」自带；知识入库 / 向量检索仅管理员可见。
 - `start.bat` 不复制、不生成、不打印任何密钥。
@@ -144,7 +144,7 @@ python server.py
 | 缓存 / Broker | Redis | 进程内 TTL 字典 | `/api/stores/status` |
 | 图库 | Neo4j | 本地邻接表 | `/api/stores/status` |
 | 异步任务 | Celery + Redis | eager 同步执行 | `/api/tasks/status` |
-| 前端 | Next.js 控制台 `web/` | 直接访问 `index.html` | `/api/health` |
+| 前端 | 决策工作台 `workbench.html`（Next.js 控制台见 `web/`） | 直接访问 `workbench.html` | `/api/health` |
 | 可观测 | Prometheus / Grafana | 纯标准库 `/metrics` | `/metrics`、`/api/slo` |
 
 本机已装并生效：`psycopg[binary]`（PostgreSQL 18.7 已连接）、`langgraph`（真 `StateGraph` 接管编排）、`celery`（无 broker 时 eager）；`redis` 客户端与 `neo4j` 驱动已就绪，但服务端未运行仍降级。**「不需要 API / 密钥」的完整清单见 `ROADMAP.md`**。所有可选依赖都在 `requirements-optional.txt`，缺失不影响启动。
@@ -158,12 +158,12 @@ python server.py
 
 ```bash
 python server.py                                   # 先起 BFF
-node web/scripts/sync-legacy.mjs                   # 同步既有单页到 public/legacy/
+node web/scripts/sync-legacy.mjs                   # 同步工作台/登录页到 public/
 cd web && npm install && npm run dev               # http://127.0.0.1:3000
 ```
 
 Windows 上若 `npm run build` 报 `.next/trace` 的 EPERM，改用 `npm run build:win`（内置 shim）。
-控制台通过 rewrite 把 `/api/*`、`/legacy/api/*`、`/metrics` 代理到 BFF，
+控制台通过 rewrite 把 `/api/*`、`/metrics` 代理到 BFF，
 **既有 200 KB 单页零改动**。详见 [`web/README.md`](web/README.md)。
 
 ### 容器部署
@@ -198,7 +198,7 @@ SLO 目标、错误预算、告警规则与降级策略见 [`SLO.md`](SLO.md)。
 
 ## 登录与分角色（研究学习原型）
 
-**必须先登录才能操作**：未登录访问工作台会被服务端 302 到登录页（前端另有兜底跳转），登录成功按 `next` 回跳；旧版首页 `/` 与 `/index.html` 仅为 E2E 契约与历史回放，不纳入强制登录。入口 `http://127.0.0.1:8848/login.html`，Tab 式界面：登录 / 注册 / 管理员，另有「改密码」入口。工作台右上角个人按钮进个人中心 / 管理后台 / 退出。个人中心可配置自己的大模型 API（厂商 / 端点 / 模型 / key），embedding 仍为服务器固定本地 BGE。
+**必须先登录才能操作**：未登录访问 `/workbench.html` 会被服务端 302 到登录页（前端另有兜底跳转），登录成功按 `next` 回跳；根路径 `/` 与 `/index.html` 同样指向工作台，但保留为公开的 HTTP 契约入口。入口 `http://127.0.0.1:8848/login.html`，Tab 式界面：登录 / 注册 / 管理员，另有「改密码」入口。工作台右上角个人按钮进个人中心 / 管理后台 / 退出。个人中心可配置自己的大模型 API（厂商 / 端点 / 模型 / key），embedding 仍为服务器固定本地 BGE。
 
 - **个人 · 账号密码**（`local_accounts.py`）：用户名（3-32 位字母数字下划线）或邮箱 + 密码（8-128 位）注册 / 登录 / 改密。
   密码用标准库 `pbkdf2_hmac`（18 万次、逐账号随机盐）哈希；标识与昵称 AES-GCM 加密落 `.privacy/accounts.json`（gitignored），
@@ -314,7 +314,7 @@ Phase 2 新增 `zy_phase2_test.py`（单元）与 `zy_phase2_http.py`（HTTP）�
 
 ```
 workbench.html        主入口「决策工作台」（洞察对齐 → 定向学习 → 模拟面试，解析框三合一按钮）
-index.html            旧版 8 视图单页（E2E 契约保留），零构建
+workbench.html        唯一前端页面（决策工作台，零构建）
 demo-config.js        演示集展示口径（时间戳 / 来源标签），外置可改
 server.py             FastAPI BFF 组装：app / 中间件（鉴权闸门 + body 限额）/ 异常兜底 / 静态页 / 启动
 routers/              按域拆分的 API 路由（8 域：auth/jtbd/privacy/resume/vector/knowledge/expert/ops）
@@ -335,7 +335,7 @@ metrics.py            Prometheus 文本指标 + SLO 视图（纯标准库）
 coach.py              A1 本地多轮辅导（会话仅内存 / 原文零落盘 / 零云调用）
 hybrid.py             A4 稀疏 + 稠密双路 RRF 融合与重排
 github_meta.py        A3 GitHub 公开仓库匿名只读元数据（限频 / 回链 / 不落盘）
-web/                  Next.js 控制台（public/legacy 托管既有单页）
+web/                  Next.js 组件状态控制台（public/ 托管工作台与登录页）
 deploy/               SQL / Cypher 初始化、prometheus.yml、alerts.yml、slo.yaml
 Dockerfile            docker-compose.yml  SLO.md
 sources.py            源注册表（含 admin_curated）· fail-closed 闸门 · 分级 · 只读策略

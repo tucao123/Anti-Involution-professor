@@ -33,12 +33,11 @@
    不替代法务书面结论 / 站点许可 / 商务合同、**不改变任何回执 decision 或闸门状态**。
 11. Phase 2 新增组件全部「可选依赖 + 本地降级」：Qdrant / BGE / LangGraph /
     PostgreSQL / Redis / Neo4j / Celery / Next.js 任一缺失，视图仍可运行。
-12. JTBD v2.0 决策工作台（jtbd.py + workbench.html）为面向用户的主入口
-    （`/workbench.html`，根路径 `/` 因 E2E 契约保留旧单页）：方向 → 核对 → 行动 →
-    演练 → 看板。C 级用户文本只在本次请求内存里处理，零落盘、零外发、不进 RAG / 向量库；
+12. JTBD v2.0 决策工作台（jtbd.py + workbench.html）为唯一前端页面
+    （`/workbench.html`，根路径 `/` 与 `/index.html` 也指向它）：洞察对齐 → 定向学习 →
+    模拟面试 → 投递看板。C 级用户文本只在本次请求内存里处理，零落盘、零外发、不进 RAG / 向量库；
     硬条件单独阻断、无百分比总分、「没提供」一律标未知。看板 / 材料库存浏览器 localStorage。
-    旧单页 index.html 保留为 /index.html 与 /legacy/index.html，仅供既有 E2E 契约与历史回放，
-    不是并行产品；两套页面共用同一后端 API，不重复实现业务逻辑。
+    旧版 8 视图单页已删除；只有一个前端页面与一套后端 API，不重复实现业务逻辑。
 13. 登录与分角色鉴权：个人账号密码（local_accounts.py 注册/登录/改密，恒 personal）、
     微信扫码与 GitHub 授权快捷登录（auth.py 真实 OAuth / 演示降级）、管理员独立密码入口。
     页面级强制登录（AUTH_REQUIRE_LOGIN）：未登录访问工作台/首页 302 到 /login.html?next=，登录完才能操作。
@@ -311,10 +310,6 @@ def _page_needs_login(path: str) -> bool:
 
 @app.get("/", include_in_schema=False)
 @app.get("/index.html", include_in_schema=False)
-@app.get("/legacy/index.html", include_in_schema=False)
-def index():
-    return FileResponse(ROOT / "index.html", media_type="text/html; charset=utf-8")
-
 @app.get("/workbench", include_in_schema=False)
 @app.get("/workbench.html", include_in_schema=False)
 def workbench():
@@ -324,10 +319,6 @@ def workbench():
 @app.get("/login.html", include_in_schema=False)
 def login_page():
     return FileResponse(ROOT / "login.html", media_type="text/html; charset=utf-8")
-
-@app.get("/demo-config.js", include_in_schema=False)
-def demo_config():
-    return FileResponse(ROOT / "demo-config.js", media_type="application/javascript; charset=utf-8")
 
 def main():
     ap = argparse.ArgumentParser(description="职引者 ZHIYIN · FastAPI BFF (Phase 2)")

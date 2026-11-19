@@ -6,6 +6,9 @@ import os
 import subprocess, pathlib, re, sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if not (ROOT / "index.html").exists():
+    print("SKIP BROWSER: 旧版单页已删除，本视觉回归随旧版退役")
+    raise SystemExit(0)
 CHROME = os.environ.get("ZHIYIN_CHROME") or next((p for p in [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",

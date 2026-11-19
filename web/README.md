@@ -4,14 +4,12 @@
 
 ## 为什么要这样设计
 
-`index.html`（约 200 KB）包含 7 个视图、hash 深链接、SVG 图表、规则引擎面试、
-浏览器本地 OCR 与离线降级，并且已通过一整套 E2E / 离线回归。把它整体重写成
-React 会引入大面积回归风险。因此：
+`workbench.html` 是唯一前端页面（决策工作台，含动态拓扑背景与等距 logo）。
+把它整体重写成 React 会引入大面积回归风险，因此：
 
-- 原页面原样复制到 `public/legacy/index.html`，**零改动**；
-- `next.config.mjs` 把 `/legacy/api/*` 也代理到 FastAPI，抵消相对路径
-  `fetch('api/health')` 在 `/legacy/index.html` 下会解析成 `/legacy/api/health` 的差异；
-- `public/legacy/demo-config.js` 同目录托管，原页面脚本引用照常生效；
+- 工作台与登录页由 `npm run sync-legacy` 复制到 `public/`，零改动托管；
+- 旧版 8 视图单页 `index.html` 与 `public/legacy/` 已删除，不再同步；
+- `next.config.mjs` 把 `/api/*`、`/metrics` 代理到 FastAPI；
 - Next.js 首页只做组件状态观测，不复制业务逻辑。
 
 ## 启动
@@ -55,8 +53,7 @@ Docker / Linux 直接使用标准 `npm run build`，无需该 shim。
 | `/` | 组件控制台（服务端拉取各 `/api/*` 状态，BFF 不可达时优雅降级） |
 | `/health` | 逐端点连通性探测 |
 | `/api/health` | Next 侧部署探针，返回 web 与 BFF 可达性 |
-| `/legacy/index.html` | 完整应用（7 视图，零改动） |
-| `/legacy/api/*` → BFF | 供 legacy 页相对路径请求使用 |
+| `/workbench.html` | 唯一完整应用（决策工作台） |
 | `/api/*` → BFF | 供控制台与客户端使用 |
 | `/metrics` → BFF | Prometheus 文本指标 |
 

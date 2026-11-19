@@ -20,7 +20,7 @@ RUN if [ "$INSTALL_SERVICE_DEPS" = "1" ]; then \
 
 COPY *.py ./
 # 前端页面全部由 server.py 从 ROOT 读取：主入口 workbench、登录页、旧单页与演示配置缺一即 404/500
-COPY index.html workbench.html login.html demo-config.js ./
+COPY workbench.html login.html ./
 COPY stores ./stores
 COPY deploy ./deploy
 

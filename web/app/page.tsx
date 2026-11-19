@@ -183,7 +183,7 @@ export default async function Page() {
           管理员知识入库 / 项目性质与使用限制条款 / Q18 出境写入防护 / BGE 恢复）。
           自动爬取与截图执行体已整体移除，知识只由管理员提供文本 / 截图（浏览器本地 OCR）/ CSV。
           面向用户的主入口是 <b>决策工作台</b>（左侧 3 步：洞察对齐（含输入解析）→ 定向学习 → 模拟面试；AI 辅导为右下常驻侧栏、随时召唤，隐私合规并入个人中心「用户须知」；定向学习的缺口由洞察对齐结果自动带入，视觉沿用 HOMETRY）；
-          知识入库稠密路全部走 Qdrant、本地仅降级。既有 8 视图单页保留为 legacy，仅供历史回放与 E2E 契约，二者共用同一个 FastAPI BFF。
+          知识入库稠密路全部走 Qdrant、本地仅降级。旧版 8 视图单页已删除，决策工作台是唯一前端页面，与控制台共用同一个 FastAPI BFF。
         </p>
         <p className="meta">
           凭据来源：{config?.file_source || '未知'} · 密钥仅在服务端进程内存 · 页面不接触任何密钥
@@ -193,7 +193,6 @@ export default async function Page() {
       <div className="actions">
         <Link className="btn btn-primary" href="/workbench.html">打开决策工作台 →</Link>
         <Link className="btn btn-ghost" href="/login.html">登录 / 注册（账号密码 · 微信 · GitHub · 管理员）</Link>
-        <Link className="btn btn-ghost" href="/legacy/index.html">旧版视图</Link>
         <Link className="btn btn-ghost" href="/health">查看健康详情</Link>
         <a className="btn btn-ghost" href="/metrics">Prometheus 指标</a>
       </div>
@@ -232,7 +231,7 @@ export default async function Page() {
         <tbody>
           <tr><th>控制台</th><td><code>http://127.0.0.1:3000</code>（Next.js）</td></tr>
           <tr><th>BFF</th><td><code>http://127.0.0.1:8848</code>（FastAPI，仅本机）</td></tr>
-          <tr><th>代理规则</th><td><code>/api/*</code>、<code>/legacy/api/*</code>、<code>/metrics</code> → BFF</td></tr>
+          <tr><th>代理规则</th><td><code>/api/*</code>、<code>/metrics</code> → BFF</td></tr>
           <tr><th>环境变量</th><td><code>ZHIYIN_BFF_URL</code>（容器内设为 <code>http://api:8848</code>）</td></tr>
         </tbody>
       </table>

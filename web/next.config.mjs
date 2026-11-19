@@ -11,9 +11,6 @@ const nextConfig = {
     return [
       // 控制台自身调用 BFF
       { source: '/api/:path*', destination: `${BFF}/api/:path*` },
-      // 既有单页放在 /legacy/index.html 下，其 fetch('api/xxx') 会解析成 /legacy/api/xxx，
-      // 这条 rewrite 让它零改动继续工作（无需修改 200KB 的 index.html）。
-      { source: '/legacy/api/:path*', destination: `${BFF}/api/:path*` },
       // 指标与 SLO
       { source: '/metrics', destination: `${BFF}/metrics` },
     ];
