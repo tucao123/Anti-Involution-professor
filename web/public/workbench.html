@@ -695,6 +695,17 @@ function typedAnswer(el,minLen){
   if(minLen&&raw.length<minLen)return {ok:false,msg:'请至少写 '+minLen+' 个字的具体回答'};
   return {ok:true,val:raw};
 }
+/* 生成洞察前确认"用户真的填了"：所有字段为空、或只是照抄灰色示例时拦下。
+   insJds 允许留空(用国内样本兜底)，但它也是可填字段——只要任一字段有真实内容即可放行。 */
+const INSIGHT_INPUT_IDS=['insTargetRole','insSalary','insMajor','insEdu','insSkills','insCerts','insHonors','insResume','insJds'];
+function hasRealInsightInput(){
+  return INSIGHT_INPUT_IDS.some(id=>{
+    const el=$('#'+id);
+    if(!el)return false;
+    const v=(el.value||'').trim();
+    return !!v&&!isSampleCopy(el);
+  });
+}
 const tags=o=>Object.entries(o||{}).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>
   '<span class="tag"><b>'+esc(k)+'</b> '+esc(typeof v==='object'?(Array.isArray(v)?v.join(' / '):Object.keys(v).join(' / ')):v)+'</span>').join('');
 /* 把样本热度转成「这个岗位该补什么」，不再解释工具和人的分工 */
@@ -734,6 +745,7 @@ async function checkApi(){
 /* ---- 01 洞察对齐 ---- */
 $('#insRun').onclick=async()=>{
   if(!$('#insAck').checked){toast('请先勾选用途确认');return}
+  if(!hasRealInsightInput()){toast('请先在上方填写求职意向 / 技能 / 经历等任意一项（示例灰字不算），或点「解析」带入字段');return}
   const btn=$('#insRun');btn.disabled=true;
   try{
     const major=$('#insMajor').value.trim()||'计算机科学与技术';
