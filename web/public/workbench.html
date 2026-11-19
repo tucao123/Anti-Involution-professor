@@ -706,6 +706,17 @@ function hasRealInsightInput(){
     return !!v&&!isSampleCopy(el);
   });
 }
+/* 开始面试前确认"用户真的填了"：目标岗位 / 真实项目全空时拦下。
+   示例灰字不算真实输入；任一字段有真实内容即可放行（解析带入的草稿也算）。 */
+const INTERVIEW_INPUT_IDS=['ivRole','ivProj'];
+function hasRealInterviewInput(){
+  return INTERVIEW_INPUT_IDS.some(id=>{
+    const el=$('#'+id);
+    if(!el)return false;
+    const v=(el.value||'').trim();
+    return !!v&&!isSampleCopy(el);
+  });
+}
 const tags=o=>Object.entries(o||{}).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>
   '<span class="tag"><b>'+esc(k)+'</b> '+esc(typeof v==='object'?(Array.isArray(v)?v.join(' / '):Object.keys(v).join(' / ')):v)+'</span>').join('');
 /* 把样本热度转成「这个岗位该补什么」，不再解释工具和人的分工 */
@@ -1111,6 +1122,7 @@ $$('.iv-mode').forEach(b=>b.onclick=()=>{
 $('#ivStart').onclick=async()=>{
   if(!$('#ivAck').checked){toast('请先勾选用途确认');return}
   if(isSampleCopy($('#ivProj'))){toast('"你的真实项目"里是示例文字，请换成你自己的项目再开始');return}
+  if(!hasRealInterviewInput()){toast('请先填写目标岗位或你的真实项目（示例灰字不算），或点「解析」带入字段再开始');return}
   const role=$('#ivRole').value.trim()||'目标岗位', proj=$('#ivProj').value.trim();
   // 上一轮洞察对齐提炼出的补学缺口：带进面试，让项目追问/压力面围绕短板发问
   IV.gaps=((INSIGHT&&INSIGHT.gaps)||[]).slice(0,8).map(x=>String(x||'').trim()).filter(Boolean).map(x=>x.slice(0,80));
